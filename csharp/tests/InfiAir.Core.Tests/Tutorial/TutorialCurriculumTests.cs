@@ -6,9 +6,9 @@ using Xunit;
 
 namespace InfiAir.Core.Tests.Tutorial;
 
-/// <summary>教程课程表与进度判定的契约测试。钉住三件事：
+/// <summary>教程阶段表与进度判定的契约测试。钉住三件事：
 /// ① 六阶段的顺序 / 目标数 / 补参形态（节奏与判定的单源，节点与文案共用）；
-/// ② 目标行文案的占位符数与课程表补参个数逐位对齐——补参错位时玩家看到的是错位的数字或键名，
+/// ② 目标行文案的占位符数与阶段表补参个数逐位对齐——补参错位时玩家看到的是错位的数字或键名，
 ///    既不崩也不报错，引擎侧任何探针都判不到；
 /// ③ 节点不留副本：目标数与键位提示必须经 core 与生产绑定取值，不得再写一份。</summary>
 public sealed class TutorialCurriculumTests
@@ -55,27 +55,47 @@ public sealed class TutorialCurriculumTests
         }
     }
 
-    /// <summary>占位符数 == 补参个数：两侧任一改动而另一侧忘改时（改文案忘改表、或加补参忘加
-    /// 占位符），玩家看到的是 %s/%d 原样残留或错位取值——这条是唯一能在秒级判出它的地方。</summary>
-    [Fact]
-    public void ObjectiveAndChargeCopy_PlaceholderCountsMatchArgPlans()
+    /// <summary>占位符的**类型与顺序**必须与阶段表逐位对齐：只数个数时，把两个同型补参对调
+    /// （加速读数 ↔ 加速目标、击杀读数 ↔ 目标数）测试照样绿，而玩家看到的是反过来的一组数字。
+    /// 期望签名按「阶段 → 目标行 / 蓄力行」写在表里，中文与英文各自比对（两侧签名不同即红）。</summary>
+    [Theory]
+    [InlineData(0, "%s|%d|%d", "")]
+    [InlineData(1, "%s|%d|%d|%s|%d|%d|%d", "")]
+    [InlineData(2, "%d|%d|%d", "")]
+    [InlineData(3, "%s", "%d")]
+    [InlineData(4, "%s|%.1f", "%d")]
+    [InlineData(5, "%d", "")]
+    public void ObjectiveCopy_PlaceholderSignatureMatchesPlan(int stageIndex, string objectiveSignature, string chargeSignature)
     {
         var copy = TranslationTable();
-        foreach (var stage in TutorialCurriculum.Stages)
+        var stage = TutorialCurriculum.At(stageIndex);
+        Assert.Equal(objectiveSignature, Signature(copy[stage.ObjectiveKey].Zh));
+        Assert.Equal(objectiveSignature, Signature(copy[stage.ObjectiveKey].En));
+        if (stage.ChargeKey.Length > 0)
         {
-            AssertPlaceholders(copy, stage.ObjectiveKey, stage.ObjectiveArgs.Length);
-            if (stage.ChargeKey.Length > 0)
-            {
-                AssertPlaceholders(copy, stage.ChargeKey, stage.ChargeArgs!.Length);
-            }
+            Assert.Equal(chargeSignature, Signature(copy[stage.ChargeKey].Zh));
+            Assert.Equal(chargeSignature, Signature(copy[stage.ChargeKey].En));
         }
 
-        AssertPlaceholders(copy, TutorialCurriculum.SkipHintKey, TutorialCurriculum.SkipHintArgs.Length);
+        Assert.Equal(stage.ObjectiveArgs.Length, PlaceholderCount(Signature(copy[stage.ObjectiveKey].Zh)));
+        if (stage.ChargeKey.Length > 0)
+        {
+            Assert.Equal(stage.ChargeArgs!.Length, PlaceholderCount(Signature(copy[stage.ChargeKey].Zh)));
+        }
+    }
+
+    [Fact]
+    public void SkipHintAndFollowUpCopy_HaveNoUnexpectedPlaceholders()
+    {
+        var copy = TranslationTable();
+        Assert.Equal(1, PlaceholderCount(Signature(copy[TutorialCurriculum.SkipHintKey].Zh)));
+        Assert.Equal(TutorialCurriculum.SkipHintArgs.Length, PlaceholderCount(Signature(copy[TutorialCurriculum.SkipHintKey].En)));
         foreach (var stage in TutorialCurriculum.Stages)
         {
             if (stage.FollowUpKey.Length > 0)
             {
-                AssertPlaceholders(copy, stage.FollowUpKey, expected: 0);
+                Assert.Equal(0, PlaceholderCount(Signature(copy[stage.FollowUpKey].Zh)));
+                Assert.Equal(0, PlaceholderCount(Signature(copy[stage.FollowUpKey].En)));
             }
         }
     }
@@ -172,13 +192,13 @@ public sealed class TutorialCurriculumTests
     }
 
     [Fact]
-    public void Restart_ClearsCountersButKeepsStage()
+    public void ReenteringSameStage_ClearsCounters()
     {
         var progress = new TutorialProgress();
         progress.EnterStage(TutorialCurriculum.At(2));
         progress.AddKill();
         progress.AddKill();
-        progress.Restart();
+        progress.EnterStage(TutorialCurriculum.At(2)); // 死亡重开：同阶段重进
         Assert.Equal(5, progress.Stage.TargetCount);
         Assert.Equal(0, progress.Kills);
         Assert.Equal(5, progress.Remaining);
@@ -202,7 +222,7 @@ public sealed class TutorialCurriculumTests
     // ---------------- 结构性判定：节点不留副本 ----------------
 
     /// <summary>节点必须经 core 取目标数与补参来源：把目标数再声明成局部常量、或把键名写死回
-    /// 文案，都会让课程表与运行期脱钩，而编译与冒烟都不报。</summary>
+    /// 文案，都会让阶段表与运行期脱钩，而编译与冒烟都不报。</summary>
     [Fact]
     public void TutorialNode_UsesCurriculumWithoutLocalCopies()
     {
@@ -221,17 +241,11 @@ public sealed class TutorialCurriculumTests
 
     private sealed record CopyRow(string Zh, string En);
 
-    private static void AssertPlaceholders(IReadOnlyDictionary<string, CopyRow> copy, string key, int expected)
+    /// <summary>格式化签名：按出现顺序列出每个占位符的转换说明（`%s` / `%d` / `%.1f`），
+    /// `|` 分隔；`%%` 是转义的字面百分号，不计入。</summary>
+    private static string Signature(string text)
     {
-        Assert.True(copy.ContainsKey(key), $"文案表缺键：{key}");
-        Assert.Equal(expected, CountPlaceholders(copy[key].Zh));
-        Assert.Equal(expected, CountPlaceholders(copy[key].En));
-    }
-
-    /// <summary>数占位符个数：`%%` 是转义的字面百分号，不计；其余 `%[.0-9]*[a-z]` 各计一个。</summary>
-    private static int CountPlaceholders(string text)
-    {
-        var count = 0;
+        var parts = new List<string>();
         for (var i = 0; i < text.Length; i++)
         {
             if (text[i] != '%')
@@ -245,11 +259,21 @@ public sealed class TutorialCurriculumTests
                 continue;
             }
 
-            count += 1;
+            var end = i + 1;
+            while (end < text.Length && (char.IsAsciiDigit(text[end]) || text[end] == '.'))
+            {
+                end++;
+            }
+
+            end = Math.Min(end + 1, text.Length);
+            parts.Add(text[i..end]);
+            i = end - 1;
         }
 
-        return count;
+        return string.Join("|", parts);
     }
+
+    private static int PlaceholderCount(string signature) => signature.Length == 0 ? 0 : signature.Split('|').Length;
 
     /// <summary>读 `data/translations.csv`（RFC4180 子集：双引号包裹、字段内换行、`""` 转义）。
     /// 取不到即抛——取不到判据必须显式失败，不得静默跳过。</summary>

@@ -41,9 +41,11 @@ public partial class ProbeHost
 /// 为什么驱动节点挂在**根**上：教程死亡重开走 `ReloadCurrentScene`（玩家重生不另造一套复活
 /// 序列），当前场景会被换掉——挂在当前场景里的探针会跟着被释放；挂在根上则跨重载存活。
 ///
-/// 两遍流程：第一遍从阶段 1 走满六阶段到完成（开跑前把 dock 改键到 J，断母舰阶段的目标行
-/// 报出改后的键）；第二遍用跳过与死亡重开把这两条行为各走一次（连跳两个阶段到实战、
-/// 打到 2/5 后阵亡，断重开回到同一阶段且进度归零）。
+/// 三遍流程：第一遍从阶段 1 走满六阶段到完成（开跑前把 dock 改键到 J，断母舰阶段的目标行
+/// 报出改后的键）；第二遍连跳两个阶段到实战、打到 2/5 后阵亡，断重开回到同一阶段且进度归零；
+/// 第三遍连跳到停靠阶段，在**对接进行中**（玩家输入已被锁）跳过，断阶段推进、输入锁已解、
+/// 玩家仍能移动——母舰被中途回收时它的解锁分支（RELEASE）永不执行，只断阶段索引判不出；
+/// 收尾在返航阶段同按返航键与跳过键，断推进窗口内不会把基地面板弹出来。
 /// </summary>
 public partial class TutorialProbeDriver : Node
 {
@@ -88,31 +90,41 @@ public partial class TutorialProbeDriver : Node
         (35 + DashGapFrames, "dash", false),
     };
 
-    /// <summary>改键判据用的键：dock 由 H 改到 J（两者都不得与其它动作冲突）。</summary>
+    /// <summary>改键判据用的键：dock 由 H 改到 J（两者都不得与其它动作冲突）。
+    /// 判据只断「目标行报出了改后的键」——不断「不含出厂键 H」：英文文案 `Hold …` 自带大写 H，
+    /// 那条断言在英文语言下会把正常文案判红（判据不得依赖某种语言的自然语言词形）。</summary>
     private const string ReboundDockKey = "J";
-
-    private const string FactoryDockKey = "H";
 
     private enum Step
     {
-        WaitScene,    // 等教程场景就绪
-        Rebind,       // 改键 dock（键位感知的判据来源）
-        Stage0,       // 训练靶：生产伤害清场
-        Stage1,       // 机动：加速 ×2 + 相位突进 ×2
-        Stage2,       // 实战：生产伤害清场
-        Stage3,       // 母舰停靠：长按蓄力 → 对接补给 → 提前离舰
-        Stage4,       // 返航：长按蓄力 → 基地
-        Stage5,       // 首领：打到狂暴
-        VerifyDone,   // 断完成度与检查点清零
-        SkipReload,   // 重载取一趟干净的教程（完成态的实例不可再用）
-        SkipFirst,    // 跳过阶段 1
-        SkipSecond,   // 跳过阶段 2
-        DeathRun,     // 阶段 3 打到部分进度后阵亡
-        VerifyRetry,  // 断重开回同一阶段且进度归零
+        WaitScene,       // 等教程场景就绪
+        Rebind,          // 改键 dock（键位感知的判据来源）
+        KillStage,       // 清场型阶段（训练靶 / 实战）：生产伤害击落
+        Maneuver,        // 机动：加速 ×2 + 相位突进 ×2
+        Dock,            // 母舰停靠：长按蓄力 → 对接补给 → 提前离舰
+        Home,            // 返航：长按蓄力 → 基地
+        Boss,            // 首领：打到狂暴
+        VerifyDone,      // 断完成度与检查点清零
+        Reload,          // 重载取一趟干净的教程（完成态的实例不可再用）
+        Skip,            // 长按跳过本阶段
+        DeathRun,        // 实战打到部分进度后阵亡
+        VerifyRetry,     // 断重开回同一阶段且进度归零
+        DockSummon,      // 长按召唤母舰直到进入对接（玩家输入被锁）
+        DockSkipHold,    // 对接中长按跳过本阶段（与 Skip 同一段驱动，目标阶段不同）
+        DockSkipVerify,  // 断阶段推进、输入锁已解、玩家仍能移动
+        HomeSkipHold,    // 返航阶段同按返航 + 跳过：推进窗口内不得把基地弹出来
         Done,
     }
 
     private Step _step = Step.WaitScene;
+    /// <summary>通用步（清场 / 跳过）的期望阶段与走完后的下一站：两遍流程复用同一段驱动。</summary>
+    private int _expectStage;
+    private Step _nextStep;
+
+    /// <summary>连跳编排：当前这一跳的目标阶段（1 → 2）、两跳走完后的下一站。</summary>
+    private int _skipTarget;
+    private Step _afterChain;
+
     private Tutorial? _tutorial;
     private Player? _player;
     private int _stepFrame;
@@ -123,6 +135,7 @@ public partial class TutorialProbeDriver : Node
     private Tutorial? _reloadFrom;
     private Tutorial? _deathFrom;
     private bool _failed;
+    private float _moveProbeStartY;
 
     /// <summary>完成标记只打一次（门禁按它判红绿；重复打标记会让「跑了两遍」看起来正常）。</summary>
     private bool _markerPrinted;
@@ -136,7 +149,7 @@ public partial class TutorialProbeDriver : Node
 
         _totalFrames++;
         _stepFrame++;
-        if (_step == Step.SkipReload)
+        if (_step == Step.Reload)
         {
             DriveReload();
             return;
@@ -145,11 +158,12 @@ public partial class TutorialProbeDriver : Node
         var tutorial = CurrentTutorial();
         if (tutorial == null)
         {
+            var waitingForReload = _step is Step.VerifyRetry or Step.Skip or Step.DockSummon;
             if (_step == Step.WaitScene && _stepFrame > SceneLoadBudgetFrames)
             {
                 Fail($"教程场景 {SceneLoadBudgetFrames} 帧内未就绪（切场景失败？）");
             }
-            else if ((_step == Step.VerifyRetry || _step == Step.SkipFirst) && _stepFrame > ReloadBudgetFrames)
+            else if (waitingForReload && _reloadRequested && _stepFrame > ReloadBudgetFrames)
             {
                 Fail("教程场景重载后未在预算内就绪（ReloadCurrentScene 未生效？）");
             }
@@ -175,38 +189,46 @@ public partial class TutorialProbeDriver : Node
             case Step.Rebind:
                 RebindDockKey();
                 break;
-            case Step.Stage0:
-                DriveKillStage(0, Step.Stage1);
+            case Step.KillStage:
+                DriveKillStage();
                 break;
-            case Step.Stage1:
+            case Step.Maneuver:
                 DriveManeuverStage();
                 break;
-            case Step.Stage2:
-                DriveKillStage(2, Step.Stage3);
-                break;
-            case Step.Stage3:
+            case Step.Dock:
                 DriveDockStage();
                 break;
-            case Step.Stage4:
+            case Step.Home:
                 DriveHomeStage();
                 break;
-            case Step.Stage5:
+            case Step.Boss:
                 DriveBossStage();
                 break;
             case Step.VerifyDone:
                 VerifyCompletion();
                 break;
-            case Step.SkipFirst:
-                DriveSkip(1, Step.SkipSecond);
-                break;
-            case Step.SkipSecond:
-                DriveSkip(2, Step.DeathRun);
+            case Step.Reload:
+                break; // 已在上面提前返回
+            case Step.Skip:
+                DriveSkip();
                 break;
             case Step.DeathRun:
                 DriveDeathRun();
                 break;
             case Step.VerifyRetry:
                 VerifyRetry();
+                break;
+            case Step.DockSummon:
+                DriveDockSummon();
+                break;
+            case Step.DockSkipHold:
+                DriveSkip();
+                break;
+            case Step.DockSkipVerify:
+                DriveDockSkipVerify();
+                break;
+            case Step.HomeSkipHold:
+                DriveHomeSkipHold();
                 break;
         }
     }
@@ -228,18 +250,19 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
-        StepTo(Step.Stage0);
+        Begin(Step.KillStage, expectStage: 0, next: Step.Maneuver);
     }
 
-    /// <summary>清场型阶段（训练靶 / 实战）：逐帧经生产伤害入口击落场上目标，阶段推进即算过。</summary>
-    private void DriveKillStage(int expectedStage, Step next)
+    /// <summary>清场型阶段（训练靶 / 实战）：逐帧经生产伤害入口击落场上目标，阶段推进即算过。
+    /// 期望阶段与下一站由 <see cref="Begin"/> 注入，两遍流程共用同一段驱动。</summary>
+    private void DriveKillStage()
     {
-        if (StageAdvanced(expectedStage, next))
+        if (StageAdvanced(_expectStage, _nextStep))
         {
             return;
         }
 
-        CheckStageReadout(expectedStage);
+        CheckStageReadout(_expectStage);
         if (_stepFrame % KillIntervalFrames == 0)
         {
             DamageEnemiesOnField();
@@ -248,11 +271,20 @@ public partial class TutorialProbeDriver : Node
         OverBudget("清场");
     }
 
-    /// <summary>机动阶段：按编排下发加速与突进（各两次），阶段推进即算过。</summary>
+    /// <summary>机动阶段：按编排下发加速与突进（各两次），阶段推进即算过——下一站是实战阶段
+    /// 的清场步（同一段驱动，期望阶段换成 2）。</summary>
     private void DriveManeuverStage()
     {
-        if (StageAdvanced(1, Step.Stage2))
+        var index = _tutorial!.StageIndex();
+        if (index != 1)
         {
+            if (index < 1)
+            {
+                Fail($"阶段落点不符：期望阶段 2（机动），实际 {index + 1}");
+                return;
+            }
+
+            Begin(Step.KillStage, expectStage: 2, next: Step.Dock);
             return;
         }
 
@@ -272,7 +304,7 @@ public partial class TutorialProbeDriver : Node
     /// （两者读同一动作）；离场即过关。</summary>
     private void DriveDockStage()
     {
-        if (StageAdvanced(3, Step.Stage4))
+        if (StageAdvanced(3, Step.Home))
         {
             Input.ActionRelease(new StringName("dock"));
             return;
@@ -286,7 +318,7 @@ public partial class TutorialProbeDriver : Node
     /// <summary>返航阶段：长按蓄力（1.5s＝90 帧，取余量后松手）→ 打开基地 → 自动过关。</summary>
     private void DriveHomeStage()
     {
-        if (StageAdvanced(4, Step.Stage5))
+        if (StageAdvanced(4, Step.Boss))
         {
             return;
         }
@@ -348,30 +380,159 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
-        StepTo(Step.SkipReload);
+        _afterChain = Step.DeathRun;
+        StepTo(Step.Reload);
     }
 
     /// <summary>跳过判据：长按放弃出击键越过阈值即推进到下一阶段，检查点同步跟进
-    /// （跳过链断线时玩家被卡在某一步，而引擎侧零错误）。</summary>
-    private void DriveSkip(int targetStage, Step next)
+    /// （跳过链断线时玩家被卡在某一步，而引擎侧零错误）。目标阶段与下一站由 <see cref="Begin"/>
+    /// 注入——第一遍用它在两处跳过之间衔接，第二遍用它从停靠阶段跳出去。</summary>
+    private void DriveSkip()
     {
         var tutorial = _tutorial!;
-        if (tutorial.StageIndex() == targetStage)
+        if (tutorial.StageIndex() != _skipTarget)
         {
-            if (GameState.Instance.TutorialStage != targetStage)
-            {
-                Fail($"跳过后的检查点与阶段不符（tutorial_stage={GameState.Instance.TutorialStage}，"
-                    + $"阶段 {tutorial.StageIndex() + 1}）");
-                return;
-            }
-
-            Input.ActionRelease(new StringName("give_up"));
-            StepTo(next);
+            Input.ActionPress(new StringName("give_up"));
+            OverBudget("跳过");
             return;
         }
 
+        if (GameState.Instance.TutorialStage != _skipTarget)
+        {
+            Fail($"跳过后的检查点与阶段不符（tutorial_stage={GameState.Instance.TutorialStage}，"
+                + $"阶段 {tutorial.StageIndex() + 1}）");
+            return;
+        }
+
+        Input.ActionRelease(new StringName("give_up"));
+        if (_skipTarget == 1)
+        {
+            _skipTarget = 2; // 连跳的第二跳（阶段 2 → 3）
+            StepTo(Step.Skip);
+            return;
+        }
+
+        EnterAfterChain();
+    }
+
+    /// <summary>连跳（阶段 1 → 2）走完后的落地：第二遍去「阵亡重开」（该步本就在实战阶段）；
+    /// 第三遍的落点是停靠阶段，先经实战阶段清场过去——两遍的落点不同，故在连跳里统一分派。</summary>
+    private void EnterAfterChain()
+    {
+        if (_afterChain == Step.DockSummon)
+        {
+            Begin(Step.KillStage, expectStage: 2, next: Step.DockSummon);
+            return;
+        }
+
+        StepTo(_afterChain);
+    }
+
+    /// <summary>从「重载后的干净教程」起步的两连跳（阶段 1、阶段 2）：第二遍据此到实战阶段
+    /// 做阵亡重开，第三遍据此停靠阶段做「对接中跳过」。</summary>
+    private void BeginSkipChain()
+    {
+        _skipTarget = 1;
+        StepTo(Step.Skip);
+    }
+
+    /// <summary>停靠中的跳过前置：长按召唤键直到对接开始（玩家输入被锁、机体进舱）——
+    /// 这一锁是教程里唯一的上锁点，母舰被中途回收时它的解锁分支永不执行。</summary>
+    private void DriveDockSummon()
+    {
+        var tutorial = _tutorial!;
+        if (tutorial.StageIndex() != 3)
+        {
+            Fail($"对接中跳过的前置阶段不符：期望阶段 4（母舰停靠），实际 {tutorial.StageIndex() + 1}");
+            return;
+        }
+
+        CheckStageReadout(3);
+        Input.ActionPress(new StringName("dock"));
+        if (_player is { } player && player.IsInputLocked())
+        {
+            Input.ActionRelease(new StringName("dock"));
+            _skipTarget = 4;
+            _afterChain = Step.DockSkipVerify;
+            StepTo(Step.DockSkipHold);
+            return;
+        }
+
+        OverBudget("对接召唤");
+    }
+
+    /// <summary>对接中跳过的判据：阶段推进到返航、输入锁已解、玩家仍能移动——母舰被中途回收时
+    /// 它的解锁分支（RELEASE）永不执行，写坏的表现是此后阶段玩家完全不能动、不能开火，
+    /// 而引擎侧零报错（只断阶段索引会让这条溜过去）。</summary>
+    private void DriveDockSkipVerify()
+    {
+        var player = _player;
+        if (player == null)
+        {
+            Fail("对接中跳过后取不到玩家节点");
+            return;
+        }
+
+        if (_tutorial!.StageIndex() != 4)
+        {
+            Fail($"对接中跳过未推进到返航阶段（实际 {_tutorial.StageIndex() + 1}）");
+            return;
+        }
+
+        if (player.IsInputLocked())
+        {
+            Fail("对接中跳过之后玩家输入仍是锁死状态（母舰被回收时未解锁，后续阶段不能动也不能开火）");
+            return;
+        }
+
+        if (_stepFrame < 10)
+        {
+            return; // 让出舱/落位的那几帧先过去，再量移动
+        }
+
+        if (_stepFrame == 10)
+        {
+            _moveProbeStartY = player.GlobalPosition.Y;
+            Input.ActionPress(new StringName("move_up"));
+        }
+        else if (_stepFrame > 40)
+        {
+            Input.ActionRelease(new StringName("move_up"));
+            var moved = System.Math.Abs(_moveProbeStartY - player.GlobalPosition.Y);
+            if (moved < 5.0f)
+            {
+                Fail($"对接中跳过后玩家推杆不动（位移 {moved:0.#}px）——输入通道被锁死");
+                return;
+            }
+
+            StepTo(Step.HomeSkipHold);
+        }
+    }
+
+    /// <summary>返航阶段的跳过：同按返航键与跳过键。跳过落地后的推进窗口（1s）里本阶段仍是返航，
+    /// 若蓄力分支不受推进门控，1.5s 的蓄力会在那一刻把基地面板弹在下一阶段头上——树被暂停 1.2s、
+    /// Boss 在基地背后入场，引擎侧零报错。判据是「窗口内树从未被暂停」。</summary>
+    private void DriveHomeSkipHold()
+    {
+        if (_tutorial!.StageIndex() == 5)
+        {
+            Input.ActionRelease(new StringName("homecoming"));
+            Input.ActionRelease(new StringName("give_up"));
+            GameState.Instance.ResetKeyBindings(); // 恢复出厂键位（本趟改键只为键位感知判据）
+            _step = Step.Done;
+            PrintMarker();
+            return;
+        }
+
+        if (GetTree().Paused)
+        {
+            Fail("跳过返航阶段后基地面板仍被弹出来（推进窗口内未门控蓄力，下一阶段被压在基地之下）");
+            return;
+        }
+
+        Input.ActionPress(new StringName("homecoming"));
         Input.ActionPress(new StringName("give_up"));
-        OverBudget("跳过");
+        OverBudget("返航阶段跳过");
     }
 
     /// <summary>死亡重开的前置：在实战阶段打到部分进度（2/5）再阵亡——重开判据据此断
@@ -389,7 +550,10 @@ public partial class TutorialProbeDriver : Node
         {
             if (_stepFrame % KillIntervalFrames == 0)
             {
-                DamageEnemiesOnField();
+                // 一次只打一架：一发全清会让「重开后进度归零」的判据失去区分度
+                // （全清时阵亡前读数已是 5/5，重开后 0/5 与 5/5 的差别仍可判，但「部分进度」
+                // 这一更贴近真实玩法的场景就没人覆盖了）
+                DamageOneEnemyOnField();
             }
 
             var shown = KillProgressShown();
@@ -441,10 +605,12 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
-        ReleaseKeys();
-        GameState.Instance.ResetKeyBindings(); // 恢复出厂键位（本趟改键只为键位感知判据）
-        _step = Step.Done;
-        PrintMarker();
+        // 第三遍要的是「从头连跳」：检查点此刻停在阵亡时的阶段（重开落点），先复位再重载。
+        // 这是探针布景（同各趟预置 settings.json/run.json 的做法），不是生产行为。
+        GameState.Instance.TutorialStage = 0;
+        GameState.Instance.SaveSettings();
+        _afterChain = Step.DockSummon;
+        StepTo(Step.Reload);
     }
 
     // ---------------- 断言与工具 ----------------
@@ -494,16 +660,34 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
-        if (KillReadout(text, out var killed, out var goal) && (killed > goal || goal <= 0))
+        if (KillReadout(text, out var killed, out var goal))
         {
-            Fail($"阶段 {stage + 1} 的目标行读数越界（{killed}/{goal}）——补参错位或目标数写死");
-            return;
+            var expected = TutorialCurriculum.At(stage).TargetCount;
+            if (goal <= 0 || killed > goal)
+            {
+                Fail($"阶段 {stage + 1} 的目标行读数越界（{killed}/{goal}）——补参错位或目标数写死");
+                return;
+            }
+
+            if (goal != expected)
+            {
+                Fail($"阶段 {stage + 1} 的目标行分母与阶段表不符（文案 {goal}，阶段表 {expected}）");
+                return;
+            }
+
+            if (killed != 0)
+            {
+                // 入场读数必须为零：同型补参对调（读数 ↔ 目标数）时形状判据看不出来，这一条能判
+                Fail($"阶段 {stage + 1} 进入时目标读数不是 0（{killed}/{goal}）——补参与占位符错位");
+                return;
+            }
         }
 
-        if (stage == 3 && (!text.Contains(ReboundDockKey, System.StringComparison.Ordinal)
-            || text.Contains(FactoryDockKey, System.StringComparison.Ordinal)))
+        // 只断「报出了改后的键」：写死键名的实现那行里没有 J，照样红；再断「不含出厂键 H」会在
+        // 英文文案（Hold …）下把正常文案判红——判据不得依赖某种语言的自然语言词形
+        if (stage == 3 && !text.Contains(ReboundDockKey, System.StringComparison.Ordinal))
         {
-            Fail($"母舰停靠阶段的目标行未跟随改键（应含 {ReboundDockKey}、不含 {FactoryDockKey}）：{text}");
+            Fail($"母舰停靠阶段的目标行未跟随改键（应含 {ReboundDockKey}）：{text}");
             return;
         }
 
@@ -550,6 +734,19 @@ public partial class TutorialProbeDriver : Node
     {
         KillReadout(_tutorial!.ObjectiveText(), out var killed, out _);
         return killed;
+    }
+
+    /// <summary>只击落场上第一架（阵亡前置要的是「部分进度」）。</summary>
+    private void DamageOneEnemyOnField()
+    {
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is Enemy enemy && GodotObject.IsInstanceValid(enemy))
+            {
+                enemy.TakeDamage(9999); // 生产伤害入口（与弹体命中同一条链）
+                return;
+            }
+        }
     }
 
     private void DamageEnemiesOnField()
@@ -634,7 +831,7 @@ public partial class TutorialProbeDriver : Node
         if (now != null && !ReferenceEquals(now, _reloadFrom))
         {
             _reloadFrom = null;
-            StepTo(Step.SkipFirst);
+            BeginSkipChain();
             return;
         }
 
@@ -642,6 +839,15 @@ public partial class TutorialProbeDriver : Node
         {
             Fail($"重载后 {ReloadBudgetFrames} 帧内未取到新的教程实例");
         }
+    }
+
+    /// <summary>进入一个通用步：清场型阶段（期望阶段 + 走完后的下一站）用它注入参数，
+    /// 多遍流程复用同一段驱动。</summary>
+    private void Begin(Step step, int expectStage, Step next)
+    {
+        _expectStage = expectStage;
+        _nextStep = next;
+        StepTo(step);
     }
 
     /// <summary>步进并打一条诊断（教程阶段机是长链，红时必须能看出卡在哪一步；
@@ -681,7 +887,7 @@ public partial class TutorialProbeDriver : Node
         }
 
         _markerPrinted = true;
-        GD.Print($"[tutorial-probe] 全周期完成（两遍流程共 {_totalFrames} 帧）");
+        GD.Print($"[tutorial-probe] 全周期完成（三遍流程共 {_totalFrames} 帧）");
     }
 }
 #endif

@@ -41,9 +41,6 @@ public sealed class TutorialProgress
         Enraged = false;
     }
 
-    /// <summary>重启当前阶段（死亡重开用）：计数归零，阶段定义不变。</summary>
-    public void Restart() => EnterStage(Stage);
-
     public void AddKill() => Kills += 1;
 
     public void AddBoost() => Boosts += 1;

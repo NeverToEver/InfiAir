@@ -216,8 +216,8 @@ TUT_S1_OBJ,"%s 移动，鼠标瞄准，按住鼠标左键开火
 Catch an amber bracket frame with your crosshair to make bullets home in
 Destroy marked targets %d/%d"
 TUT_S2_OBJ,"按住 %s 加速（耗燃料，松开恢复）：%d/%d
-%s 相位突进（需 25%% 燃料）：%d/%d","Hold %s to boost (drains fuel): %d/%d
-%s to phase dash (needs 25%% fuel): %d/%d"
+%s 相位突进（需 %d%% 燃料）：%d/%d","Hold %s to boost (drains fuel): %d/%d
+%s to phase dash (needs %d%% fuel): %d/%d"
 TUT_S3_OBJ,"击落全部 %d 架敌机（%d/%d）
 本阶段受伤不会阵亡","Shoot down all %d enemies (%d/%d)
 You cannot die in this stage"

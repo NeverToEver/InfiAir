@@ -7,7 +7,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 新手教程（对齐原作 6 阶段）：独立场景，脚本驱动检查点，复用现有实体。
-/// 阶段顺序、目标计数、目标行补参与达成判据全部来自 core 课程表（<see cref="TutorialCurriculum"/>
+/// 阶段顺序、目标计数、目标行补参与达成判据全部来自 core 阶段表（<see cref="TutorialCurriculum"/>
 /// 与 <see cref="TutorialProgress"/>）——本节点只做适配：刷怪布局、信号接线、键位与平衡值取值。
 /// 不启动正常 Spawner 波次；进场/出场各 ResetRun 隔离本局状态，出场保证 TimeScale=1。
 /// 实体判定（Enemy/Boss/Mothership/Bullet）均为 C# 类，typed `is` 判型。
@@ -43,7 +43,7 @@ public partial class Tutorial : Node2D
     /// <summary>阶段进度与达成判据（core）。节点每帧只把事件喂进来，不在这里判达标。</summary>
     private readonly TutorialProgress _progress = new();
 
-    /// <summary>当前阶段在课程表里的索引（观测面与推进用；定义取自 <see cref="_progress"/>）。</summary>
+    /// <summary>当前阶段在阶段表里的索引（观测面与推进用；定义取自 <see cref="_progress"/>）。</summary>
     private int _stage;
     private bool _advancing;
     /// <summary>蓄力百分比文本刷新节流（对齐 HUD 仪表约定）。</summary>
@@ -188,9 +188,15 @@ public partial class Tutorial : Node2D
     private void RefreshSkipHint()
     {
         _skipLabel.Visible = !_finished && !_failed;
-        _skipLabel.Text = _skipLabel.Visible
-            ? GdFormat.Format((string)Tr(TutorialCurriculum.SkipHintKey), GameState.Instance.ActionKeyText(ActGiveUp))
-            : "";
+        if (!_skipLabel.Visible)
+        {
+            _skipLabel.Text = "";
+            return;
+        }
+
+        // 补参经与目标行同一条解析口（SkipKey → 放弃出击的实际绑定键），不在这里另拼一份
+        var args = Args(TutorialCurriculum.SkipHintArgs);
+        _skipLabel.Text = GdFormat.Format((string)Tr(TutorialCurriculum.SkipHintKey), ToObjects(args));
     }
 
     private void SetObjectiveTr(string key, Godot.Collections.Array args)
@@ -217,7 +223,7 @@ public partial class Tutorial : Node2D
         UITheme.PunchScale(_objectiveLabel, 1.02f, 0.14f);
     }
 
-    /// <summary>按课程表声明的补参顺序取值（顺序错位＝玩家看到错位的数字或键名，不会报错；
+    /// <summary>按阶段表声明的补参顺序取值（顺序错位＝玩家看到错位的数字或键名，不会报错；
     /// 顺序由 core 单测与文案占位符对账钉住）。</summary>
     private Godot.Collections.Array Args(TutorialArg[] plan, float chargeProgress = 0.0f)
     {
@@ -237,6 +243,7 @@ public partial class Tutorial : Node2D
         TutorialArg.DashKey => GameState.Instance.ActionKeyText(ActDash),
         TutorialArg.DockKey => GameState.Instance.ActionKeyText(ActDock),
         TutorialArg.HomecomingKey => GameState.Instance.ActionKeyText(ActHomecoming),
+        TutorialArg.SkipKey => GameState.Instance.ActionKeyText(ActGiveUp),
         TutorialArg.BoostCount => _progress.BoostCount,
         TutorialArg.BoostGoal => _progress.BoostGoal,
         TutorialArg.DashCount => _progress.DashCount,
@@ -245,8 +252,11 @@ public partial class Tutorial : Node2D
         TutorialArg.KillGoal => _progress.Goal,
         TutorialArg.ChargePercent => (int)(chargeProgress * 100.0f),
         TutorialArg.ChargeSeconds => HomeChargeTime,
+        TutorialArg.DashFuelPercent => DashFuelPercent(),
         TutorialArg.EnragePercent => BossEnragePercent(),
-        _ => "",
+        // 未接线的补参一律显式抛错：此前回退空串时，新加一个补参忘在这里接线会静默渲染成
+        // 「少一块」的文案（编译、单测、冒烟全绿）——抛错会被冒烟的错误正则抓红
+        _ => throw new System.ArgumentOutOfRangeException(nameof(kind), kind, "教程补参未接线"),
     };
 
     /// <summary>移动提示的键位段：四向各自的首个绑定键拼段（默认 WASD）。
@@ -262,12 +272,16 @@ public partial class Tutorial : Node2D
             }
         }
 
-        return parts.Count > 0 ? string.Concat(parts) : GameState.Instance.ActionKeyText(MoveActions[0]);
+        return parts.Count > 0 ? string.Join(" / ", parts) : GameState.Instance.ActionKeyText(MoveActions[0]);
     }
 
     /// <summary>首领狂暴阈值百分比：取自 Boss 自身的装载值（同一份配置的同一份读数，
     /// 与 Boss 的狂暴判据同源），不在教程里再读一次配置。</summary>
     private int BossEnragePercent() => (int)Mathf.Round(_boss.EnrageHpRatio * 100.0f);
+
+    /// <summary>相位突进的燃料门槛百分比：取自玩家自身的装载值（与冲刺的实际判定同一份读数）——
+    /// 文案里写死 25% 时，改 `player.dash.fuel_ratio` 会让教程教一个按不出来的门槛。</summary>
+    private int DashFuelPercent() => (int)Mathf.Round(_player.DashFuelRatio * 100.0f);
 
     /// <summary>阶段横幅：标题自左滑入淡入（目标文本由 SetObjectiveTr 换行时自行入场）。</summary>
     private void PlayStageBanner()
@@ -300,6 +314,8 @@ public partial class Tutorial : Node2D
         // 检查点：进入即写（中途退出/死亡重开都从这里落回同一阶段）
         GameState.Instance.TutorialStage = _stage;
         GameState.Instance.SaveSettings();
+        // 跳过蓄力随入场归零：按住不放跨过阶段边界时，新阶段不得立刻被判成一次跳过
+        _skipCharge.Reset();
         RefreshSkipHint();
         PlayStageBanner();
         switch (_progress.Stage.Goal)
@@ -366,7 +382,7 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>渲染当前阶段的目标行（补参按课程表声明的顺序取值）。</summary>
+    /// <summary>渲染当前阶段的目标行（补参按阶段表声明的顺序取值）。</summary>
     private void SetStageObjective() => SetObjectiveTr(_progress.Stage.ObjectiveKey, Args(_progress.Stage.ObjectiveArgs));
 
     /// <summary>渲染蓄力进行中的替换行（百分比按各阶段声明的补参取值）。</summary>
@@ -687,6 +703,13 @@ public partial class Tutorial : Node2D
 
             case TutorialGoalKind.Homecoming:
                 {
+                    // 推进窗口内不再受理蓄力（同 Dock 分支）：跳过本阶段后的 1s 窗口里阶段仍是返航，
+                    // 此时触发会把基地面板弹在下一阶段头上（树暂停 1.2s，Boss 在基地后面入场）
+                    if (_advancing)
+                    {
+                        break;
+                    }
+
                     switch (_homeCharge.Tick(d, Input.IsActionPressed(ActHomecoming)))
                     {
                         case HoldChargePhase.Triggered:
@@ -729,7 +752,10 @@ public partial class Tutorial : Node2D
     }
 
     /// <summary>清场：教程场上实体全部回收（完成收尾与跳过共用——跳过后上一阶段的目标仍在场，
-    /// 既会撞伤玩家，也会混进下一阶段的判据与补刷口径）</summary>
+    /// 既会撞伤玩家，也会混进下一阶段的判据与补刷口径）。
+    /// 顺带解锁玩家输入：对接流程（母舰 DOCKING 起）是教程里唯一给玩家上输入锁的地方，而它的解锁点
+    /// 在 RELEASE——母舰被中途回收时那一步永不执行，玩家会带着锁进入后续阶段（不能动、不能开火，
+    /// 引擎侧零报错）。<see cref="Player.UnlockInput"/> 幂等，未上锁时调用无副作用。</summary>
     private void ClearField()
     {
         foreach (var child in GetChildren())
@@ -739,6 +765,8 @@ public partial class Tutorial : Node2D
                 child.QueueFree();
             }
         }
+
+        _player.UnlockInput();
     }
 
     private void OpenBase()

@@ -69,6 +69,9 @@ public enum TutorialArg
     /// <summary>返航蓄力所需秒数（平衡值 `effects.home_charge_time`）。</summary>
     ChargeSeconds,
 
+    /// <summary>相位突进的燃料门槛百分比（平衡值 `player.dash.fuel_ratio`）。</summary>
+    DashFuelPercent,
+
     /// <summary>首领狂暴的血量阈值百分比（平衡值 `boss.enrage.hp_ratio`）。</summary>
     EnragePercent,
 }
@@ -91,7 +94,7 @@ public sealed record TutorialStage(
     string FollowUpKey = "");
 
 /// <summary>
-/// 教程课程表（纯逻辑，零 Godot 依赖）：六个阶段的顺序、标题与目标文案键、目标计数、
+/// 教程阶段表（纯逻辑，零 Godot 依赖）：六个阶段的顺序、标题与目标文案键、目标计数、
 /// 目标行补参取值来源一处写定，节点、探针与文案三者共用。
 ///
 /// 为什么要有这一份：此前六阶段的顺序、目标数（3 / 5）、补参形态与「哪个阶段要哪个键」全部
@@ -122,7 +125,7 @@ public static class TutorialCurriculum
     /// <summary>跳过提示的补参（长按所用动作的绑定键）。</summary>
     public static readonly TutorialArg[] SkipHintArgs = { TutorialArg.SkipKey };
 
-    /// <summary>六阶段课程表（顺序即推进顺序）。目标行的补参顺序必须与文案表占位符逐位对齐，
+    /// <summary>六阶段阶段表（顺序即推进顺序）。目标行的补参顺序必须与文案表占位符逐位对齐，
     /// 由单测钉住——补参错位时玩家看到的是错位的数字/键名，不会报错。</summary>
     public static readonly TutorialStage[] Stages =
     {
@@ -141,7 +144,7 @@ public static class TutorialCurriculum
             ObjectiveArgs: new[]
             {
                 TutorialArg.BoostKey, TutorialArg.BoostCount, TutorialArg.BoostGoal,
-                TutorialArg.DashKey, TutorialArg.DashCount, TutorialArg.DashGoal,
+                TutorialArg.DashKey, TutorialArg.DashFuelPercent, TutorialArg.DashCount, TutorialArg.DashGoal,
             }
         ),
         new(
