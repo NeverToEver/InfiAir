@@ -117,7 +117,7 @@ public partial class TutorialProbeDriver : Node
     }
 
     private Step _step = Step.WaitScene;
-    /// <summary>通用步（清场 / 跳过）的期望阶段与走完后的下一站：两遍流程复用同一段驱动。</summary>
+    /// <summary>通用步（清场）的期望阶段与走完后的下一站：多遍流程复用同一段驱动。</summary>
     private int _expectStage;
     private Step _nextStep;
 
@@ -254,7 +254,7 @@ public partial class TutorialProbeDriver : Node
     }
 
     /// <summary>清场型阶段（训练靶 / 实战）：逐帧经生产伤害入口击落场上目标，阶段推进即算过。
-    /// 期望阶段与下一站由 <see cref="Begin"/> 注入，两遍流程共用同一段驱动。</summary>
+    /// 期望阶段与下一站由 <see cref="Begin"/> 注入，多遍流程共用同一段驱动。</summary>
     private void DriveKillStage()
     {
         if (StageAdvanced(_expectStage, _nextStep))
@@ -416,7 +416,7 @@ public partial class TutorialProbeDriver : Node
     }
 
     /// <summary>连跳（阶段 1 → 2）走完后的落地：第二遍去「阵亡重开」（该步本就在实战阶段）；
-    /// 第三遍的落点是停靠阶段，先经实战阶段清场过去——两遍的落点不同，故在连跳里统一分派。</summary>
+    /// 第三遍的落点是停靠阶段，先经实战阶段清场过去——两遍落点不同，故在连跳里统一分派。</summary>
     private void EnterAfterChain()
     {
         if (_afterChain == Step.DockSummon)
