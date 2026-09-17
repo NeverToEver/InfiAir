@@ -46,8 +46,10 @@ public partial class Tutorial : Node2D
     private int _boostCount;
     private int _dashCount;
     private bool _prevDashing;
-    private float _homeCharge;
-    private float _dockCharge;
+    // 两段蓄力（阶段 3 召唤母舰 / 阶段 4 返航）用 core HoldCharge（按住累加 → 达阈值触发一次 → 松手复位）；
+    // 阈值在 _Ready 按配置覆写。阶段切换与门控失效都靠 Reset 归零，不再各自维护累加字段。
+    private readonly InfiAir.Core.Input.HoldCharge _homeCharge = new(1.5f);
+    private readonly InfiAir.Core.Input.HoldCharge _dockCharge = new(3.0f);
     private float _maxHp = 100.0f; // 阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
@@ -99,10 +101,12 @@ public partial class Tutorial : Node2D
         // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
         AddChild(new WorldPostFx());
         BuildHud();
-        // 蓄力时长是百分比文本与「蓄满即过关」判定的除数（_homeCharge / HomeChargeTime）：
+        // 蓄力时长是百分比文本与「蓄满即过关」判定的除数（core HoldCharge 的 Progress / Threshold）：
         // 0/负值让蓄力段开按即过（非有限读数还会写进提示文案），钳制口径与主路径 Main 同源。
         HomeChargeTime = CfgFx.Float("effects.home_charge_time", HomeChargeTime, CfgFx.IntervalFloor);
         DockChargeTime = CfgFx.Float("mothership.dock_charge_time", DockChargeTime, CfgFx.IntervalFloor);
+        _homeCharge.Threshold = HomeChargeTime;
+        _dockCharge.Threshold = DockChargeTime;
         EnterStage(0);
         // 固定标记：教程场景就绪观测点（冒烟门禁据此断言教程入场链路跑通）；
         // 场景加载/切场景失败时本行不执行，无头也能判出
@@ -239,7 +243,7 @@ public partial class Tutorial : Node2D
             case 3:
                 {
                     // 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
-                    _dockCharge = 0.0f;
+                    _dockCharge.Reset();
                     SetObjectiveTr("TUT_S4_OBJ");
                     break;
                 }
@@ -247,7 +251,7 @@ public partial class Tutorial : Node2D
             case 4:
                 {
                     // 返航与基地
-                    _homeCharge = 0.0f;
+                    _homeCharge.Reset();
                     SetObjectiveTr("TUT_S5_OBJ");
                     break;
                 }
@@ -534,26 +538,24 @@ public partial class Tutorial : Node2D
                     // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
                     if (_mothership == null && !_advancing)
                     {
-                        if (Input.IsActionPressed(ActDock))
+                        switch (_dockCharge.Tick(d, Input.IsActionPressed(ActDock)))
                         {
-                            _dockCharge += d;
-                            _objectivePoll -= d;
-                            if (_objectivePoll <= 0.0f)
-                            {
-                                _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                                SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
-                            }
-
-                            if (_dockCharge >= DockChargeTime)
-                            {
+                            case InfiAir.Core.Input.HoldChargePhase.Triggered:
                                 SummonMothership();
-                            }
-                        }
-                        else if (_dockCharge > 0.0f)
-                        {
-                            _dockCharge = 0.0f;
-                            _objectivePoll = 0.0f;
-                            SetObjectiveTr("TUT_S4_OBJ");
+                                break;
+                            case InfiAir.Core.Input.HoldChargePhase.Charging:
+                                _objectivePoll -= d;
+                                if (_objectivePoll <= 0.0f)
+                                {
+                                    _objectivePoll = ObjectivePollInterval; // 百分比文本节流
+                                    SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(_dockCharge.Progress * 100.0f) });
+                                }
+
+                                break;
+                            case InfiAir.Core.Input.HoldChargePhase.Released:
+                                _objectivePoll = 0.0f;
+                                SetObjectiveTr("TUT_S4_OBJ");
+                                break;
                         }
                     }
 
@@ -562,26 +564,24 @@ public partial class Tutorial : Node2D
 
             case 4:
                 {
-                    if (Input.IsActionPressed(ActHomecoming))
+                    switch (_homeCharge.Tick(d, Input.IsActionPressed(ActHomecoming)))
                     {
-                        _homeCharge += d;
-                        _objectivePoll -= d;
-                        if (_objectivePoll <= 0.0f)
-                        {
-                            _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                            SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
-                        }
-
-                        if (_homeCharge >= HomeChargeTime)
-                        {
+                        case InfiAir.Core.Input.HoldChargePhase.Triggered:
                             OpenBase();
-                        }
-                    }
-                    else if (_homeCharge > 0.0f)
-                    {
-                        _homeCharge = 0.0f;
-                        _objectivePoll = 0.0f;
-                        SetObjectiveTr("TUT_S5_OBJ");
+                            break;
+                        case InfiAir.Core.Input.HoldChargePhase.Charging:
+                            _objectivePoll -= d;
+                            if (_objectivePoll <= 0.0f)
+                            {
+                                _objectivePoll = ObjectivePollInterval; // 百分比文本节流
+                                SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(_homeCharge.Progress * 100.0f) });
+                            }
+
+                            break;
+                        case InfiAir.Core.Input.HoldChargePhase.Released:
+                            _objectivePoll = 0.0f;
+                            SetObjectiveTr("TUT_S5_OBJ");
+                            break;
                     }
 
                     break;

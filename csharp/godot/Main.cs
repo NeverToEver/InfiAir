@@ -93,14 +93,16 @@ public partial class Main : Node2D
     private string _dockTextLocale = "";
     private string _dockTextCached = "";
     private bool _charging;
-    private float _chargeTime;
+    // 三条蓄力通道的状态机（core HoldCharge：按住累加 → 达阈值触发一次 → 松手复位）。
+    // 阈值由 _Ready 从 balance 覆写；初始值与本类公开默认值同源（下方 DOCK_CHARGE_TIME 等）。
+    private readonly InfiAir.Core.Input.HoldCharge _summonCharge = new(3.0f);
+    private readonly InfiAir.Core.Input.HoldCharge _homeCharge = new(1.5f);
+    private readonly InfiAir.Core.Input.HoldCharge _giveUpCharge = new(3.0f);
     private Mothership _chargeGhost = null!;
     private Node2D _chargeFx = null!; // 蓄力特效容器（与 _charge_ghost 同位，随蓄力显隐）
     private Sprite2D _chargeGlow = null!; // 虚影背光
     private readonly List<Line2D> _chargeRings = new(); // 收缩椭圆环 ×2
     private GpuParticles2D _chargeInflow = null!; // 内吸粒子
-    private float _homeChargeTime;
-    private float _giveUpCharge;
     // Boss 狂暴子弹时间状态（main 统一接管）。time_scale 复位覆盖全部路径（离场/逃跑/返航/
     // 放弃/玩家死亡统一复位）
     private float _bulletTimeLeft; // >0：子弹时间剩余（游戏秒，随 time_scale 缩放）
@@ -152,6 +154,9 @@ public partial class Main : Node2D
         DOCK_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("mothership.dock_charge_time", DOCK_CHARGE_TIME).AsDouble(), 0.01f); // =0 除零
         HOME_CHARGE_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.home_charge_time", HOME_CHARGE_TIME).AsDouble(), 0.01f); // =0 除零（蓄力进度比例）
         GIVE_UP_HOLD_TIME = Mathf.Max((float)GameState.Instance.Cfg("effects.give_up_hold_time", GIVE_UP_HOLD_TIME).AsDouble(), 0.01f); // =0 除零（蓄力进度比例）
+        _summonCharge.Threshold = DOCK_CHARGE_TIME;
+        _homeCharge.Threshold = HOME_CHARGE_TIME;
+        _giveUpCharge.Threshold = GIVE_UP_HOLD_TIME;
         ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // =0 使狂暴慢速完全冻结
         ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // =0 跳过子弹时间演出
         ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // =0 时 _time_scale_ramp 除零
@@ -370,13 +375,13 @@ public partial class Main : Node2D
     /// DockCooldown 与 ReturnCinematic 另有探针宿主读取，不属零引用成员。</summary>
     public float TimeScaleRamp() => _timeScaleRamp;
 
-    public float GiveUpCharge() => _giveUpCharge;
+    public float GiveUpCharge() => _giveUpCharge.Elapsed;
 
     public float BulletTime() => _bulletTimeLeft;
 
     public float DockCooldown() => _dockCooldown;
 
-    public void SetChargeTime(float seconds) => _chargeTime = seconds;
+    public void SetChargeTime(float seconds) => _summonCharge.SetElapsed(seconds);
 
     public ReturnCinematic? ReturnCinematic() => _return;
 
@@ -446,18 +451,23 @@ public partial class Main : Node2D
             && !_gameOver
             && !_homecoming
             && _summonWindow == null
-            && _giveUpCharge <= 0.0f
+            && !_giveUpCharge.Holding
             && _events.ActiveId(_events.GROUP_ENCOUNTER) == NoActiveEncounter;
         // 遭遇事件触发互斥旗帜（GameEventManager 门控读取）：蓄力期 + 小窗演出期事件不掷签，
         // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（蓄力互斥窗口期补全）；
         // 逐帧维护——暂停/死亡冻结 _Process 时残留 true 由 _ExitTree/_Ready 复位兜住
         GameState.Instance.SummonInProgress = _charging || _summonWindow != null;
-        if (canCharge && Input.IsActionPressed(ActDock))
+        var dockPhase = _summonCharge.Tick(d, canCharge && Input.IsActionPressed(ActDock));
+        if (dockPhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
+        {
+            StopSummonCharge();
+            SummonMothershipInternal();
+        }
+        else if (dockPhase == InfiAir.Core.Input.HoldChargePhase.Charging)
         {
             _charging = true;
-            _chargeTime += d;
             _chargeGhost.Visible = true;
-            var cp = Mathf.Clamp(_chargeTime / DOCK_CHARGE_TIME, 0.0f, 1.0f);
+            var cp = _summonCharge.Progress;
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.MothershipSummon, cp);
             var ghostMod = _chargeGhost.Modulate;
             ghostMod.A = 0.15f + 0.25f * cp;
@@ -477,50 +487,45 @@ public partial class Main : Node2D
                 ringMod.A = 0.15f + 0.55f * rp;
                 ring.Modulate = ringMod;
             }
-
-            if (_chargeTime >= DOCK_CHARGE_TIME)
-            {
-                StopSummonCharge();
-                SummonMothershipInternal();
-            }
         }
-        else if (_charging)
+        else if (dockPhase == InfiAir.Core.Input.HoldChargePhase.Released && _charging)
         {
             StopSummonCharge();
         }
 
         // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期本局不暂停）播放中禁止——与 dock 蓄力
         // 的 _summonWindow 守卫对齐，防 B 在母舰机库小窗演出期间触发返航打断召唤流程
-        if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed(ActHomecoming))
+        var homePhase = _homeCharge.Tick(d,
+            !_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed(ActHomecoming));
+        if (homePhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
         {
-            _homeChargeTime += d;
-            _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, _homeChargeTime / HOME_CHARGE_TIME);
-            if (_homeChargeTime >= HOME_CHARGE_TIME)
-            {
-                StartHomecomingInternal(); // 内含蓄力清理（四通道唯一出口）
-            }
+            StartHomecomingInternal(); // 内含蓄力清理（四通道唯一出口）
         }
-        else if (_homeChargeTime > 0.0f)
+        else if (homePhase == InfiAir.Core.Input.HoldChargePhase.Charging)
         {
-            _homeChargeTime = 0.0f;
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, _homeCharge.Progress);
+        }
+        else if (homePhase == InfiAir.Core.Input.HoldChargePhase.Released)
+        {
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         }
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
         // 与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
-        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed(ActGiveUp))
+        var giveUpPhase = _giveUpCharge.Tick(d,
+            _giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging
+                && !_player.IsDead() && Input.IsActionPressed(ActGiveUp));
+        if (giveUpPhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
         {
-            _giveUpCharge += d;
-            _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, _giveUpCharge / GIVE_UP_HOLD_TIME);
-            if (_giveUpCharge >= GIVE_UP_HOLD_TIME)
-            {
-                ClearAllCharge();
-                GiveUp();
-            }
+            ClearAllCharge();
+            GiveUp();
         }
-        else if (_giveUpCharge > 0.0f)
+        else if (giveUpPhase == InfiAir.Core.Input.HoldChargePhase.Charging)
         {
-            _giveUpCharge = 0.0f;
+            _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, _giveUpCharge.Progress);
+        }
+        else if (giveUpPhase == InfiAir.Core.Input.HoldChargePhase.Released)
+        {
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
         }
 
@@ -547,8 +552,8 @@ public partial class Main : Node2D
     private void ClearAllCharge()
     {
         StopSummonCharge();
-        _homeChargeTime = 0.0f;
-        _giveUpCharge = 0.0f;
+        _homeCharge.Reset();
+        _giveUpCharge.Reset();
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, -1.0f);
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, -1.0f);
         // 提前离舰蓄力归母舰所有（推进在它的 _PhysicsProcess 里）：树暂停后母舰节点既不推进
@@ -571,7 +576,7 @@ public partial class Main : Node2D
     private void StopSummonCharge()
     {
         _charging = false;
-        _chargeTime = 0.0f;
+        _summonCharge.Reset();
         _hud.SetCharge(InfiAir.Hud.ChargeChannel.MothershipSummon, -1.0f);
         _chargeGhost.Visible = false;
         _chargeFx.Visible = false;
@@ -871,7 +876,7 @@ public partial class Main : Node2D
         var locale = GameState.Instance.Locale;
         if (_charging)
         {
-            var pct = (int)(_chargeTime / DOCK_CHARGE_TIME * 100.0f);
+            var pct = (int)(_summonCharge.Progress * 100.0f);
             DockStateValue = DockState.Charging;
             if (_dockTextBranch != DockTextBranch.Charging || _dockTextArg != pct || _dockTextLocale != locale)
             {
