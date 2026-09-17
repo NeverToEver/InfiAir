@@ -17,7 +17,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | Platforms | Windows / Linux prebuilt packages; macOS from source (desktop only) |
 | Input | Keyboard & mouse plus gamepad (touch support retired) |
 | UI languages | 简体中文 / English (switchable in game) |
-| Version | 3.34 |
+| Version | 3.35 |
 | License | [MIT](LICENSE) |
 
 ## Screenshots

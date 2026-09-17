@@ -25,6 +25,10 @@ public partial class ProbeHost : Node
     /// 中途打断——探针的绿不得依赖「玩家恰好活过事件时长」；死亡路径另行显式击杀。</summary>
     private const float ProbeInvincibleSeconds = 9999.0f;
 
+    /// <summary>增幅缓存复用趟的诊断帧：实测复用首现于第 1200–1500 帧，故在 1800 帧上若仍
+    /// 未见复用就打一条诊断（跑到哪、回收多少、场上几只），把「没打完成标记」变成可定位的信息。</summary>
+    private const int ReuseDiagnosticFrame = 1800;
+
     /// <summary>死亡探针在遭遇激活后等待的帧数（60 帧＝1s）：等事件推进到可清理状态再击杀，
     /// 覆盖打断的清理分支（精英炮塔升起到位后的炮塔回收），而非入场即打断。</summary>
     private const int DeathProbeDelayFrames = 240;
@@ -280,6 +284,7 @@ public partial class ProbeHost : Node
     private HashSet<ulong> _augmentCachePrevLive = new();
     private readonly HashSet<ulong> _augmentCacheRetired = new();
     private int _augmentCacheReuseFrame = -1;
+    private bool _augmentCacheDiagnosed;
     private bool _returnProbe;
     private string _shotDir = "";
     private string _eventId = "";
@@ -2023,6 +2028,11 @@ public partial class ProbeHost : Node
             return;
         }
 
+        // 与其余长跑趟同口径注入无敌：无头局玩家不操作，死亡会让刷怪停摆、复用永远等不到。
+        // 这同时是**确定性**要求——顿帧按真实帧长推进（HitStopTimeline），无头局玩家挨打时
+        // 「帧数＝模拟时长」会随机器负载漂移，而本趟的判据（复用出现在第几帧）正建立在这条等价上。
+        _player.SetInvincible(ProbeInvincibleSeconds);
+
         var live = new HashSet<ulong>();
         foreach (var node in GameState.Instance.Enemies)
         {
@@ -2069,6 +2079,18 @@ public partial class ProbeHost : Node
         {
             _augmentCacheProbe = false;
             GD.Print("[augment-cache-probe] 池化复用后缓存连接态成立");
+            return;
+        }
+
+        // 到点仍没等到复用就报一次诊断：该趟的绿靠「真的跑到复用」成立，缺了标记只会说
+        // 「没打完成标记」——不把「跑到哪、回收了多少、场上还有几只」打出来，下一次红
+        // 又得从头猜（此前那次偶发红就是这么来的）。实测复用首现于第 1200–1500 帧。
+        if (_augmentCacheReuseFrame < 0 && !_augmentCacheDiagnosed && _frame >= ReuseDiagnosticFrame)
+        {
+            _augmentCacheDiagnosed = true;
+            GD.Print($"[augment-cache-probe] 已到帧 {_frame} 仍未观察到池化复用"
+                + $"（已回收实例 {_augmentCacheRetired.Count} 个、当前在场 {live.Count} 只）"
+                + "——复用没跑到时不再静默");
         }
     }
 
