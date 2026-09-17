@@ -12,7 +12,7 @@ cd "$(dirname "$0")/../.." || exit 1
 
 PROJECT=csharp/tests/InfiAir.Core.Tests
 if [ ! -d "$PROJECT" ]; then
-    echo "::error::测试工程不存在：$PROJECT（路径已动须同步本门禁）"
+    echo "::error::测试工程不存在：${PROJECT}（路径已动须同步本门禁）"
     exit 1
 fi
 
@@ -24,7 +24,7 @@ rc=$?
 
 TRX="$RESULTS/core.trx"
 if [ ! -f "$TRX" ]; then
-    echo "::error::未生成 TRX 结果文件（$TRX）——dotnet test 输出格式或参数漂移？门禁需同步"
+    echo "::error::未生成 TRX 结果文件（${TRX}）——dotnet test 输出格式或参数漂移？门禁需同步"
     exit 1
 fi
 
@@ -60,7 +60,7 @@ PY
 judge=$?
 
 if [ "$rc" -ne 0 ]; then
-    echo "::error::dotnet test 退出码 $rc（失败用例见上方输出；通过数见上行）"
+    echo "::error::dotnet test 退出码 ${rc}（失败用例见上方输出；通过数见上行）"
     exit 1
 fi
 exit "$judge"

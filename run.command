@@ -65,7 +65,7 @@ if [ -z "$GODOT" ]; then
 fi
 
 VER="$("$GODOT" --version 2>/dev/null | head -n1)"
-echo "[InfiAir] 使用引擎：$GODOT（$VER）"
+echo "[InfiAir] 使用引擎：${GODOT}（${VER}）"
 if [ $# -gt 0 ]; then
     echo "[InfiAir] 透传参数：$*"
 fi
@@ -76,7 +76,7 @@ fi
 "$GODOT" --path . "$@"
 CODE=$?
 if [ "$CODE" -ne 0 ]; then
-    echo "[InfiAir] 游戏异常退出（代码 $CODE），可把上方输出截图反馈。"
+    echo "[InfiAir] 游戏异常退出（代码 ${CODE}），可把上方输出截图反馈。"
     read -r -p "按回车关闭窗口…"
 fi
 exit "$CODE"

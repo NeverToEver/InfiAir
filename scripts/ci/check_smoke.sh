@@ -115,8 +115,10 @@ run_case() {
   fi
   # 后台跑 + 轮询墙钟上限：Git Bash 的 `timeout` 会落到 Windows 的 timeout.exe（语义完全不同，
   # 是等按键），故不依赖外部 timeout 命令。
+  # 空数组的 `${a[@]+"${a[@]}"}` 形态不可简写为 `"${a[@]}"`：macOS 自带 bash 3.2 在 set -u 下把空
+  # 数组展开当未定义变量并中止脚本（bash 4.4+ 才修）；主场景趟不带 --scene，scene_args 恒为空。
   "${env_args[@]}" "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$frames" \
-      "${scene_args[@]}" -- "$@" "${expect_args[@]}" > "$log" 2>&1 &
+      ${scene_args[@]+"${scene_args[@]}"} -- "$@" "${expect_args[@]}" > "$log" 2>&1 &
   local pid=$! waited=0 rc=0
   while kill -0 "$pid" 2>/dev/null; do
     if [ "$waited" -ge "$CASE_TIMEOUT" ]; then
@@ -170,7 +172,7 @@ run_case() {
 expect_marker() {
   local label="$1" log="$2" marker="$3"
   if ! grep -qF "$marker" "$log"; then
-    echo "::error::$label：日志无完成标记「$marker」——该路径没跑到终点"
+    echo "::error::${label}：日志无完成标记「${marker}」——该路径没跑到终点"
     tail -30 "$log"
     return 1
   fi
