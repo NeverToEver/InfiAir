@@ -10,6 +10,8 @@
 - resupply.wav       母舰补给（上行三音琶音）
 - heartbeat.wav      Meta HUD DYING 心跳（55Hz 双脉冲 lub-dub）
 - bgm_loop.wav       40s 无缝循环氛围电子 BGM（和弦垫 + 琶音 + 低音）
+- bgm_boss.wav       Boss 战曲：同族音色、更快的驱动琶音与和声小调进行（32s 无缝循环）
+- bgm_base.wav       基地休整曲：同族音色、慢速大七和弦垫 + 稀疏钟音琶音（40s 无缝循环）
 - bullet_fire.wav / bullet_fire_b.wav / bullet_fire_c.wav  玩家开火（类消音枪械：低频砰 + 瞬态 + 气体嘶，三变体）
 
 用法：python3 scripts/tools/generate_audio.py
@@ -184,12 +186,18 @@ BEAT = 60.0 / BPM
 LOOP_DUR = 40.0
 CHORD_DUR = 5.0  # 8 个和弦槽 × 5s = 40s
 
+# BGM 生成种子：三首曲目各自从这个起点取相位（见 main() 的逐首重置）
+BGM_SEED = 20260720
+
 # 频率表（等程近似）
 FREQ = {
     "C2": 65.41, "D2": 73.42, "E2": 82.41, "F2": 87.31, "G2": 98.00, "A2": 110.00, "B2": 123.47,
-    "C3": 130.81, "D3": 146.83, "E3": 164.81, "F3": 174.61, "G3": 196.00, "A3": 220.00, "B3": 246.94,
-    "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00, "A4": 440.00, "B4": 493.88,
+    "C3": 130.81, "C#3": 138.59, "D3": 146.83, "E3": 164.81, "F3": 174.61, "G3": 196.00,
+    "A3": 220.00, "Bb3": 233.08, "B3": 246.94,
+    "C4": 261.63, "C#4": 277.18, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00,
+    "A4": 440.00, "Bb4": 466.16, "B4": 493.88,
     "C5": 523.25, "D5": 587.33, "E5": 659.25,
+    "Bb2": 116.54,
 }
 
 CHORDS = {
@@ -202,30 +210,115 @@ CHORDS = {
 PROGRESSION = ["Am", "F", "C", "G", "Am", "F", "C", "G"]
 XFade = 0.5  # 和弦间交叉淡化时长
 
+# 新增两首曲目的和声表：与上方共用同一套音色（pad + 低音 + 拨弦），只换进行/速度/力度。
+# Boss 用和声小调（Gm→A 的导音制造压迫感），基地用大七和弦（无导音、无解决压力）。
+BOSS_CHORDS = {
+    "Dm": (["D3", "F3", "A3", "D4"], "D3", ["D4", "F4", "A4", "D5"]),
+    "Bb": (["Bb2", "D3", "F3", "Bb3"], "Bb3", ["Bb3", "D4", "F4", "Bb4"]),
+    "Gm": (["G2", "Bb2", "D3", "G3"], "G2", ["G3", "Bb3", "D4", "G4"]),
+    "A": (["A2", "C#3", "E3", "A3"], "A2", ["A3", "C#4", "E4", "A4"]),
+}
+BOSS_PROGRESSION = ["Dm", "Bb", "Gm", "A", "Dm", "Bb", "Gm", "A"]
 
-def chord_weight(t: float, slot: int) -> float:
-    """第 slot 个和弦槽在时刻 t 的权重，对 ±LOOP_DUR 平移周期化以保证无缝循环。
-    有效区间必须为 [0, CHORD_DUR + XFade)：若在 CHORD_DUR 处严格截断，相邻和弦
-    交界点权重和为 0，每 5s 出现一次 pad/bass 零谷塌陷；区间扩展后槽尾衰减与
+BASE_CHORDS = {
+    "Cmaj7": (["C3", "E3", "G3", "B3"], "C3", ["C4", "E4", "G4", "B4"]),
+    "Am7": (["A2", "C3", "E3", "G3"], "A2", ["A3", "C4", "E4", "G4"]),
+    "Fmaj7": (["F2", "A2", "C3", "E3"], "F2", ["F3", "A3", "C4", "E4"]),
+    "G": (["G2", "B2", "D3", "G3"], "G2", ["G3", "B3", "D4", "G4"]),
+}
+BASE_PROGRESSION = ["Cmaj7", "Am7", "Fmaj7", "G", "Cmaj7", "Am7", "Fmaj7", "G"]
+
+# 新增曲目的生成参数（缺省值即既有曲目的音色与力度，见 make_bgm 签名）：
+# 逐首从同一随机流起点生成，谱面微调只影响本首——同 bullet_fire 的种子重置口径。
+EXTRA_BGM = (
+    (
+        "bgm_boss.wav",
+        dict(
+            progression=BOSS_PROGRESSION,
+            chords=BOSS_CHORDS,
+            bpm=150.0,
+            loop_dur=32.0,
+            chord_dur=4.0,
+            arp_pattern=[0, 1, 2, 3, 2, 1, 2, 3],
+            arp_step=60.0 / 150.0 / 4.0,  # 十六分音符驱动
+            pad_edge=0.22,   # 垫音加二次谐波：同族正弦但更硬
+            bass_gain=0.13,
+            bass_edge=0.18,
+            arp_gain=0.042,  # 音更密，单音力度压低（总能量与既有曲目相当）
+            arp_len=0.16,
+            arp_decay=20.0,
+            xfade=0.4,
+        ),
+    ),
+    (
+        "bgm_base.wav",
+        dict(
+            progression=BASE_PROGRESSION,
+            chords=BASE_CHORDS,
+            bpm=84.0,
+            loop_dur=40.0,
+            chord_dur=5.0,
+            arp_pattern=[0, 2, 1, 3],  # 四分音符、窄跨度，钟音式点缀
+            arp_step=60.0 / 84.0,
+            pad_gain=0.062,        # 休整：垫音为主
+            pad_lfo_cycles=1.0,    # 呼吸更慢（每圈一次）
+            pad_trem=0.09,
+            bass_gain=0.095,
+            arp_gain=0.058,
+            arp_len=0.55,          # 长尾钟音
+            arp_decay=5.0,
+            arp_edge=0.25,
+            xfade=0.7,
+        ),
+    ),
+)
+
+
+def chord_weight(t: float, slot: int, chord_dur: float, loop_dur: float, xfade: float) -> float:
+    """第 slot 个和弦槽在时刻 t 的权重，对 ±loop_dur 平移周期化以保证无缝循环。
+    有效区间必须为 [0, chord_dur + xfade)：若在 chord_dur 处严格截断，相邻和弦
+    交界点权重和为 0，每槽一次 pad/bass 零谷塌陷；区间扩展后槽尾衰减与
     下一槽头上升重叠，交界处权重和恒为 1（线性交叉淡化）。
     """
     w = 0.0
-    for shift in (-LOOP_DUR, 0.0, LOOP_DUR):
-        start = slot * CHORD_DUR + shift
+    for shift in (-loop_dur, 0.0, loop_dur):
+        start = slot * chord_dur + shift
         local = t - start
-        if 0.0 <= local < CHORD_DUR + XFade:
-            w += min(local / XFade, 1.0) * min((CHORD_DUR + XFade - local) / XFade, 1.0)
+        if 0.0 <= local < chord_dur + xfade:
+            w += min(local / xfade, 1.0) * min((chord_dur + xfade - local) / xfade, 1.0)
     return w
 
 
-def make_bgm() -> list:
-    n = int(SR * LOOP_DUR)
+def make_bgm(
+    progression: list,
+    chords: dict,
+    *,
+    bpm: float,
+    loop_dur: float,
+    chord_dur: float,
+    arp_pattern: list,
+    arp_step: float,
+    pad_gain: float = 0.055,
+    pad_trem: float = 0.15,
+    pad_lfo_cycles: float = 2.0,
+    pad_edge: float = 0.0,
+    bass_gain: float = 0.11,
+    bass_edge: float = 0.0,
+    arp_gain: float = 0.05,
+    arp_len: float = 0.22,
+    arp_decay: float = 14.0,
+    arp_edge: float = 0.0,
+    xfade: float = XFade,
+    fade: float = 0.05,
+) -> list:
+    """三首曲目共用的合成器：和弦垫 + 低音 + 琶音，首尾互补淡化后整段可无缝循环。
+    缺省值即既有曲目（bgm_loop）的音色与力度，新增曲目只覆盖差异项。
+    """
+    n = int(SR * loop_dur)
     out = [0.0] * n
-    arp_pattern = [0, 1, 2, 3, 2, 1, 2, 3]
-    step = BEAT / 2.0  # 八分音符
 
-    for slot, chord_name in enumerate(PROGRESSION):
-        pad_notes, bass_note, arp_notes = CHORDS[chord_name]
+    for slot, chord_name in enumerate(progression):
+        pad_notes, bass_note, arp_notes = chords[chord_name]
         # 和弦垫：慢起落的正弦叠加 + 周期化颤音
         for note in pad_notes:
             freq = FREQ[note]
@@ -234,43 +327,47 @@ def make_bgm() -> list:
             lfo_phase = random.uniform(0.0, 2.0 * math.pi)
             for i in range(n):
                 t = i / SR
-                w = chord_weight(t, slot)
+                w = chord_weight(t, slot, chord_dur, loop_dur, xfade)
                 if w <= 0.0:
                     phase += inc
                     continue
-                trem = 0.85 + 0.15 * math.sin(2.0 * math.pi * 2.0 * t / LOOP_DUR + lfo_phase)
-                out[i] += 0.055 * w * trem * math.sin(phase)
+                trem = (1.0 - pad_trem) + pad_trem * math.sin(
+                    2.0 * math.pi * pad_lfo_cycles * t / loop_dur + lfo_phase)
+                wave = math.sin(phase) + pad_edge * math.sin(2.0 * phase)
+                out[i] += pad_gain * w * trem * wave
                 phase += inc
         # 低音：根音低八度
         bass_inc = 2.0 * math.pi * FREQ[bass_note] / 2.0 / SR
         phase = 0.0
         for i in range(n):
             t = i / SR
-            w = chord_weight(t, slot)
-            out[i] += 0.11 * w * math.sin(phase)
+            w = chord_weight(t, slot, chord_dur, loop_dur, xfade)
+            wave = math.sin(phase) + bass_edge * math.sin(2.0 * phase)
+            out[i] += bass_gain * w * wave
             phase += bass_inc
-        # 琶音：八分音符拨弦
-        onset = slot * CHORD_DUR
-        while onset < (slot + 1) * CHORD_DUR:
-            idx = int((onset / step)) % len(arp_pattern)
+        # 琶音：定长拨弦（arp_step 为音间隔）
+        onset = slot * chord_dur
+        while onset < (slot + 1) * chord_dur:
+            idx = int((onset / arp_step)) % len(arp_pattern)
             freq = FREQ[arp_notes[arp_pattern[idx]]]
             start_i = int(onset * SR)
-            pluck_len = int(0.22 * SR)
+            pluck_len = int(arp_len * SR)
             for j in range(pluck_len):
                 i = start_i + j
                 if i >= n:
                     break
                 lt = j / SR
-                env = math.exp(-lt * 14.0)
-                out[i] += 0.05 * env * math.sin(2.0 * math.pi * freq * lt)
-            onset += step
+                env = math.exp(-lt * arp_decay)
+                out[i] += arp_gain * env * (
+                    math.sin(2.0 * math.pi * freq * lt) + arp_edge * math.sin(4.0 * math.pi * freq * lt))
+            onset += arp_step
 
     # 首尾交叉淡化——必须首尾互补：单边 50ms 淡入会使圈首 ≈5dB/50ms 凹陷、
-    # 回绕点（40s→0）波形跳变，与「40s 无缝循环」相悖；首尾互补淡出后回绕点
+    # 回绕点（圈末→0）波形跳变，与「无缝循环」相悖；首尾互补淡出后回绕点
     # 两侧均趋于 0、连续，播放起点仍防爆音
-    fade = int(0.05 * SR)
-    for i in range(fade):
-        k = i / fade
+    fade_len = int(fade * SR)
+    for i in range(fade_len):
+        k = i / fade_len
         out[i] *= k
         out[n - 1 - i] *= k
     return out
@@ -285,11 +382,19 @@ def main() -> None:
     write_wav("dash.wav", make_dash())
     write_wav("resupply.wav", make_resupply())
     write_wav("heartbeat.wav", make_heartbeat())
-    write_wav("bgm_loop.wav", make_bgm())
+    write_wav(
+        "bgm_loop.wav",
+        make_bgm(PROGRESSION, CHORDS, bpm=BPM, loop_dur=LOOP_DUR, chord_dur=CHORD_DUR,
+                 arp_pattern=[0, 1, 2, 3, 2, 1, 2, 3], arp_step=BEAT / 2.0))
+    # 新增两首曲目：逐首把随机流复位到同一起点再接既有序列——Boss 与基地曲目的相互独立
+    # （改一首的谱面不会改到另一首的垫音相位），且既有曲目与音效的随机流顺序不受影响
+    for name, params in EXTRA_BGM:
+        random.seed(BGM_SEED)
+        write_wav(name, make_bgm(**params))
     # bullet_fire 三变体必须在调用前重置种子对齐资产——它们是在「random 流起点
     # 独立生成」的，在全序列流中生成会得到不同音色（实测 max 差 ~3000/16bit）；
     # 重置保证全量重跑输出与提交资产逐字节一致（bf 位于 main() 末段，不影响其他音效）
-    random.seed(20260720)
+    random.seed(BGM_SEED)
     write_wav("bullet_fire.wav", make_bullet_fire(135.0, 0.8), peak_target=0.42)
     write_wav("bullet_fire_b.wav", make_bullet_fire(115.0, 0.65), peak_target=0.42)
     write_wav("bullet_fire_c.wav", make_bullet_fire(160.0, 1.0), peak_target=0.42)

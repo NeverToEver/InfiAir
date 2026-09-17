@@ -65,6 +65,7 @@ echo "==> [8/8] 音效/BGM (generate_audio.py + tune_sfx.py --apply)"
 "$PY" "$SCRIPT_DIR/tune_sfx.py" --apply >/dev/null
 echo "    产物: assets/audio/explosion.wav, explosion_big.wav, player_hit.wav,"
 echo "          buff_pick.wav, dash.wav, resupply.wav, heartbeat.wav,"
-echo "          bgm_loop.wav, bullet_fire.wav, bullet_fire_b.wav, bullet_fire_c.wav"
+echo "          bgm_loop.wav, bgm_boss.wav, bgm_base.wav,"
+echo "          bullet_fire.wav, bullet_fire_b.wav, bullet_fire_c.wav"
 
 echo "==> 全部生成完成。可复现性验证: git diff --stat(重跑应无 diff)。"

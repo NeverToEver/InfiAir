@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using Godot;
 using InfiAir.Core.Storage;
 using InfiAir.Core.Text;
@@ -15,8 +14,6 @@ namespace InfiAir;
 /// </summary>
 public partial class Main : Node2D
 {
-    private const string BgmPath = "res://assets/audio/bgm_loop.wav";
-
     /// <summary>召唤窗口期无敌时长（s）：伪永久哨兵值——窗口结束/返航统一清除，
     /// 不依赖时长自然到期。</summary>
     private const float SummonInvincibleSeconds = 999.0f;
@@ -63,7 +60,13 @@ public partial class Main : Node2D
     /// <summary>死亡回放录制器（main._process 采样，死亡时生成重放演出）</summary>
     private readonly DeathReplay _replay = new();
     private bool _homecoming;
-    private AudioStreamPlayer? _bgmPlayer;
+    /// <summary>音乐编排（_Ready 创建；三首曲目的切换点名都落在本类——Boss 出场/离场、基地收尾/继续出击）</summary>
+    private MusicDirector _music = null!;
+    /// <summary>曲目上下文跟踪的现役 Boss（与 <see cref="_enrageBoss"/> 同款：新 Boss 入场先解绑旧的，
+    /// 防旧 Boss 的离场信号把新 Boss 的曲目上下文清零）</summary>
+    private Boss? _musicBoss;
+    /// <summary>基地控制台驻留中（曲目上下文位：休整优先于 Boss——返航刻意保留 Boss）</summary>
+    private bool _atBase;
     private float _dockCooldown;
     private Mothership? _mothership;
     /// <summary>坞态文本缓存（HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
@@ -138,11 +141,13 @@ public partial class Main : Node2D
     private FogEventManager _fogEvents = null!;
     private readonly Callable _onPlayerDied;
     private readonly Callable _onViewZoomChanged;
+    private readonly Callable _onHighContrastChanged;
 
     public Main()
     {
         _onPlayerDied = Callable.From(OnPlayerDied);
         _onViewZoomChanged = Callable.From<float>(OnViewZoomChanged);
+        _onHighContrastChanged = Callable.From<bool>(OnHighContrastChanged);
     }
 
     public override void _Ready()
@@ -228,7 +233,15 @@ public partial class Main : Node2D
             gs.Connect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
         }
 
-        _ = StartBgmAsync();
+        // 高对比弹体开关：在飞敌弹跟着换贴图（否则要等各自寿命到期，切换后场上会同时存在两种外观）
+        if (!gs.IsConnected(GameState.SignalName.HighContrastChanged, _onHighContrastChanged))
+        {
+            gs.Connect(GameState.SignalName.HighContrastChanged, _onHighContrastChanged);
+        }
+
+        // 音乐编排（延后到首帧之后装载三首曲目，见 MusicDirector.StartAsync）
+        _music = new MusicDirector();
+        AddChild(_music);
 
         // 蓄力虚影（长按 H 蓄力期间显示）：复用真实母舰场景实例做半透明预告，
         // 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y
@@ -344,6 +357,11 @@ public partial class Main : Node2D
             {
                 gs.Disconnect(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged);
             }
+
+            if (gs.IsConnected(GameState.SignalName.HighContrastChanged, _onHighContrastChanged))
+            {
+                gs.Disconnect(GameState.SignalName.HighContrastChanged, _onHighContrastChanged);
+            }
         }
     }
 
@@ -416,6 +434,21 @@ public partial class Main : Node2D
     public ReturnCinematic? ReturnCinematic() => _return;
 
     private void OnViewZoomChanged(float _factor) => ApplyCameraZoom();
+
+    /// <summary>高对比弹体开关切换：在飞敌弹重挑贴图（只遍历敌弹注册表——玩家弹的外观与开关无关）。
+    /// 遍历期间不改注册表，直接顺序读即可。</summary>
+    private void OnHighContrastChanged(bool _enabled)
+    {
+        var bullets = GameState.Instance.EnemyBullets;
+        for (var i = 0; i < bullets.Count; i++)
+        {
+            var b = bullets[i];
+            if (b != null && GodotObject.IsInstanceValid(b))
+            {
+                b.RefreshSkin();
+            }
+        }
+    }
 
     /// <summary>相机 zoom 单点组合：视角档位 × DYING 呼吸缩放；震动只写 offset 不受影响</summary>
     private void ApplyCameraZoom()
@@ -667,52 +700,6 @@ public partial class Main : Node2D
         _chargeFx.AddChild(_chargeInflow);
     }
 
-    /// <summary>BGM 延后到首帧之后启动：3.5MB WAV 解码不占首帧关键路径</summary>
-    private async Task StartBgmAsync()
-    {
-        try
-        {
-            // await 段异常统一 try/catch（约定 §Async）——恢复期节点释放/引擎错误不静默吞
-            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            // await 后守卫——首帧前 main 被释放（场景早退/摘树路径）则不再操作 freed 实例
-            if (!IsInsideTree())
-            {
-                return;
-            }
-
-            StartBgm();
-        }
-        catch (Exception ex)
-        {
-            GD.PushWarning("StartBgmAsync 异常：" + ex.Message);
-        }
-    }
-
-    private void StartBgm()
-    {
-        // CACHE_MODE_REUSE 复用资源缓存——CACHE_MODE_IGNORE 会每次进 main 重新 load + 解码 3.5MB WAV
-        //（静态音频，缓存复用无副作用；音频路径保持等价不变）
-        var stream = ResourceLoader.Load(BgmPath, "AudioStreamWAV", ResourceLoader.CacheMode.Reuse) as AudioStreamWav;
-        // 运行时 load 判空——打包漏资源/磁盘异常时降级静默而非空引用崩溃
-        if (stream == null)
-        {
-            GD.PushWarning("BGM 资源加载失败：" + BgmPath);
-            return;
-        }
-
-        // 只设 loop_mode 即可整段循环；显式写 loop_begin/loop_end 会在退出时泄漏播放实例
-        stream.LoopMode = AudioStreamWav.LoopModeEnum.Forward;
-        SfxPlayer.EnsureBuses(); // 与 SFX 总线解耦：BGM 走独立总线，混音互不牵连
-        _bgmPlayer = new AudioStreamPlayer
-        {
-            Stream = stream,
-            VolumeDb = -18.0f,
-            Bus = SfxPlayer.BgmBus,
-        };
-        AddChild(_bgmPlayer);
-        _bgmPlayer.Play();
-    }
-
     /// <summary>新本局数据起点（数据层已由 ResetRun/全新默认态就绪）：死亡回放录制重开
     /// （缓冲清空重录；死亡后 main._process 冻结自然停止）。</summary>
     private void ApplyNewRun()
@@ -727,7 +714,7 @@ public partial class Main : Node2D
     }
 
     /// <summary>播放返航过场（冻结本局，树暂停，process_mode=Always 播放）。
-    /// BGM 引用交给过场做镜头 7 渐暗期淡出（_bgmPlayer 异步创建，取值判空）。幂等。</summary>
+    /// 音乐主播放器引用交给过场做镜头 7 渐暗期淡出（异步创建，取值判空）。幂等。</summary>
     private void PlayReturnCinematic()
     {
         if (_return != null)
@@ -737,9 +724,9 @@ public partial class Main : Node2D
 
         _return = ReturnScene.Instantiate<ReturnCinematic>();
         _return.Finished += OnReturnFinished;
-        if (_bgmPlayer != null)
+        if (_music.Primary != null)
         {
-            _return.BgmPlayer = _bgmPlayer;
+            _return.BgmPlayer = _music.Primary;
         }
 
         AddChild(_return);
@@ -756,11 +743,14 @@ public partial class Main : Node2D
     }
 
     /// <summary>跳过与自然结束同一出口：基地 UI 在黑场下淡入；树保持暂停（基地界面本就是暂停态 UI）。
-    /// BGM 已在过场镜头 7 淡出到 -40dB（或 skip 时立即置位），此处以 -30dB 淡入恢复（基地氛围）</summary>
+    /// 音乐已在过场镜头 7 淡出到 -40dB（或 skip 时立即置位），此处切基地休整曲目并淡回（基地氛围）</summary>
     private void OnReturnFinished()
     {
         _return = null;
         _baseUi.ShowBase();
+        // 基地驻留：曲目上下文置位（本局只在此处与继续出击处改动；返航保留的 Boss 不参与判定）
+        _atBase = true;
+        RefreshMusic();
         // 本局存档：回到基地（母舰坞修/返航）自动落盘——基地是天然的安全点，
         // 崩溃/断电后可从基地继续；「不保存退出」仍可主动丢弃。
         // 失败必须可观测：静默失败会让玩家以为回基地已存，崩溃后进度凭空消失。
@@ -774,12 +764,6 @@ public partial class Main : Node2D
         if (!_hostDriven && !_practice && !GameState.Instance.SaveRun())
         {
             GD.PushWarning("InfiAir: 回基地自动存档失败——本局进度未落盘");
-        }
-        if (_bgmPlayer != null)
-        {
-            var bgmTween = CreateTween();
-            bgmTween.SetPauseMode(Tween.TweenPauseMode.Process); // 树保持暂停，tween 需照常推进
-            bgmTween.TweenProperty(_bgmPlayer, "volume_db", -30.0f, 1.0);
         }
     }
 
@@ -837,6 +821,30 @@ public partial class Main : Node2D
 
         _enrageBoss = boss;
         boss.Enraged += OnBossEnragedNoArg;
+        // 音乐上下文：Boss 在场期间切 Boss 战曲（离场由 OnMusicBossGone 复位）。
+        // 与狂暴回调同款先解绑旧的——旧 Boss 未死时它的离场信号会把新 Boss 的上下文误清零
+        if (_musicBoss != null && GodotObject.IsInstanceValid(_musicBoss))
+        {
+            _musicBoss.Died -= OnMusicBossGone;
+        }
+
+        _musicBoss = boss;
+        boss.Died += OnMusicBossGone;
+        RefreshMusic();
+    }
+
+    /// <summary>Boss 离场（击毁与逃跑同走 Died）：曲目上下文复位（回默认曲目或基地休整曲）。
+    /// 逃跑不推进轮换/不给休整是生成器的口径，与音乐无关——两者都是「本场 Boss 战结束」。</summary>
+    private void OnMusicBossGone()
+    {
+        _musicBoss = null;
+        RefreshMusic();
+    }
+
+    /// <summary>音乐上下文单口：只有本类知道「Boss 在场 / 在基地休整」，该播哪首由 core 判定。</summary>
+    private void RefreshMusic()
+    {
+        _music.SetContext(_musicBoss != null && GodotObject.IsInstanceValid(_musicBoss), _atBase);
     }
 
     private void OnBossEnragedNoArg()
@@ -1126,6 +1134,9 @@ public partial class Main : Node2D
 
         _player.UnlockInput();
         _homecoming = false;
+        // 离开基地：基地休整曲目撤下（返航保留的 Boss 仍在场则回 Boss 战曲，否则回默认曲目）
+        _atBase = false;
+        RefreshMusic();
         GameState.Instance.SetTreePaused(false);
         // 继续出击后播战机入场动画：无敌与敌机延迟由入场序列接管（替代原地无敌闪现）
         StartEntrySequenceInternal();
