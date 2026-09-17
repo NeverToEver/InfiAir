@@ -261,7 +261,8 @@ def main() -> int:
     parser.add_argument("--godot", default="", help="显式指定 Godot 可执行文件（默认：GODOT → PATH → 常见安装位置）")
     parser.add_argument("--only", default="", help="只跑指定步骤，逗号分隔（例：smoke,ui_copy）")
     parser.add_argument("--list", action="store_true", help="列出全部步骤 slug 后退出")
-    parser.add_argument("--log-dir", default="", help="门禁日志目录（默认系统临时目录下的 infiair-gates）")
+    parser.add_argument("--log-dir", default="",
+                        help="门禁日志目录（默认系统临时目录下 infiair-gates/<仓库名>-<pid>，逐次运行独占）")
     args = parser.parse_args()
 
     if args.list:
@@ -297,7 +298,11 @@ def main() -> int:
     wsl = is_wsl(bash)
     godot = find_godot(args.godot)
     godot_shell = to_shell_path(godot, wsl) if godot else ""
-    log_dir = Path(args.log_dir) if args.log_dir else Path(tempfile.gettempdir()) / "infiair-gates"
+    # 日志目录逐次运行独占：默认目录若固定，同机并行的两份门禁（多个 worktree、或本地与编辑器
+    # 里同时跑）会互相覆盖同名的步骤日志，判红的那一份可能被另一份的绿日志盖掉——汇总与日志
+    # 自相矛盾，排查时先怀疑人生（实测撞到过：步骤日志全绿、汇总却 FAIL）。
+    log_dir = (Path(args.log_dir) if args.log_dir
+               else Path(tempfile.gettempdir()) / "infiair-gates" / f"{REPO_ROOT.name}-{os.getpid()}")
     log_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"[门禁] 仓库：{REPO_ROOT}")
