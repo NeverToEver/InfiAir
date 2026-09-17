@@ -61,7 +61,11 @@ STEPS = (
 # 每步墙钟上限（秒）：任一步挂死时判该步失败并继续跑后续步骤，不再无限等待（此前 subprocess.run
 # 无 timeout，CI 靠 job 的 15 分钟兜底、本地只能人工中断）。取值是实测时长的数倍，只作挂死安全阀
 # ——墙钟不是判定口径（AGENTS §5 约束的是判定与模拟，不是机器耗时），故不追求贴近实测。
-STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 1500, "visual": 900}
+STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 1500, "visual": 900,
+                # 素材可复现性要整跑两遍生成器（音频纯 Python 逐样本合成是主项）：空载实测约 130s，
+                # 但同机并行（多 worktree 各跑一份门禁）实测到 320–434s——上限的用途是「挂死不得变成
+                # 无限等待」，不是性能判据，取 600 与同级的 import 对齐，避免把负载当成失败。
+                "assets_reproducible": 600}
 DEFAULT_TIMEOUT = 300
 
 
