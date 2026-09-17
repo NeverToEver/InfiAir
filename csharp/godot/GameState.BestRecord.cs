@@ -45,10 +45,12 @@ public partial class GameState : Node
     }
 
     /// <summary>本局终结时把本局结果并进记录。门控与本局存档的终结删档同源（<see cref="_runActive"/>）：
-    /// 教程与标题屏的玩家实体死亡不是本局，不得写记录。</summary>
+    /// 教程与标题屏的玩家实体死亡不是本局，不得写记录。练习局同属「不是本局」——
+    /// 它按生产语义活跃（_runActive 为真），故必须另有 <see cref="PracticeActive"/> 这一条守卫，
+    /// 否则练一次就把练习读数写进玩家的跨局记录。</summary>
     private void RecordRunResult()
     {
-        if (!_runActive)
+        if (!_runActive || PracticeActive)
         {
             return;
         }

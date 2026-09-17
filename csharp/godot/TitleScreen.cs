@@ -43,6 +43,9 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>存在本局存档（_Ready 缓存：标题屏 UI 与输入路由共用）。</summary>
     private bool _hasSave;
 
+    /// <summary>练习设置面板（P 打开；打开期间标题屏不再消费按键——否则面板上按任意键会直接开新局）。</summary>
+    private PracticePanel? _practicePanel;
+
     public override void _Ready()
     {
         // 固定标记：开机交接契约的观测点——标记只在标题屏真正入树时打印，冒烟门禁据此断言
@@ -152,8 +155,7 @@ public partial class TitleScreen : CanvasLayer
         if (GameState.Instance.BestKnown && best != BestRecord.Empty)
         {
             vbox.AddChild(UITheme.MakeLabel(
-                GdFormat.Format(Tr("BEST_LINE"), BestRecord.FormatDuration(best.SurvivedSeconds),
-                    best.BossKills, best.MaxDifficulty),
+                GdFormat.Format(Tr("BEST_LINE"), BestRecord.FormatArgs(best)),
                 UITheme.FontBody, UITheme.TextDim, HorizontalAlignment.Center));
         }
 
@@ -162,17 +164,22 @@ public partial class TitleScreen : CanvasLayer
         titleIn.TweenProperty(vbox, "modulate:a", 1.0f, 0.5).SetDelay(1.0).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         titleIn.TweenProperty(vbox, "position:x", 140.0f, 0.5).From(104.0f).SetDelay(1.0).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
 
-        // 底部教程入口（1.8s 淡入）
-        var tutorialHint = UITheme.MakeLabel((string)Tr("TITLE_TUTORIAL_HINT"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center);
-        tutorialHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-        tutorialHint.OffsetTop = -72.0f;
-        tutorialHint.OffsetBottom = -40.0f;
-        tutorialHint.OffsetLeft = -400.0f;
-        tutorialHint.OffsetRight = 400.0f;
-        tutorialHint.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
-        AddChild(tutorialHint);
-        var tutIn = tutorialHint.CreateTween();
-        tutIn.TweenProperty(tutorialHint, "modulate:a", 1.0f, 0.4).SetDelay(1.8).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        // 底部入口（1.8s 淡入）：教程与练习并排一行——两处都是「不走本局」的入口，
+        // 分开摆会让玩家以为练习是教程的下级
+        var hintRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+        hintRow.AddThemeConstantOverride("separation", 48);
+        hintRow.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        hintRow.OffsetTop = -72.0f;
+        hintRow.OffsetBottom = -40.0f;
+        hintRow.OffsetLeft = -400.0f;
+        hintRow.OffsetRight = 400.0f;
+        hintRow.MouseFilter = Control.MouseFilterEnum.Ignore;
+        hintRow.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
+        hintRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_TUTORIAL_HINT"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center));
+        hintRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PRACTICE"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center));
+        AddChild(hintRow);
+        var tutIn = hintRow.CreateTween();
+        tutIn.TweenProperty(hintRow, "modulate:a", 1.0f, 0.4).SetDelay(1.8).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
 
         // 「按任意键」闪烁：演出落位后（2.2s）启动
         var blinkStarter = new Godot.Timer { OneShot = true, WaitTime = 2.2, Autostart = true };
@@ -192,6 +199,13 @@ public partial class TitleScreen : CanvasLayer
             return;
         }
 
+        // 练习面板打开期间标题屏不消费任何输入：面板自己收 Esc/方向键，但「按任意键开局」若照旧生效，
+        // 在面板上敲空格/回车会直接开一局（而不是切那一行选项）。
+        if (_practicePanel != null)
+        {
+            return;
+        }
+
         if (@event.IsActionPressed("ui_cancel"))
         {
             return; // 标题屏无返回目标，Esc 不消费
@@ -199,10 +213,19 @@ public partial class TitleScreen : CanvasLayer
 
         if (@event is InputEventKey key && key.Pressed && !key.Echo)
         {
+            var kc = key.Keycode != Key.None ? key.Keycode : key.PhysicalKeycode;
+            // 练习入口（P）先判：它**不离开标题屏**（面板关掉后还能按 T/C/任意键），
+            // 故不得置 _started——置了就再没有输入进得来（表现为关掉面板后标题屏死住）。
+            if (kc == Key.P)
+            {
+                GetViewport().SetInputAsHandled();
+                OpenPracticePanel();
+                return;
+            }
+
             // 先标输入再切场景：ChangeSceneToFile 立即摘树，其后 GetViewport() 返回 null
             GetViewport().SetInputAsHandled();
             _started = true;
-            var kc = key.Keycode != Key.None ? key.Keycode : key.PhysicalKeycode;
             if (kc == Key.T)
             {
                 StartScene("res://scenes/tutorial.tscn");
@@ -241,6 +264,18 @@ public partial class TitleScreen : CanvasLayer
         var tw = CreateTween();
         tw.TweenInterval(ConfirmDelay);
         tw.TweenCallback(Callable.From(() => GetTree().ChangeSceneToFile(scenePath)));
+    }
+
+    /// <summary>打开练习设置面板（P）：面板自带遮罩与选项循环，确认后经生产单口
+    /// <c>GameState.EnterPractice</c> 切到练习场景；取消（Esc）即自关。
+    /// _started 不置位——开面板不是离开标题屏，关掉后还能按 T/C/任意键。</summary>
+    private void OpenPracticePanel()
+    {
+        var panel = new PracticePanel();
+        _practicePanel = panel;
+        panel.StartRequested += setup => GameState.Instance.EnterPractice(setup);
+        panel.Closed += () => _practicePanel = null;
+        AddChild(panel);
     }
 
     /// <summary>开局确认：logo 放大回弹 + 受激提亮、标题短线提亮、按任意键提示弹一下。

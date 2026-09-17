@@ -52,6 +52,11 @@ public partial class Main : Node2D
     /// <summary>本节点是否由探针宿主驱动（宿主经 <see cref="MarkHostDriven"/> 显式注入，默认 false）。
     /// 判定只此一处，供本局时钟/事件自动触发、开机交接与存档出口共用——宿主驱动时这些都不该走生产分歧。</summary>
     private bool _hostDriven;
+    /// <summary>本局是否为练习局（口径见 DESIGN_BASELINE §1.16；练习宿主经 <see cref="MarkPracticeRun"/>
+    /// 在 _EnterTree 注入）。与宿主驱动**不共用旗标**：两者都会关掉标题屏交接与回基地自动存档，
+    /// 但练习是生产模式——本局时钟、事件触发、结算页、回基地全按正局走，
+    /// 塞进宿主驱动会让 SetRunActive 一律为假（连击窗口不衰减、难度时间档停摆）。</summary>
+    private bool _practice;
     /// <summary>_Ready 是否已跑完：<see cref="MarkHostDriven"/> 的护栏判据——注入晚于它时宿主分支
     /// 已按生产语义走过（见该方法）。</summary>
     private bool _readyDone;
@@ -243,7 +248,16 @@ public partial class Main : Node2D
         BuildChargeFx();
         // 开机流程：正常启动首次进入 → 直达标题屏；标题屏任意键再进 main（BootHandoffDone 已置位）→ 直接开局。
         // main.tscn 作为子节点嵌入宿主场景时不交接、不入场（由宿主驱动）。
-        if (_hostDriven)
+        if (_practice)
+        {
+            // 练习局（练习场景 scenes/practice.tscn）：宿主已在 _EnterTree 置练习态与起始难度档。
+            // 不读本局存档（练习与检查点无关）、不交接标题屏、不碰 BootHandoffDone——练习是独立入口，
+            // 不参与「开机直达标题屏」那两条生产分支。ResetRun 起干净基线（上一局的内存态不得渗透）。
+            GameState.Instance.ResetRun();
+            ApplyNewRun();
+            GD.Print("[practice] 练习局就绪");
+        }
+        else if (_hostDriven)
         {
             ApplyNewRun();
         }
@@ -348,6 +362,22 @@ public partial class Main : Node2D
         }
 
         _hostDriven = true;
+    }
+
+    /// <summary>练习宿主显式声明「本局是练习局」——练习是**生产模式**（DESIGN_BASELINE §1.16），
+    /// 故与 <see cref="MarkHostDriven"/> 分开：本分支只关掉「交接标题屏」与「回基地自动存档」，
+    /// 其余生产路径逐条照走（本局时钟/遭遇与迷雾触发/结算页/直选 Boss 与遭遇的请求）。
+    /// 时序约束同宿主注入：必须在 <see cref="_Ready"/> 之前调用（_EnterTree 由父到子），
+    /// 晚到即已按生产语义交接过标题屏——宁可响，不可悄悄坏。</summary>
+    public void MarkPracticeRun()
+    {
+        if (_readyDone)
+        {
+            GD.PushError("InfiAir: MarkPracticeRun 在 Main._Ready 之后才调用——练习注入未赶在 _Ready 之前，本局已按生产语义启动（会交接标题屏）");
+            return;
+        }
+
+        _practice = true;
     }
 
     /// <summary>对外公开接口：BackNavigator/HUD 决策查询，禁止跨类直接读 _ 私有字段</summary>
@@ -740,7 +770,8 @@ public partial class Main : Node2D
         // 开发者当前存档。宿主判定取 _hostDriven（宿主入树时显式注入，见 MarkHostDriven），
         // Main 因此不依赖 ProbeHost 的任何测试符号——测试设施不进生产路径（AGENTS §5）。
         // 用户目录隔离仍是主护栏（脚本层），本行是代码层的第二道，防「探针路径写坏真实存档」复发。
-        if (!_hostDriven && !GameState.Instance.SaveRun())
+        // 练习局同样不落盘（权威守卫在 GameState.SaveRun，这里显式跳过是为了不留一条合法路径的噪声日志）。
+        if (!_hostDriven && !_practice && !GameState.Instance.SaveRun())
         {
             GD.PushWarning("InfiAir: 回基地自动存档失败——本局进度未落盘");
         }

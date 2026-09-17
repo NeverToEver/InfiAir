@@ -222,11 +222,13 @@ public partial class GameState : Node
     }
 
     /// <summary>终止本局回标题屏单口（结算页「返回标题」/暂停/教程 Esc/BackNavigator 同路由）：
-    /// 子弹时间与暂停复位 + 全新一局 + 切场景。新增退出入口一律复用本出口，防漏复位软锁。</summary>
+    /// 子弹时间与暂停复位 + 全新一局 + 切场景。新增退出入口一律复用本出口，防漏复位软锁。
+    /// 练习局同时在此收尾——回标题屏即离开练习，之后的「新的一局/继续」都是正局。</summary>
     public void ExitToTitle()
     {
         ResetTimeScale(); // 演出倍率 + 顿帧 + trauma 残留一并复位（只复位演出侧会留下顿帧定格）
         SetTreePaused(false);
+        EndPractice();
         ResetRun(); // 保证下次开局为全新一局，不复用上一本局残留
         ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile("res://scenes/title.tscn");
     }
@@ -249,6 +251,7 @@ public partial class GameState : Node
         SetTreePaused(false);
         RecordRunResult(); // 本局终结：先把结果并进跨局记录（ResetRun 之后读数就没了）
         DeleteRunSave(); // 本局终结：检查点作废（与死亡删档同口径）
+        RearmPractice(); // 练习局：同一设置重新置为待定，场景重载后照原条件再开一局
         ResetRun();
         ((SceneTree?)Engine.GetMainLoop())?.ReloadCurrentScene();
     }

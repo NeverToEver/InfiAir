@@ -331,14 +331,16 @@ public partial class PauseUi : RadialMenuLayer
 
     private void OnQuitPressed()
     {
-        // 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）
+        // 战斗中退出：ExitConfirm 战斗模式二次确认（带进度损失警告）。
+        // 练习局没有进度可存，走非战斗模式（确认退出/取消）——不提供「保存并退出」：
+        // 那个按钮在练习态下会落到 SaveRun 的早退守卫上，玩家按的是一件不存在的事。
         // GetNodeOrNull + 判空——宿主缺 ExitConfirm 节点时不崩溃（防御性，正常 main.tscn 必有）
         var exitConfirm = GetParent().GetNodeOrNull("ExitConfirm") as ExitConfirm;
         if (exitConfirm != null)
         {
             Visible = false;
             SetWheelActive(false);
-            exitConfirm.ShowConfirm(true);
+            exitConfirm.ShowConfirm(!GameState.Instance.PracticeActive);
         }
     }
 

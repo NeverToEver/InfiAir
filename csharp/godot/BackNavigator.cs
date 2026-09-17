@@ -197,6 +197,15 @@ public partial class BackNavigator : Node
             return BackAction.CLOSE_AUG_PANEL; // 增幅滚动栏展开中：先收栏（不暂停本局的 HUD 覆盖层）
         }
 
+        // 练习局：返回 = 退出练习回标题屏（口径见 DESIGN_BASELINE §1.16）。练习局没有「本局」可暂停，
+        // 也没有结算页那样的下一级；位置在各类覆盖层之后——面板/过场/基地开着时先收它们，
+        // 否则「想关设置」会变成「退出练习」。练习场景复用 main.tscn，
+        // 返回路由收在本表一处，练习宿主不再自接一份 Esc（两份处理会让同一次按键响两次）。
+        if (GameState.Instance.PracticeActive)
+        {
+            return BackAction.TO_MAIN_MENU;
+        }
+
         if (_pauseUi.Visible)
         {
             return BackAction.RESUME_GAME;

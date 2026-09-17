@@ -25,6 +25,9 @@ public partial class GameOverUi : RadialMenuLayer
     private ColorRect _dim = null!;
     private VBoxContainer _content = null!;
 
+    /// <summary>练习设置面板（轮盘「练习模式」就地打开；打开期间 R 重开键屏蔽，见 _UnhandledInput）。</summary>
+    private PracticePanel? _practicePanel;
+
     private readonly Callable _onPlayerDied;
     private readonly Callable _onLocaleChanged;
 
@@ -133,8 +136,7 @@ public partial class GameOverUi : RadialMenuLayer
         var improved = gs.BestImprovedThisRun;
         _bestLabel.Text = gs.Best == BestRecord.Empty
             ? Tr("BEST_NONE")
-            : GdFormat.Format(Tr(improved ? "BEST_NEW" : "BEST_LINE"),
-                BestRecord.FormatDuration(gs.Best.SurvivedSeconds), gs.Best.BossKills, gs.Best.MaxDifficulty);
+            : GdFormat.Format(Tr(improved ? "BEST_NEW" : "BEST_LINE"), BestRecord.FormatArgs(gs.Best));
         _bestLabel.AddThemeColorOverride("font_color", improved ? UITheme.AccentGold : UITheme.TextDim);
     }
 
@@ -145,6 +147,7 @@ public partial class GameOverUi : RadialMenuLayer
             new List<RadialWheelOption>
             {
                 new() { Id = "restart", Label = Tr("GO_MENU_RESTART"), Glyph = RadialGlyph.Bolt },
+                new() { Id = "practice", Label = Tr("GO_MENU_PRACTICE"), Glyph = RadialGlyph.Cross },
                 new() { Id = "home", Label = Tr("GO_MENU_HOME"), Glyph = RadialGlyph.Ring },
                 new() { Id = "quit", Label = Tr("GO_MENU_QUIT"), Glyph = RadialGlyph.Star },
             },
@@ -159,6 +162,9 @@ public partial class GameOverUi : RadialMenuLayer
             case "restart":
                 Restart();
                 break;
+            case "practice":
+                OpenPracticePanel();
+                break;
             case "home":
                 // 结算后无进度可留：回标题屏（title.tscn），任意键重新开局
                 GameState.Instance.ExitToTitle();
@@ -170,6 +176,29 @@ public partial class GameOverUi : RadialMenuLayer
                 GetTree().Quit();
                 break;
         }
+    }
+
+    /// <summary>练习入口（口径见 DESIGN_BASELINE §1.16）：就地开练习设置面板——死亡页是玩家
+    /// 最想「换一场再练」的位置，跳到标题屏再开一次会多一次场景切换。
+    /// 面板未退场前轮盘断供输入（否则同一次方向键既切面板选项又挪轮盘聚焦）；
+    /// 面板退场（取消/开始）后还回来——开始练习会切场景，还回来也无妨（同帧内场景即被替换）。</summary>
+    private void OpenPracticePanel()
+    {
+        if (_practicePanel != null)
+        {
+            return;
+        }
+
+        SetWheelActive(false);
+        var panel = new PracticePanel();
+        _practicePanel = panel;
+        panel.StartRequested += setup => GameState.Instance.EnterPractice(setup);
+        panel.Closed += () =>
+        {
+            _practicePanel = null;
+            SetWheelActive(true);
+        };
+        AddChild(panel);
     }
 
     private void OnPlayerDied()
@@ -197,7 +226,9 @@ public partial class GameOverUi : RadialMenuLayer
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (Visible && @event.IsActionPressed("restart"))
+        // 练习面板打开期间屏蔽 R 重开：面板不消费 restart 动作（只收 Esc/左右方向键），
+        // 不屏蔽的话在面板上按 R 会把本局重开掉、面板连同场景一起消失。
+        if (Visible && _practicePanel == null && @event.IsActionPressed("restart"))
         {
             Restart();
         }

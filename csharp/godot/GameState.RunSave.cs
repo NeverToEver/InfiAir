@@ -54,6 +54,14 @@ public partial class GameState : Node
     /// `{}`），使 HasRunSave 判否——保住「不可读档回滚」承诺；覆写也失败再警告一次。</summary>
     public bool DeleteRunSave()
     {
+        // 练习局不删档（口径见 GameState.Practice.cs）：练习局按生产语义活跃（_runActive 为真），
+        // 死亡删档的本局门控挡不住它——练习死亡抹掉玩家真实检查点就发生在这一条上。
+        if (PracticeActive)
+        {
+            GD.Print("InfiAir: 练习局不删本局存档——玩家检查点原样保留（口径见 DESIGN_BASELINE §1.16）");
+            return true;
+        }
+
         if (DeleteJsonCore(RunPathValue, out var error))
         {
             return true;
@@ -69,9 +77,18 @@ public partial class GameState : Node
         return true;
     }
 
-    /// <summary>落盘本局进度（退出保存 / 回基地自动存）。IO 失败仅告警不抛（不影响退出流程）。</summary>
+    /// <summary>落盘本局进度（退出保存 / 回基地自动存）。IO 失败仅告警不抛（不影响退出流程）。
+    /// 练习局无进度可存：返回 true 表示「退出前的进度处理已按预期完成」（不写盘、不报 IO 失败），
+    /// 唯一调用方的语义是「可以继续退出」——练习局在该处报「保存失败」会把玩家留在游戏里重试一件
+    /// 根本不该发生的事。退出确认另在练习态下不提供「保存并退出」按钮（见 PauseUi）。</summary>
     public bool SaveRun()
     {
+        if (PracticeActive)
+        {
+            GD.Print("InfiAir: 练习局不写本局存档——练习不计进度（口径见 DESIGN_BASELINE §1.16）");
+            return true;
+        }
+
         var data = CollectRunDict();
         data["version"] = RunSaveVersion;
         return _saveManager.Save(RunPathValue, data);

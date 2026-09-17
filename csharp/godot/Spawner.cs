@@ -106,6 +106,9 @@ public partial class Spawner : Node
 
     private bool _bossActive;
 
+    /// <summary>练习局直选的下一只 Boss 型别（0 = 未指定，按击杀数轮换；一次性，TriggerBossInternal 消费）。</summary>
+    private int _requestedBossType;
+
     /// <summary>遭遇事件对 Boss 调度的冻结（深度计数口径：事件持有 +1、释放 -1，与
     /// _wavesPauseDepth 同构）——两个事件各自持有时，先结束者不会提前解冻后结束者的冻结。
     /// 到期记 pending 一次，不累积。记账（深度/pending/释放语义）在 core BossFreezeLedger，
@@ -467,7 +470,37 @@ public partial class Spawner : Node
         _wavesSinceSpecial = 0; // Boss 占用特殊槽
         EmitSignal(SignalName.BossWarning);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.shake.boss_warning", 14.0).AsDouble());
-        Schedule(2.0f, () => SpawnBossInternal(0));
+        // 直选型别在此一次性取走：出场演出期间再触发一次（如冰冻释放补触发）不该复用上一次的选择
+        var requested = _requestedBossType;
+        _requestedBossType = 0;
+        Schedule(2.0f, () => SpawnBossInternal(requested));
+    }
+
+    /// <summary>练习局直选 Boss（口径见 DESIGN_BASELINE §1.16）：出场的型别由调用方指定。
+    ///
+    /// 走的仍是**生产出场链**——BossWarning 预警 → 占用特殊槽 → 冻结波次 → 2s 后
+    /// <see cref="SpawnBossInternal"/> 降入 → 轮换/休整簿记，全部照旧；被替下的只有
+    /// **最小间隔时间门**（<see cref="BOSS_MIN_INTERVAL"/>）：练习局按分钟计，等 80 秒才出第一只
+    /// 等于没有这个功能。分数门照旧判（练习起始分数由宿主补到 <see cref="BOSS_SCORE_STEP"/> 之上，
+    /// 见 core PracticeSetup.ScoreSeed——是「满足门槛」不是绕过）。
+    /// 其余资格一律真判：入场窗口未结束（IsProcessing 假）、已有 Boss、波次被事件暂停、
+    /// Boss 冻结中都拒绝并返回 false，由调用方逐帧重试。
+    /// 返回 true 只表示请求已受理（Boss 在 2s 预警后才真的进场）。</summary>
+    public bool RequestBossForPractice(int pType)
+    {
+        if (pType < 1 || pType > 4 || _bossActive || _wavesPauseDepth > 0 || BossFrozen() || !IsProcessing())
+        {
+            return false;
+        }
+
+        if (GameState.Instance.Score < _nextBossScore)
+        {
+            return false;
+        }
+
+        _requestedBossType = pType;
+        TriggerBossInternal();
+        return true;
     }
 
     /// <summary>p_type &lt;= 0 时按击杀数轮换：第 N 只 Boss = 第 (N-1)%4+1 种（轮换扩 4 型含月蚀）。
