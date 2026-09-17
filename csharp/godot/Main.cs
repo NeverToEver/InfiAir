@@ -414,6 +414,9 @@ public partial class Main : Node2D
 
     public Hud Hud() => _hud;
 
+    /// <summary>音乐编排节点（曲目上下文接线是「该播哪首」的唯一消费者，判据读它的当前档位）。</summary>
+    public MusicDirector Music() => _music;
+
     /// <summary>天赋缓存面板（HUD 指示器点击入口）。</summary>
     public TalentPanel TalentPanel() => _talentUi;
 

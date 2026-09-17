@@ -49,6 +49,11 @@ public partial class MusicDirector : Node
     /// <summary>常驻主播放器（未就绪 / 资源加载失败时为 null）：返航过场据此淡出，本类不代它改音量。</summary>
     public AudioStreamPlayer? Primary => _current;
 
+    /// <summary>当前档位（请求档位一旦受理即更新；资源缺失或尚未装载时停在旧档）。
+    /// 判据读它而不是 <see cref="Primary"/> 的流：后者只能证明播放器在放音，证明不了
+    /// 「该播哪首」的上下文接线对——基线里播错曲（该切没切）只有听感不同，任何门禁都判不到。</summary>
+    public MusicCue Playing => _playing;
+
     public override void _Ready()
     {
         _ = StartAsync();

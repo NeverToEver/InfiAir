@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Audio;
 using InfiAir.Core.Missions;
 using InfiAir.Core.Practice;
 using InfiAir.Core.Progression;
@@ -51,6 +52,10 @@ public partial class ProbeHost : Node
 
     /// <summary>返航宽限探针判定用的墙钟余量（ms）：越过宽限后多等一点，抵消边界抖动。</summary>
     private const ulong ReturnProbeGraceMarginMs = 250;
+
+    /// <summary>返航探针「继续出击」后等曲目上下文切换的帧上限：轨道打击命中帧在
+    /// impact_at 0.56 × effect duration 1.4s ≈ 0.78s（47 帧），留 2 倍余量。</summary>
+    private const int ReturnProbeResumeFrames = 120;
 
     /// <summary>返航蓄力动作名（与 project.godot 的 homecoming 映射一致，生产判定读同一动作）。</summary>
     private static readonly StringName ActHomecoming = new("homecoming");
@@ -369,6 +374,9 @@ public partial class ProbeHost : Node
     private int _returnStage;
     private int _returnChargeFrames;
     private int _returnStartFrame;
+
+    /// <summary>「继续出击」发出的帧（段 5 等曲目上下文随轨道打击命中帧撤下）。</summary>
+    private int _returnResumeFrame;
     private ulong _returnWallStart;
     private float _returnGrace;
     private int _frame;
@@ -2404,7 +2412,11 @@ public partial class ProbeHost : Node
     ///      若宽限被误改成模拟时间，此刻 1.5s &gt; 1.2s 会放行，判据即红。真实时间下这段墙钟远未越界，
     ///      探针另测墙钟做前置守卫（环境过慢则显式报错，绝不静默放过）。
     ///   3) 把宽限置 0（确定越过边界）后跳过必须生效，且收尾落在基地、树保持暂停。
-    /// 段 2 的「仍被忽略」是真实时间基准的判别式；「是否用真实时间 API」另由 check_realtime_allowlist.sh 兜住。</summary>
+    /// 段 2 的「仍被忽略」是真实时间基准的判别式；「是否用真实时间 API」另由 check_realtime_allowlist.sh 兜住。
+    ///
+    /// 另断曲目上下文（借这条本就会落基地/离站的路径顺带覆盖）：落基地后当前档位必须是基地休整曲、
+    /// 继续出击后必须回默认战斗曲。两处漏写都只改听感（基地里播战斗曲 / 离站后基地曲一直播到
+    /// 下次 Boss 定格），不崩不报错——此前零判据。</summary>
     private void TickReturnProbe()
     {
         // 触发前的等待/蓄力阶段：等入场结束、spawner 可处理（生产蓄力链的前置）。
@@ -2449,8 +2461,10 @@ public partial class ProbeHost : Node
             return;
         }
 
+        // 段 4/5 在过场收尾之后（ReturnCinematic 已置空）——「过场意外消失」只在它应仍在播的
+        // 阶段判，故此处带阶段条件；段 3 自己再判一次（那一段还要写过场上的宽限字段）。
         var cinematic = _main.ReturnCinematic();
-        if (cinematic == null)
+        if (cinematic == null && _returnStage < 3)
         {
             ReturnProbeFail("返航过场在收尾前意外消失");
             return;
@@ -2500,25 +2514,80 @@ public partial class ProbeHost : Node
             return;
         }
 
-        // 段 3：宽限置 0 确定越过边界 → 跳过必须生效，收尾落基地且树保持暂停
-        cinematic.SKIP_GRACE = 0.0f;
-        _main.SkipReturn();
-        if (_main.IsReturnPlaying())
+        // 段 3（只跑一次）：宽限置 0 确定越过边界 → 跳过必须生效，收尾落基地且树保持暂停
+        if (_returnStage == 3)
         {
-            ReturnProbeFail("越过宽限后跳过未生效");
+            if (cinematic == null)
+            {
+                ReturnProbeFail("返航过场在越过宽限前已释放");
+                return;
+            }
+
+            cinematic.SKIP_GRACE = 0.0f;
+            _main.SkipReturn();
+            if (_main.IsReturnPlaying())
+            {
+                ReturnProbeFail("越过宽限后跳过未生效");
+                return;
+            }
+
+            var baseUi = _main.GetNodeOrNull<BaseConsole>("BaseUI");
+            if (baseUi == null || !baseUi.Visible)
+            {
+                ReturnProbeFail("跳过收尾未显示基地 UI");
+                return;
+            }
+
+            if (!GetTree().Paused)
+            {
+                ReturnProbeFail("跳过收尾树未保持暂停（基地界面应为暂停态）");
+                return;
+            }
+
+            _returnStage = 4;
             return;
         }
 
-        var baseUi = _main.GetNodeOrNull<BaseConsole>("BaseUI");
-        if (baseUi == null || !baseUi.Visible)
+        // 段 4（只跑一次）：落基地的曲目上下文——必须是基地休整曲。回基地那次 RefreshMusic
+        // 漏写时基地里还播着战斗曲，而任何门禁都判不到（只有听感不同，不崩不报错）。
+        if (_returnStage == 4)
         {
-            ReturnProbeFail("跳过收尾未显示基地 UI");
+            if (_main.Music().Playing != MusicCue.Base)
+            {
+                ReturnProbeFail(GdFormat.Format(
+                    "落基地后当前曲目不是基地休整曲（实为 %s）——回基地的曲目上下文没切"
+                    + "（该档曲目资源未装载时也会停在这一档）",
+                    _main.Music().Playing));
+                return;
+            }
+
+            // 继续出击：走生产信号链（基地「继续出击」按钮发的是同一信号）→ Main 播轨道打击
+            // → 命中帧 OnOrbitalStruck 撤基地上下文并恢复本局；不直调 Main 的私有编排。
+            var baseUi = _main.GetNodeOrNull<BaseConsole>("BaseUI");
+            if (baseUi == null)
+            {
+                ReturnProbeFail("基地 UI 在继续出击前消失");
+                return;
+            }
+
+            baseUi.EmitSignal(BaseConsole.SignalName.ResumeRequested);
+            _returnStage = 5;
+            _returnResumeFrame = _frame;
             return;
         }
 
-        if (!GetTree().Paused)
+        // 段 5：离站必须撤下基地曲目——漏写时基地曲一直播到下次 Boss 定格（另一条会换掉它的
+        // 路径），期间玩家听不到战斗曲，而门禁全绿。切换在轨道打击命中帧发生，故逐帧等到点。
+        if (_main.Music().Playing != MusicCue.Default)
         {
-            ReturnProbeFail("跳过收尾树未保持暂停（基地界面应为暂停态）");
+            if (_frame - _returnResumeFrame > ReturnProbeResumeFrames)
+            {
+                ReturnProbeFail(GdFormat.Format(
+                    "继续出击后 %d 帧曲目仍是 %s（期望默认战斗曲）——基地休整曲会一直播到下次 Boss 定格",
+                    ReturnProbeResumeFrames, _main.Music().Playing));
+                return;
+            }
+
             return;
         }
 
