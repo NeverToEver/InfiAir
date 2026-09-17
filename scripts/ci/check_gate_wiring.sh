@@ -43,8 +43,13 @@
 #   e2) export_presets.cfg 的 include/exclude 过滤项都指向仓库内真实存在的路径（含通配项须匹配到
 #      至少一个文件）——写错或漏跟改名时该条排除静默失效，而导出照常成功、日志干净。构建产物
 #      目录（obj/bin）跳过：干净检出里本就不存在；
+#   e4) ci.yml 的引擎钉版：GODOT_VERSION 取自 env，缓存命中时直接软链、`godot --version` 只打印
+#      不校验——缓存污染或镜像换版会让全部门禁跑到别的引擎上（判据全变味而全绿）。故要求
+#      安装步骤与缓存命中步骤**都**断言版本，且断言与 env.GODOT_VERSION 同源（比较 $GODOT_VERSION
+#      而非第二份字面量）；版本字面量不得散落在 run 正文里（改 env 却漏改字面量＝同一事实两处维护，
+#      AGENTS §1 单源）；
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数、配置项找不到，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到、版本断言解析不出，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -401,6 +406,63 @@ else:
     if filter_entries == 0:
         errors.append("export_presets.cfg 一条过滤项都没解析出来——格式或路径漂移？"
                       "取不到判据，拒绝判 clean")
+
+# ---------- e4) ci.yml 的引擎钉版必须有断言 ----------
+# 判据：GODOT_VERSION 是钉版的单一事实源，但此前缓存命中路径只是软链 + 打印版本——缓存污染
+# （同 key 里躺着别的版本）或镜像换版时，整条门禁链跑到另一个引擎上而全绿。故要求两个安装步骤
+# 都断言版本、断言与 env 同源、且版本字面量不散落在 run 正文里。
+if yml_text is not None:
+    ver_m = re.search(r'^\s*GODOT_VERSION\s*:\s*"?([0-9][0-9.]*)"?\s*$', yml_text, re.M)
+    if not ver_m:
+        errors.append("ci.yml 未声明 env.GODOT_VERSION——取不到引擎钉版判据，拒绝判 clean")
+    else:
+        expected = ver_m.group(1)
+        # 判据按**行**取（不按步骤块）：`case … esac` 落在 `run: |` 正文里，而步骤块解析只用于
+        # 容错属性判定——版本断言的存在性与"是否配非零退出"在行层面即可判且不受块边界影响。
+        yml_lines = yml_text.split("\n")
+        # 断言窗口 6 行：`godot --version` 之后是 v=… / echo / case / 通配分支 / 兜底分支（含 exit 1）；
+        # 窗口过长时相邻两次读数会把同一行算两遍，输出里出现重复错误行
+        ASSERT_WINDOW = 6
+        version_lines = [i for i, line in enumerate(yml_lines, 1) if "godot --version" in line]
+        if len(version_lines) < 2:
+            errors.append(
+                f"ci.yml 只有 {len(version_lines)} 处读 `godot --version`（期望 2 处：缓存未命中的"
+                "安装步骤与缓存命中的软链步骤）——两条路径都得走版本断言，缺一处即该路径无判据")
+        # 窗口去重：两处读数落在同一断言块内时（同一步骤里 `echo "$(godot --version)"` 之类）
+        # 只判一次，避免同一处缺陷打出两条错误行
+        checked_until = 0
+        for lineno in version_lines:
+            if lineno <= checked_until:
+                continue
+            checked_until = lineno + ASSERT_WINDOW - 1
+            window = "\n".join(yml_lines[lineno - 1:lineno - 1 + ASSERT_WINDOW])
+            if not re.search(r'case\s+"\$v"\s+in', window):
+                errors.append(
+                    f"ci.yml:{lineno} 读 `godot --version` 处没有版本断言（其后 {ASSERT_WINDOW} 行内找不到 "
+                    "`case \"$v\" in`）——缓存污染或镜像换版会让全部门禁跑到另一个引擎上："
+                    "判据全变味而全绿；断言须与 env.GODOT_VERSION 同源")
+                continue
+            if not re.search(r"\bexit\s+[1-9]", window):
+                errors.append(
+                    f"ci.yml:{lineno} 的版本断言分支里没有非零退出（其后 {ASSERT_WINDOW} 行内找不到 "
+                    "`exit 1`）——不匹配时步骤照样成功，断言形同注释")
+        if f"\"{expected}\"" in yml_text:
+            errors.append(
+                f"ci.yml 里出现版本字面量 \"{expected}\"——引擎版本只写一处（env.GODOT_VERSION），"
+                "本门禁自己也不得手抄一份（同一事实两处维护）")
+        gate_lines = set()
+        if ci_steps:
+            for lineno, block in ci_steps:
+                _keys, run_text = step_keys_and_run(block)
+                if any(marker in run_text for marker in GATE_RUN_MARKERS):
+                    gate_lines.update(range(lineno, lineno + len(block)))
+        for lineno, line in enumerate(yml_lines, 1):
+            if lineno not in gate_lines:
+                continue
+            for lit in re.findall(r"\b4\.[0-9]+(?:\.[0-9]+)?", re.sub(r"\$GODOT_VERSION", "", line)):
+                errors.append(
+                    f"ci.yml:{lineno} 的门禁步骤 run 正文里出现版本字面量 {lit}——"
+                    "版本以 ${GODOT_VERSION} 代入，写死即同一事实两处维护")
 
 # ---------- c) 冒烟趟次 ↔ 完成标记断言 ----------
 

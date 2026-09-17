@@ -103,13 +103,27 @@ jobs:
           mkdir -p "$GODOT_CACHE_DIR"
           mv "Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64" "$GODOT_CACHE_DIR/"
           sudo ln -sf "$GODOT_CACHE_DIR/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" /usr/local/bin/godot
-          godot --version
+          # 版本断言（单一事实源＝env.GODOT_VERSION）：缓存里躺着别的版本、或镜像悄悄换版时，
+          # 只打印 `godot --version` 不校验会让整条门禁链跑到另一个引擎上——判定全变味而全绿
+          v="$(godot --version)"
+          echo "godot: $v"
+          case "$v" in
+            "$GODOT_VERSION"*) ;;
+            *) echo "::error::Godot 版本与钉版不符：期望 $GODOT_VERSION，实得 $v"; exit 1 ;;
+          esac
 
-      - name: Link cached Godot binary
+      - name: Link cached Godot binary (version asserted)
         if: steps.cache-godot.outputs.cache-hit == 'true'
         run: |
+          # 缓存命中路径同样必须断言版本：`actions/cache` 只按 key 取回目录，缓存污染（别的版本
+          # 写进同 key）或镜像换版都对本地无感，而后面每一步都跑在这个二进制上
           sudo ln -sf "$GODOT_CACHE_DIR/Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64/Godot_v${GODOT_VERSION}-stable_mono_linux.x86_64" /usr/local/bin/godot
-          godot --version
+          v="$(godot --version)"
+          echo "godot: $v"
+          case "$v" in
+            "$GODOT_VERSION"*) ;;
+            *) echo "::error::缓存里的 Godot 版本与钉版不符：期望 $GODOT_VERSION，实得 $v"; exit 1 ;;
+          esac
 
       - name: Import project resources (warning gate)
         run: bash scripts/ci/check_import.sh /tmp/import.log
