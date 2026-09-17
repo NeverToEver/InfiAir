@@ -100,6 +100,8 @@ ASSET_ORIGIN_MANIFEST=(
     "generated|assets/sprites/elite_ship_2_glow.png|generate_enemy_sprites.py"
     "generated|assets/sprites/elite_ship_3.png|generate_enemy_sprites.py"
     "generated|assets/sprites/elite_ship_3_glow.png|generate_enemy_sprites.py"
+    "generated|assets/sprites/elite_ship_4.png|generate_enemy_sprites.py"
+    "generated|assets/sprites/elite_ship_4_glow.png|generate_enemy_sprites.py"
     "generated|assets/sprites/elite_turret.png|generate_enemy_sprites.py"
     "generated|assets/sprites/enemy_ship_1.png|generate_enemy_sprites.py"
     "generated|assets/sprites/enemy_ship_1_glow.png|generate_enemy_sprites.py"
@@ -109,6 +111,8 @@ ASSET_ORIGIN_MANIFEST=(
     "generated|assets/sprites/enemy_ship_3_glow.png|generate_enemy_sprites.py"
     "generated|assets/sprites/enemy_ship_4.png|generate_enemy_sprites.py"
     "generated|assets/sprites/enemy_ship_4_glow.png|generate_enemy_sprites.py"
+    "generated|assets/sprites/enemy_ship_5.png|generate_enemy_sprites.py"
+    "generated|assets/sprites/enemy_ship_5_glow.png|generate_enemy_sprites.py"
     "generated|assets/sprites/strike_carrier.png|generate_enemy_sprites.py"
     "generated|assets/sprites/strike_carrier_glow.png|generate_enemy_sprites.py"
 
