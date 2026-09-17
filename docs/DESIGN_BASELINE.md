@@ -251,7 +251,9 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   Boss 预警色（telegraph）保留多色编码，属玩法信号不作统一。
 
 ### 2.2 世界层后处理（画面"平/廉"的主要补齐手段）
-GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕纹理后处理：
+GL Compatibility 后端官方对照表把 Glow/SSAO 标为**支持**（不支持的是 2D/3D HDR 渲染——辉光拿不到 HDR 阈值语义、
+compute shaders、`CompositorEffects`、particle trails、MSAA 2D、debanding）；而引擎给不了「辉光＋调色＋晕影＋颗粒＋
+动态战斗分级」这一整套组合，故整套手写屏幕纹理后处理（**是否改用引擎辉光属观感决策，未纳入当前口径**）：
 
 - `assets/shaders/world_grade.gdshader`（单趟）：亮部提取 → 旋转网格环采样柔光（quality 档：单环 4 tap / 双环 8 tap）
   → 暖调色彩分级（gain+lift+S 曲线对比）→ 常量晕影 → 胶片颗粒。

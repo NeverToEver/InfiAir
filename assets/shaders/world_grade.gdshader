@@ -4,9 +4,10 @@ render_mode unshaded;
 // 世界层画面增强（单趟全屏后处理）：亮部提取柔光辉光 + 暖调色彩分级 + 晕影 + 胶片颗粒。
 // layer=1：世界之上、HUD 之下；由 WorldPostFx.cs 承载全屏 ColorRect 驱动。
 //
-// GL Compatibility 前提：项目锁定 gl_compatibility，Godot 的 Environment 辉光/SSAO 在该后端
-// 不可用，故辉光全部在此以屏幕纹理（hint_screen_texture）手写实现——这是本作画面"平/廉"
-// 观感的主要补齐手段。
+// GL Compatibility 前提：项目锁定 gl_compatibility——官方对照表把 Glow/SSAO 在该后端标为支持，
+// 不支持的是 2D/3D HDR 渲染（辉光拿不到 HDR 阈值语义）、compute shaders、particle trails、
+// MSAA 2D、debanding；而引擎给不了「辉光＋调色＋晕影＋颗粒＋动态战斗分级」这一整套组合，故整套
+// 以屏幕纹理（hint_screen_texture）手写实现——这是本作画面"平/廉"观感的主要补齐手段。
 //
 // 性能纪律（Manager 侧）：关闭时整层隐藏（零 GPU）；reduce_flash 时颗粒置零、辉光减半、
 // 重击脉冲减半、动态色差/扫描线置零；
