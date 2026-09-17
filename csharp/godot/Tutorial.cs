@@ -29,6 +29,9 @@ public partial class Tutorial : Node2D
     private static readonly StringName ActBoost = new("boost");
     private static readonly StringName ActDash = new("dash");
     private static readonly StringName ActGiveUp = new("give_up");
+    private static readonly StringName ActParry = new("parry");
+    private static readonly StringName ActAugmentPanel = new("augment_panel");
+    private static readonly StringName ActTalentPanel = new("talent_panel");
 
     /// <summary>移动提示的四向动作（顺序即提示里的拼段顺序：上/左/下/右＝WASD 的书写顺序）。
     /// 四向都可改键，故提示文本不得写死键名。</summary>
@@ -59,6 +62,9 @@ public partial class Tutorial : Node2D
     private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
     private TutorialEscRouter? _escRouter; // 基地开启窗口期（树暂停）的 Always 态 Esc 返回路由
+    /// <summary>基地段的增幅触点面板（阶段 6）：读生产增幅数据，开合节奏与基地同款；
+    /// 阶段推进时自动收起。构建见 <see cref="OpenAugmentPanel"/>。</summary>
+    private ChamferedPanel? _augmentPanel;
     private Boss _boss = null!; // typed 字段
     private Mothership? _mothership;
     private bool _finished;
@@ -101,6 +107,9 @@ public partial class Tutorial : Node2D
     /// 提示缺失＝玩家永远发现不了它，而引擎侧零报错。</summary>
     public string SkipHintText() => _skipLabel.Visible ? _skipLabel.Text : "";
 
+    /// <summary>基地段增幅触点面板当前是否展开（探针判「面板打开即推进」）。</summary>
+    public bool AugmentPanelOpen() => _augmentPanel != null && GodotObject.IsInstanceValid(_augmentPanel) && _augmentPanel.Visible;
+
     public override void _Ready()
     {
         GameState.Instance.ResetRun();
@@ -121,6 +130,7 @@ public partial class Tutorial : Node2D
         // 教程内标记框与追踪弹行为与正局一致；随场景切换自动注销
         AddChild(new AimFrameLayer());
         _player = GetNode<Player>("Player");
+        _player.ParryLanded += OnParryLanded; // 弹反段计数：成功反射一发算一次（其余阶段不消费）
         // 世界层画面增强（layer=1，世界之上、HUD 之下）：BuildHud 之前入树，
         // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
         AddChild(new WorldPostFx());
@@ -248,12 +258,17 @@ public partial class Tutorial : Node2D
         TutorialArg.DockKey => GameState.Instance.ActionKeyText(ActDock),
         TutorialArg.HomecomingKey => GameState.Instance.ActionKeyText(ActHomecoming),
         TutorialArg.SkipKey => GameState.Instance.ActionKeyText(ActGiveUp),
+        TutorialArg.ParryKey => GameState.Instance.ActionKeyText(ActParry),
+        TutorialArg.AugmentKey => GameState.Instance.ActionKeyText(ActAugmentPanel),
+        TutorialArg.TalentKey => GameState.Instance.ActionKeyText(ActTalentPanel),
         TutorialArg.BoostCount => _progress.BoostCount,
         TutorialArg.BoostGoal => _progress.BoostGoal,
         TutorialArg.DashCount => _progress.DashCount,
         TutorialArg.DashGoal => _progress.DashGoal,
         TutorialArg.KillCount => _progress.KillCount,
         TutorialArg.KillGoal => _progress.Goal,
+        TutorialArg.ParryCount => _progress.ParryCount,
+        TutorialArg.ParryGoal => _progress.Goal,
         TutorialArg.ChargePercent => (int)(chargeProgress * 100.0f),
         TutorialArg.ChargeSeconds => HomeChargeTime,
         TutorialArg.DashFuelPercent => DashFuelPercent(),
@@ -347,6 +362,17 @@ public partial class Tutorial : Node2D
                     // 战斗基础：5 只 straight，锁血下限
                     SetStageObjective();
                     SpawnCombatWave(_progress.Remaining);
+                    break;
+                }
+
+            case TutorialGoalKind.Parry:
+                {
+                    // 弹反：段内保有射击型靶机（敌弹朝玩家发射、可弹反），成功弹反 N 次即过关；
+                    // 无敌口径与首领段一致（教程不判负）——实战段的每帧回血挡不住静止玩家吃多发
+                    // 齐射的单帧超额伤害（数发弹同帧结算 > 满血），死亡重开会把段内进度清零
+                    SetStageObjective();
+                    _player.SetInvincible(999.0f);
+                    SpawnParryDummies(TutorialCurriculum.ParryDummyCount);
                     break;
                 }
 
@@ -462,6 +488,20 @@ public partial class Tutorial : Node2D
         }
     }
 
+    /// <summary>阶段 4 弹反靶机：与实战段同款 straight 布局，但不开辅助瞄准标记——
+    /// 本段教的是「时机」，标记框会把注意力引到射击上；被反射弹击落或寿命到期即按保有数补刷。</summary>
+    private void SpawnParryDummies(int count)
+    {
+        var view = GameState.Instance.ViewWorldRect(); // 视口基线
+        for (int i = 0; i < count; i++)
+        {
+            // 错峰首射（经 SpawnEnemy 在 Setup 前就位）：随机初相若相近，齐射间隔恒定、
+            // 成簇抵达——匀速弹流更好学（时机可读）
+            var e = SpawnEnemy(EnemyTypeConfig(), new StringName("straight"), 0.6f + 0.7f * i);
+            e.Position = new Vector2(view.Position.X + 420.0f + 300.0f * i, view.Position.Y - 60.0f - 100.0f * (i % 2));
+        }
+    }
+
     /// <summary>场上存活敌机数（教程实体均为本节点子节点；注册表迭代替代每物理帧
     /// GetChildren()——后者每次分配新 Array，注册表为零分配迭代；教程无池化/外部来源差异）</summary>
     private int AliveEnemyCount()
@@ -490,11 +530,14 @@ public partial class Tutorial : Node2D
         return _enemyTypeConfig ??= Spawner.BuildMergedEnemyTypes()[0];
     }
 
-    private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
+    private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy, float fireDelayHint = -1.0f)
     {
         var e = _enemyScene.Instantiate<Enemy>(); // Enemy 为 C# typed，typed 实例化
+        // 首射延迟提示必须先于 Setup 赋值：Setup 内部读它定首发射计时，之后才赋只对池化复用生效
+        e.FireDelayHint = fireDelayHint;
         e.Setup(config, strategy, 1.0f);
-        e.CanShoot = _progress.Stage.Goal == TutorialGoalKind.Combat; // 仅战斗阶段敌机开火
+        // 仅实战段与弹反段敌机开火：其余阶段的目标不在火力上，多发一波敌弹只会干扰教学
+        e.CanShoot = _progress.Stage.Goal is TutorialGoalKind.Combat or TutorialGoalKind.Parry;
         var view = GameState.Instance.ViewWorldRect(); // 视口基线（不得硬编码 960）
         e.Position = new Vector2(view.GetCenter().X, view.Position.Y - 60.0f);
         e.Died += OnEnemyDied; // Enemy 为 C# typed，[Signal] 以 PascalCase 注册
@@ -513,6 +556,26 @@ public partial class Tutorial : Node2D
         SetStageObjective();
         if (_progress.IsComplete)
         {
+            PassStage();
+        }
+    }
+
+    /// <summary>弹反成功（玩家侧 ParryLanded 信号）：只在弹反段计数。冷却与窗口判定全在玩家侧
+    /// （生产路径），本节点不判「算不算一次弹反」——只判「这一段还要不要数」。</summary>
+    private void OnParryLanded()
+    {
+        if (_progress.Stage.Goal != TutorialGoalKind.Parry || _advancing || _failed || _finished)
+        {
+            return;
+        }
+
+        _progress.AddParry();
+        SetStageObjective();
+        if (_progress.IsComplete)
+        {
+            // 击杀段达标时目标本就已全部离场，弹反段达标时靶机还在场上开火——不清场会把
+            // 火力带进母舰段（对接是长演出，靶机继续射击会真的打死玩家）
+            ClearField();
             PassStage();
         }
     }
@@ -541,12 +604,14 @@ public partial class Tutorial : Node2D
             }
         };
         AddChild(mothership);
-        SetObjectiveTr(        _progress.Stage.FollowUpKey, new Godot.Collections.Array());
+        ShowFollowUpObjective();
     }
 
     private void OnMothershipDeparted(float cooldown)
     {
-        if (_stage != 3)
+        // 按阶段形态判归属而非硬编码索引：弹反段插入后母舰段索引已移位，写死索引的收尾信号
+        // 会被静默吞掉（母舰照常离场、阶段永不推进，引擎侧零报错）
+        if (_progress.Stage.Goal != TutorialGoalKind.Dock)
         {
             return;
         }
@@ -596,6 +661,8 @@ public partial class Tutorial : Node2D
             return;
         }
 
+        // 增幅触点面板不跨阶段存活：推进即收起（下一阶段是首领战，面板压在 Boss 头上属教学事故）
+        CloseAugmentPanel();
         _advancing = false;
         if (!TutorialCurriculum.IsLast(_stage))
         {
@@ -647,6 +714,18 @@ public partial class Tutorial : Node2D
                         {
                             SpawnCombatWave(remaining);
                         }
+                    }
+
+                    break;
+                }
+
+            case TutorialGoalKind.Parry:
+                {
+                    // 靶机补刷：被反射弹击落或寿命到期离场都不算阶段目标，按保有数补足——
+                    // 场上无靶机＝无弹可教（与击杀段的「补足剩余数」不同，这里补的是教具不是进度）
+                    if (!_advancing && !_progress.IsComplete && AliveEnemyCount() < TutorialCurriculum.ParryDummyCount)
+                    {
+                        SpawnParryDummies(TutorialCurriculum.ParryDummyCount - AliveEnemyCount());
                     }
 
                     break;
@@ -707,10 +786,32 @@ public partial class Tutorial : Node2D
 
             case TutorialGoalKind.Homecoming:
                 {
-                    // 推进窗口内不再受理蓄力（同 Dock 分支）：跳过本阶段后的 1s 窗口里阶段仍是返航，
-                    // 此时触发会把基地面板弹在下一阶段头上（树暂停 1.2s，Boss 在基地后面入场）
+                    // 推进窗口内不再受理蓄力与面板（同 Dock 分支的窗口门控）：跳过本阶段后的 1s 窗口里
+                    // 阶段仍是返航，此时触发会把基地面板弹在下一阶段头上（树暂停 1.2s，Boss 在基地后面入场）
                     if (_advancing)
                     {
+                        break;
+                    }
+
+                    // 增幅触点：面板开着时再按一次收起（与生产 L 键的展开/收起语义一致）
+                    if (_augmentPanel != null && _augmentPanel.Visible)
+                    {
+                        if (Input.IsActionJustPressed(ActAugmentPanel))
+                        {
+                            CloseAugmentPanel();
+                        }
+
+                        break;
+                    }
+
+                    if (_progress.Charged)
+                    {
+                        // 已返航：等待玩家实际打开一次增幅面板（阶段达成条件之二，见 TutorialProgress）
+                        if (Input.IsActionJustPressed(ActAugmentPanel))
+                        {
+                            OpenAugmentPanel();
+                        }
+
                         break;
                     }
 
@@ -719,6 +820,7 @@ public partial class Tutorial : Node2D
                         case HoldChargePhase.Triggered:
                             _progress.MarkCharged();
                             OpenBase();
+                            ShowFollowUpObjective();
                             break;
                         case HoldChargePhase.Charging:
                             _objectivePoll -= d;
@@ -819,6 +921,117 @@ public partial class Tutorial : Node2D
     }
 
     private void OnBaseResume() => CloseBase();
+
+    /// <summary>渲染后续目标行（补参按阶段表声明；母舰段的后续行无补参，基地段带两个键位补参）。</summary>
+    private void ShowFollowUpObjective()
+    {
+        var stage = _progress.Stage;
+        if (stage.FollowUpKey.Length == 0)
+        {
+            return;
+        }
+
+        SetObjectiveTr(
+            stage.FollowUpKey,
+            stage.FollowUpArgs != null ? Args(stage.FollowUpArgs) : new Godot.Collections.Array());
+    }
+
+    /// <summary>基地段增幅触点：实际打开一次面板即达成本阶段（数据与行装配同生产 HUD——
+    /// 读 <c>GameState.Augments</c>、键名走 <c>AUG_*_NAME</c>，教程内零经济链）。
+    /// 布局对齐生产增幅滚动栏（右侧居中挂靠），无增幅时给一行空态说明——教程局拿不到增幅，
+    /// 空面板会让「打开看看」变成「打开了寂寞」。</summary>
+    private void OpenAugmentPanel()
+    {
+        CloseAugmentPanel();
+        var panel = new ChamferedPanel
+        {
+            Padding = 0.0f,
+            Position = new Vector2(-356.0f, -260.0f),
+            Size = new Vector2(340.0f, 520.0f),
+        };
+        panel.SetAnchorsPreset(Control.LayoutPreset.CenterRight);
+        var margin = new MarginContainer();
+        margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        margin.AddThemeConstantOverride("margin_left", 14);
+        margin.AddThemeConstantOverride("margin_right", 14);
+        margin.AddThemeConstantOverride("margin_top", 12);
+        margin.AddThemeConstantOverride("margin_bottom", 12);
+        panel.AddChild(margin);
+        var vbox = new VBoxContainer();
+        vbox.AddThemeConstantOverride("separation", 10);
+        margin.AddChild(vbox);
+        vbox.AddChild(UITheme.MakeLabel((string)Tr("UI_AUGMENTS_TITLE"), UITheme.FontHud, UITheme.Accent, HorizontalAlignment.Left));
+        var divider = new ColorRect
+        {
+            Color = UITheme.AccentDim,
+            CustomMinimumSize = new Vector2(0.0f, 1.0f),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+        };
+        vbox.AddChild(divider);
+        var augments = GameState.Instance.Augments;
+        var listed = 0;
+        foreach (var key in augments.Keys)
+        {
+            var stacks = (int)augments[key].AsInt64();
+            if (stacks <= 0)
+            {
+                continue;
+            }
+
+            var id = key.AsStringName();
+            var row = new HBoxContainer();
+            row.AddThemeConstantOverride("separation", 10);
+            row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
+            var nameLabel = UITheme.MakeLabel(
+                (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
+            nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+            row.AddChild(nameLabel);
+            if (stacks > 1)
+            {
+                row.AddChild(UITheme.MakeLabel(GdFormat.Format("×%d", stacks), UITheme.FontHud, UITheme.AccentGold, HorizontalAlignment.Right));
+            }
+
+            vbox.AddChild(row);
+            listed += 1;
+        }
+
+        if (listed == 0)
+        {
+            vbox.AddChild(UITheme.MakeLabel((string)Tr("TUT_AUGMENT_EMPTY"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        }
+
+        _hudLayer.AddChild(panel);
+        UITheme.AnimateOpen(panel);
+        _augmentPanel = panel;
+        _progress.MarkPanelOpened();
+        if (_progress.IsComplete)
+        {
+            PassStage();
+        }
+    }
+
+    /// <summary>收起增幅触点面板（玩家再按一次或阶段推进时；推进收起见 <see cref="FinishPassStage"/>）。</summary>
+    private void CloseAugmentPanel()
+    {
+        if (_augmentPanel == null)
+        {
+            return;
+        }
+
+        // 局部捕获：字段马上置空，闭包再读字段会拿 null 而永不释放（退场动画播完面板悬死在树上）
+        var panel = _augmentPanel;
+        _augmentPanel = null;
+        if (GodotObject.IsInstanceValid(panel))
+        {
+            UITheme.AnimateClose(panel, onDone: () =>
+            {
+                if (GodotObject.IsInstanceValid(panel))
+                {
+                    panel.QueueFree();
+                }
+            });
+        }
+    }
 
     private void Finish()
     {

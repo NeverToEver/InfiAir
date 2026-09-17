@@ -17,6 +17,11 @@ public partial class Player : CharacterBody2D
     [Signal]
     public delegate void EntryFinishedEventHandler();
 
+    /// <summary>弹反成功（盾在有效窗口内真实反射了一发可弹反目标）：教程据此计数，
+    /// 视觉特效与手感反馈仍在本节点内自理——外部只关心「弹中了没有」。</summary>
+    [Signal]
+    public delegate void ParryLandedEventHandler();
+
     // 静态 Godot 资源改实例字段（退出 segfault 实测教训，UITheme.cs:53）
     // 射击音效：FireA..FireC 三采样轮换（资源装载/音量/抖动/复音统一在 SfxPlayer 目录表）
     private const int FireSoundVariants = 3;
@@ -1732,6 +1737,7 @@ public partial class Player : CharacterBody2D
         RumbleService.Parry(); // 弹反成功震动
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
         GameState.Instance.PlaySfx(SfxId.Dash);
+        EmitSignal(SignalName.ParryLanded);
     }
 
     /// <summary>盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。</summary>

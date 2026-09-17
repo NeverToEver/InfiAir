@@ -493,16 +493,30 @@ public sealed partial class InputBindingsService : RefCounted
     /// <summary>动作的**首个**绑定键标签（一句玩家提示里只放一个键时的取值口，如教程的
     /// 「按住 &lt;键&gt; 加速」）。与 <see cref="ActionKeysText"/> 同源（同一份有效绑定表：
     /// 玩家改键后两者一起变）；未绑定时返回未绑定文案而不是空串——空串会让提示读成
-    /// 「按住 加速」，玩家看不出少了什么。</summary>
+    /// 「按住 加速」，玩家看不出少了什么。
+    /// 固定键动作（天赋面板 G 这类不在可改键表的）回落 <c>InputMap</c> 的键盘事件——
+    /// 它们的键不在 <see cref="KeyBindings"/> 里，但提示文案同样要报真键名而非「未绑定」。</summary>
     public string ActionKeyText(StringName action)
     {
         var keys = EffectiveKeys(action);
-        if (keys.Count == 0)
+        if (keys.Count > 0)
         {
-            return (string)Tr("SET_UNBOUND");
+            return OS.GetKeycodeString((Key)(int)keys[0].AsInt64());
         }
 
-        return OS.GetKeycodeString((Key)(int)keys[0].AsInt64());
+        foreach (var ev in InputMap.ActionGetEvents(action))
+        {
+            if (ev is InputEventKey keyEvent)
+            {
+                var kc = keyEvent.Keycode != Key.None ? keyEvent.Keycode : keyEvent.PhysicalKeycode;
+                if (kc != Key.None)
+                {
+                    return OS.GetKeycodeString(kc);
+                }
+            }
+        }
+
+        return (string)Tr("SET_UNBOUND");
     }
 
     /// <summary>动作当前是否有生效绑定（教程的移动提示要跳过未绑定的方向，改键把某个方向

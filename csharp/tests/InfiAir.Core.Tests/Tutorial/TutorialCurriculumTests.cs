@@ -7,7 +7,7 @@ using Xunit;
 namespace InfiAir.Core.Tests.Tutorial;
 
 /// <summary>教程阶段表与进度判定的契约测试。钉住三件事：
-/// ① 六阶段的顺序 / 目标数 / 补参形态（节奏与判定的单源，节点与文案共用）；
+/// ① 七阶段的顺序 / 目标数 / 补参形态（节奏与判定的单源，节点与文案共用）；
 /// ② 目标行文案的占位符数与阶段表补参个数逐位对齐——补参错位时玩家看到的是错位的数字或键名，
 ///    既不崩也不报错，引擎侧任何探针都判不到；
 /// ③ 节点不留副本：目标数与键位提示必须经 core 与生产绑定取值，不得再写一份。</summary>
@@ -16,19 +16,20 @@ public sealed class TutorialCurriculumTests
     [Fact]
     public void Stages_AreOrderedWithExpectedGoals()
     {
-        Assert.Equal(6, TutorialCurriculum.StageCount);
+        Assert.Equal(7, TutorialCurriculum.StageCount);
         Assert.Equal(
             new[]
             {
                 TutorialGoalKind.Marksmanship,
                 TutorialGoalKind.Maneuver,
                 TutorialGoalKind.Combat,
+                TutorialGoalKind.Parry,
                 TutorialGoalKind.Dock,
                 TutorialGoalKind.Homecoming,
                 TutorialGoalKind.BossEnrage,
             },
             Array.ConvertAll(TutorialCurriculum.Stages, s => s.Goal));
-        Assert.Equal(new[] { 3, 2, 5, 1, 1, 1 }, Array.ConvertAll(TutorialCurriculum.Stages, s => s.TargetCount));
+        Assert.Equal(new[] { 3, 2, 5, 2, 1, 1, 1 }, Array.ConvertAll(TutorialCurriculum.Stages, s => s.TargetCount));
     }
 
     [Fact]
@@ -62,9 +63,10 @@ public sealed class TutorialCurriculumTests
     [InlineData(0, "%s|%d|%d", "")]
     [InlineData(1, "%s|%d|%d|%s|%d|%d|%d", "")]
     [InlineData(2, "%d|%d|%d", "")]
-    [InlineData(3, "%s", "%d")]
-    [InlineData(4, "%s|%.1f", "%d")]
-    [InlineData(5, "%d", "")]
+    [InlineData(3, "%s|%d|%d", "")]
+    [InlineData(4, "%s", "%d")]
+    [InlineData(5, "%s|%.1f", "%d")]
+    [InlineData(6, "%d", "")]
     public void ObjectiveCopy_PlaceholderSignatureMatchesPlan(int stageIndex, string objectiveSignature, string chargeSignature)
     {
         var copy = TranslationTable();
@@ -94,8 +96,9 @@ public sealed class TutorialCurriculumTests
         {
             if (stage.FollowUpKey.Length > 0)
             {
-                Assert.Equal(0, PlaceholderCount(Signature(copy[stage.FollowUpKey].Zh)));
-                Assert.Equal(0, PlaceholderCount(Signature(copy[stage.FollowUpKey].En)));
+                // 后续目标行的占位符个数必须与其补参声明一致（母舰段无补参、基地段带两个键位补参）
+                Assert.Equal(stage.FollowUpArgs?.Length ?? 0, PlaceholderCount(Signature(copy[stage.FollowUpKey].Zh)));
+                Assert.Equal(stage.FollowUpArgs?.Length ?? 0, PlaceholderCount(Signature(copy[stage.FollowUpKey].En)));
             }
         }
     }
@@ -124,14 +127,14 @@ public sealed class TutorialCurriculumTests
     public void ClampAndResume_NormalizeOutOfRangeInputs()
     {
         Assert.Equal(0, TutorialCurriculum.ClampStage(-3));
-        Assert.Equal(5, TutorialCurriculum.ClampStage(99));
+        Assert.Equal(6, TutorialCurriculum.ClampStage(99));
         Assert.Equal(2, TutorialCurriculum.ResumeStage(2));
         Assert.Equal(0, TutorialCurriculum.ResumeStage(-1));
-        Assert.Equal(5, TutorialCurriculum.ResumeStage(7));
-        Assert.True(TutorialCurriculum.IsLast(5));
-        Assert.False(TutorialCurriculum.IsLast(4));
-        Assert.Equal(5, TutorialCurriculum.Next(5));
-        Assert.Equal(4, TutorialCurriculum.Next(3));
+        Assert.Equal(6, TutorialCurriculum.ResumeStage(7));
+        Assert.True(TutorialCurriculum.IsLast(6));
+        Assert.False(TutorialCurriculum.IsLast(5));
+        Assert.Equal(6, TutorialCurriculum.Next(6));
+        Assert.Equal(5, TutorialCurriculum.Next(4));
     }
 
     // ---------------- 阶段进度判定 ----------------
@@ -174,7 +177,7 @@ public sealed class TutorialCurriculumTests
     public void ChargeStages_CompleteOnChargeOnly()
     {
         var progress = new TutorialProgress();
-        progress.EnterStage(TutorialCurriculum.At(3));
+        progress.EnterStage(TutorialCurriculum.At(4));
         Assert.False(progress.IsComplete);
         progress.MarkCharged();
         Assert.True(progress.IsComplete);
@@ -185,9 +188,38 @@ public sealed class TutorialCurriculumTests
     public void BossStage_CompletesOnEnrage()
     {
         var progress = new TutorialProgress();
-        progress.EnterStage(TutorialCurriculum.At(5));
+        progress.EnterStage(TutorialCurriculum.At(6));
         Assert.False(progress.IsComplete);
         progress.MarkEnraged();
+        Assert.True(progress.IsComplete);
+    }
+
+    [Fact]
+    public void ParryStage_CompletesAtTargetCountAndCapsReadings()
+    {
+        var progress = new TutorialProgress();
+        progress.EnterStage(TutorialCurriculum.At(3));
+        Assert.False(progress.IsComplete);
+        Assert.Equal(2, progress.Remaining);
+        progress.AddParry();
+        Assert.False(progress.IsComplete);
+        Assert.Equal(1, progress.ParryCount);
+        progress.AddParry();
+        Assert.True(progress.IsComplete);
+        Assert.Equal(0, progress.Remaining);
+        progress.AddParry();
+        Assert.Equal(2, progress.ParryCount); // 读数封顶，不出现 3/2
+    }
+
+    [Fact]
+    public void Homecoming_RequiresChargeAndPanelOpened()
+    {
+        var progress = new TutorialProgress();
+        progress.EnterStage(TutorialCurriculum.At(5));
+        Assert.False(progress.IsComplete);
+        progress.MarkCharged();
+        Assert.False(progress.IsComplete); // 只返航没开增幅面板不算达成
+        progress.MarkPanelOpened();
         Assert.True(progress.IsComplete);
     }
 

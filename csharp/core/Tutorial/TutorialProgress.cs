@@ -18,6 +18,9 @@ public sealed class TutorialProgress
     /// <summary>已击杀数（训练靶与实战阶段使用）。</summary>
     public int Kills { get; private set; }
 
+    /// <summary>已弹反次数（弹反阶段使用）。</summary>
+    public int Parries { get; private set; }
+
     /// <summary>已加速次数（机动阶段使用）。</summary>
     public int Boosts { get; private set; }
 
@@ -27,6 +30,9 @@ public sealed class TutorialProgress
     /// <summary>蓄力达标是否已达成（停靠与返航阶段使用）。</summary>
     public bool Charged { get; private set; }
 
+    /// <summary>增幅面板是否已实际打开（返航阶段使用：返航到基地后还需开一次面板）。</summary>
+    public bool PanelOpened { get; private set; }
+
     /// <summary>首领是否已进入狂暴（首领阶段使用）。</summary>
     public bool Enraged { get; private set; }
 
@@ -35,19 +41,25 @@ public sealed class TutorialProgress
     {
         Stage = stage;
         Kills = 0;
+        Parries = 0;
         Boosts = 0;
         Dashes = 0;
         Charged = false;
+        PanelOpened = false;
         Enraged = false;
     }
 
     public void AddKill() => Kills += 1;
+
+    public void AddParry() => Parries += 1;
 
     public void AddBoost() => Boosts += 1;
 
     public void AddDash() => Dashes += 1;
 
     public void MarkCharged() => Charged = true;
+
+    public void MarkPanelOpened() => PanelOpened = true;
 
     public void MarkEnraged() => Enraged = true;
 
@@ -63,18 +75,24 @@ public sealed class TutorialProgress
     /// <summary>文案补参用的击杀读数（按目标封顶）。</summary>
     public int KillCount => Cap(Kills);
 
+    /// <summary>文案补参用的弹反读数（按目标封顶）。</summary>
+    public int ParryCount => Cap(Parries);
+
     /// <summary>文案补参用的加速读数（按目标封顶）。</summary>
     public int BoostCount => Cap(Boosts);
 
     /// <summary>文案补参用的突进读数（按目标封顶）。</summary>
     public int DashCount => Cap(Dashes);
 
-    /// <summary>当前阶段目标是否达成。</summary>
+    /// <summary>当前阶段目标是否达成。返航段是双条件：蓄力返航**且**实际打开过一次增幅面板——
+    /// 只返航不开面板时阶段停在后续目标行上，玩家还没摸到要教的那一面。</summary>
     public bool IsComplete => Stage.Goal switch
     {
         TutorialGoalKind.Marksmanship or TutorialGoalKind.Combat => Kills >= Stage.TargetCount,
         TutorialGoalKind.Maneuver => Boosts >= Stage.TargetCount && Dashes >= Stage.TargetCount,
-        TutorialGoalKind.Dock or TutorialGoalKind.Homecoming => Charged,
+        TutorialGoalKind.Parry => Parries >= Stage.TargetCount,
+        TutorialGoalKind.Dock => Charged,
+        TutorialGoalKind.Homecoming => Charged && PanelOpened,
         TutorialGoalKind.BossEnrage => Enraged,
         _ => false,
     };

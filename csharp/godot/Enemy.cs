@@ -79,6 +79,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     public int Hp { get; set; } = 2;
     public float Speed { get; set; } = 140.0f;
     public bool CanShoot { get; set; }
+    /// <summary>首发射延迟提示（秒；&lt;0 = 按随机初相）。教程弹反靶机用它把三机的开火错峰成
+    /// 匀速弹流——随机初相若相近，齐射会永久同步（间隔恒定、初相差固定），弹幕成簇抵达。</summary>
+    public float FireDelayHint { get; set; } = -1.0f;
     public int ScoreValue { get; set; } = 100;
     public StringName BulletType { get; private set; } = "single";
     /// <summary>悬停锚点 y（spawner 分配；&lt;0 时按悬停带自取）。</summary>
@@ -239,7 +242,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         _spawnX = Position.X;
         _phase = GD.Randf() * Mathf.Tau;
-        _fireTimer = (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
+        _fireTimer = FireDelayHint >= 0.0f ? FireDelayHint : (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
         EnsureStrategy();
         // 尾焰软光点
         var glowRadius = IsElite ? TailGlowRadiusElite : TailGlowRadius;
@@ -564,7 +567,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         UpdateTailGlow();
         _spawnX = Position.X;
         _phase = GD.Randf() * Mathf.Tau;
-        _fireTimer = (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
+        _fireTimer = FireDelayHint >= 0.0f ? FireDelayHint : (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
         AnchorY = -1.0f;
         EnsureStrategy();
     }

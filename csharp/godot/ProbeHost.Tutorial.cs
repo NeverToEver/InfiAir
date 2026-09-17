@@ -41,11 +41,13 @@ public partial class ProbeHost
 /// 为什么驱动节点挂在**根**上：教程死亡重开走 `ReloadCurrentScene`（玩家重生不另造一套复活
 /// 序列），当前场景会被换掉——挂在当前场景里的探针会跟着被释放；挂在根上则跨重载存活。
 ///
-/// 三遍流程：第一遍从阶段 1 走满六阶段到完成（开跑前把 dock 改键到 J，断母舰阶段的目标行
-/// 报出改后的键）；第二遍连跳两个阶段到实战、打到 2/5 后阵亡，断重开回到同一阶段且进度归零；
-/// 第三遍连跳到停靠阶段，在**对接进行中**（玩家输入已被锁）跳过，断阶段推进、输入锁已解、
-/// 玩家仍能移动——母舰被中途回收时它的解锁分支（RELEASE）永不执行，只断阶段索引判不出；
-/// 收尾在返航阶段同按返航键与跳过键，断推进窗口内不会把基地面板弹出来。
+/// 三遍流程：第一遍从阶段 1 走满七阶段到完成（开跑前把 dock 改键到 J，断母舰阶段的目标行
+/// 报出改后的键；弹反段先做反向对照——敌弹贴身而不弹反时读数不动，再在常规距离与近身距离
+/// 各弹反一发；返航段实际打开一次增幅面板，断「面板打开即推进、推进后面板收起」）；第二遍
+/// 连跳两个阶段到实战、打到 2/5 后阵亡，断重开回到同一阶段且进度归零；第三遍连跳到实战清场、
+/// 打完弹反段后在**对接进行中**（玩家输入已被锁）跳过，断阶段推进、输入锁已解、玩家仍能移动
+/// ——母舰被中途回收时它的解锁分支（RELEASE）永不执行，只断阶段索引判不出；收尾在返航阶段
+/// 同按返航键与跳过键，断推进窗口内不会把基地面板弹出来。
 /// </summary>
 public partial class TutorialProbeDriver : Node
 {
@@ -71,6 +73,24 @@ public partial class TutorialProbeDriver : Node
     /// <summary>两次相位突进之间的间隔（帧）：取生产冲刺冷却 4s + 余量（真按冷却走，
     /// 不用白盒写口——顺带覆盖「教程授予的相位突进真的能用」）。</summary>
     private const int DashGapFrames = 250;
+
+    /// <summary>弹反的近身判定带（px）：第二发用的「来不及提前按」距离档——带内按下时敌弹恰在
+    /// 有效窗口开启后不久进入弹反半径。</summary>
+    private const float ParryCloseBandMax = 175.0f;
+
+    /// <summary>弹反的常规判定带（px）：第一发用的从容距离档（过窗余量最足的上沿）。</summary>
+    private const float ParryNormalBandMax = 280.0f;
+
+    /// <summary>弹反判定带的下限（px）：前摇 0.15s 内敌弹（420px/s）走 73.5px，60+73.5≈134——
+    /// 低于 140 按下会「按晚了」：盾亮起时弹已进圈，Area2D 只在进入瞬间判定，穿圈即漏。</summary>
+    private const float ParryBandMin = 140.0f;
+
+    /// <summary>反向对照的贴身距离（px）：敌弹进到这个距离而没人弹反，即为「弹已到、计数未动」的实证。</summary>
+    private const float ParryNegControlDist = 55.0f;
+
+    /// <summary>弹反冷却等待（帧）：生产周期 0.8s 时长 + 3.0s 冷却 ≈ 3.8s，取 4.5s 余量——
+    /// 冷却未到就按只会白挥一下盾，探针按冷却节奏发令。</summary>
+    private const int ParryCooldownFrames = 270;
 
     /// <summary>死亡重开的等待上限（帧）：提示 1.5s + 场景重载 ≈ 2s，取 6s 余量。</summary>
     private const int ReloadBudgetFrames = 360;
@@ -101,8 +121,9 @@ public partial class TutorialProbeDriver : Node
         Rebind,          // 改键 dock（键位感知的判据来源）
         KillStage,       // 清场型阶段（训练靶 / 实战）：生产伤害击落
         Maneuver,        // 机动：加速 ×2 + 相位突进 ×2
+        Parry,           // 弹反：反向对照（不弹反读数不动）+ 常规与近身各弹反一发
         Dock,            // 母舰停靠：长按蓄力 → 对接补给 → 提前离舰
-        Home,            // 返航：长按蓄力 → 基地
+        Home,            // 返航：长按蓄力 → 基地 → 打开增幅面板（打开即推进）
         Boss,            // 首领：打到狂暴
         VerifyDone,      // 断完成度与检查点清零
         Reload,          // 重载取一趟干净的教程（完成态的实例不可再用）
@@ -120,6 +141,9 @@ public partial class TutorialProbeDriver : Node
     /// <summary>通用步（清场）的期望阶段与走完后的下一站：多遍流程复用同一段驱动。</summary>
     private int _expectStage;
     private Step _nextStep;
+    /// <summary>弹反段走完后的下一站（首遍→母舰段；第三遍→对接召唤）：实战清场后必经弹反段，
+    /// 两遍的后续不同，故单独持有而不是复用 _nextStep。</summary>
+    private Step _parryNext;
 
     /// <summary>连跳编排：当前这一跳的目标阶段（1 → 2）、两跳走完后的下一站。</summary>
     private int _skipTarget;
@@ -136,6 +160,18 @@ public partial class TutorialProbeDriver : Node
     private Tutorial? _deathFrom;
     private bool _failed;
     private float _moveProbeStartY;
+    /// <summary>弹反向反对照是否已成立（敌弹贴身而读数不动）。</summary>
+    private bool _parryNegControlDone;
+    /// <summary>上一次按下弹反的帧序（冷却节奏用；-1 = 还没按过）。</summary>
+    private int _parryPressFrame = -1;
+    /// <summary>弹反已按下、正在等这一发起效或超时。</summary>
+    private bool _parryPending;
+    /// <summary>按下弹反那一刻的目标行读数（起效判定＝读数超过它）。</summary>
+    private int _parryReadoutAtPress;
+    /// <summary>弹反按下后的等待帧数（超时即回扫描——时机错过的弹反白挥，换下一发）。</summary>
+    private int _parryWaitFrames;
+    /// <summary>弹反按下后的松手倒计帧（保持两帧，见按下处注释）。</summary>
+    private int _parryReleaseIn;
 
     /// <summary>完成标记只打一次（门禁按它判红绿；重复打标记会让「跑了两遍」看起来正常）。</summary>
     private bool _markerPrinted;
@@ -194,6 +230,9 @@ public partial class TutorialProbeDriver : Node
                 break;
             case Step.Maneuver:
                 DriveManeuverStage();
+                break;
+            case Step.Parry:
+                DriveParryStage();
                 break;
             case Step.Dock:
                 DriveDockStage();
@@ -284,7 +323,8 @@ public partial class TutorialProbeDriver : Node
                 return;
             }
 
-            Begin(Step.KillStage, expectStage: 2, next: Step.Dock);
+            _parryNext = Step.Dock; // 首遍：实战清场 → 弹反 → 母舰停靠
+            Begin(Step.KillStage, expectStage: 2, next: Step.Parry);
             return;
         }
 
@@ -300,51 +340,216 @@ public partial class TutorialProbeDriver : Node
         OverBudget("机动");
     }
 
+    /// <summary>弹反段驱动（正反两半）：先反向对照——等一发敌弹贴身（&lt;55px）而全程不按弹反，
+    /// 断目标行读数纹丝不动（弹到了、没弹反、计数不涨）；再正向两发——常规距离带与近身带各
+    /// 弹反一发（生产输入面 <c>parry</c> 动作），断读数 0→1→2 且阶段推进。发令按生产冷却节奏
+    /// （0.8s 盾时长 + 3.0s 硬冷却），时机错过就换下一发，不白挥。</summary>
+    private void DriveParryStage()
+    {
+        if (StageAdvanced(3, _parryNext))
+        {
+            return;
+        }
+
+        CheckStageReadout(3);
+        if (_player == null)
+        {
+            Fail("弹反段取不到玩家节点");
+            return;
+        }
+
+        var readout = KillProgressShown();
+        if (readout < 0 || readout > 2)
+        {
+            Fail($"弹反段读数越界（{readout}/2）");
+            return;
+        }
+
+        if (!_parryNegControlDone)
+        {
+            // 反向对照：一发敌弹已进到贴身距离而没人按过弹反——计数必须还是 0
+            var closing = NearestBulletDist(out _);
+            if (closing >= 0.0f && closing < ParryNegControlDist)
+            {
+                if (readout != 0)
+                {
+                    Fail($"反向对照失败：敌弹贴身且未弹反，读数却是 {readout}/2——计数不只在弹反时增长");
+                    return;
+                }
+
+                _parryNegControlDone = true;
+            }
+
+            OverBudget("弹反（反向对照）");
+            return;
+        }
+
+        if (readout >= 2)
+        {
+            return; // 推进链已在路上（1s 延迟），StageAdvanced 会接走
+        }
+
+        // 按下保持两帧：rising edge 要跨过帧边界才被玩家侧的 IsActionJustPressed 采到
+        if (_parryReleaseIn > 0)
+        {
+            _parryReleaseIn--;
+            if (_parryReleaseIn == 0)
+            {
+                SetAction("parry", press: false);
+            }
+
+            return;
+        }
+
+        if (_parryPending)
+        {
+            // 已按下：读数上涨即这一发起效，回扫描态换下一发（冷却由帧差挡住）
+            if (readout > _parryReadoutAtPress || _parryWaitFrames > 90)
+            {
+                _parryPending = false;
+                _parryWaitFrames = 0;
+                SetAction("parry", press: false);
+                return;
+            }
+
+            _parryWaitFrames++;
+            return;
+        }
+
+        // 冷却节奏：按过之后等硬冷却走完再找下一发（冷却未到就按只会白挥一下盾）
+        if (_parryPressFrame >= 0 && _totalFrames - _parryPressFrame < ParryCooldownFrames)
+        {
+            return;
+        }
+
+        // 第二发取近身带（近身弹拍），第一发取常规带。不要求孤立弹：三靶机的开火计时器若相近，
+        // 齐射的弹会成对抵达且永久同步（随机初相固定后间隔恒定）——一次盾反射两发、读数 0→2
+        // 直接过关，也是合法形态；等孤立弹会永远等不到
+        var bandMax = readout == 0 ? ParryNormalBandMax : ParryCloseBandMax;
+        var dist = NearestBulletDist(out _);
+        if (dist >= ParryBandMin && dist <= bandMax)
+        {
+            _parryPressFrame = _totalFrames;
+            _parryPending = true;
+            _parryReadoutAtPress = readout;
+            _parryWaitFrames = 0;
+            _parryReleaseIn = 2; // 按下保持两帧再松：同帧按下即松会让玩家侧采不到 rising edge
+            SetAction("parry", press: true);
+            return;
+        }
+
+        OverBudget("弹反");
+    }
+
+    /// <summary>最近**逼近中**敌弹与玩家的距离（px），次近逼近弹的距离经 out 给出
+    /// （无逼近弹返回 -1）。只看逼近的：已掠过玩家正在远去的弹也会落进距离带，对它按弹反
+    /// 只会白挥一下盾（窗口内没有弹会进来）。次近弹供「孤立弹」判定——齐射时两发同进
+    /// 弹反半径，一次盾反射两发、读数 0→2，近身那一拍就永远轮不到。</summary>
+    private float NearestBulletDist(out float secondNearest)
+    {
+        secondNearest = -1.0f;
+        if (_player == null)
+        {
+            return -1.0f;
+        }
+
+        var nearest = -1.0f;
+        var bullets = GameState.Instance.EnemyBullets;
+        for (var i = 0; i < bullets.Count; i++)
+        {
+            var bullet = bullets[i];
+            if (bullet == null || !GodotObject.IsInstanceValid(bullet))
+            {
+                continue;
+            }
+
+            var toPlayer = _player.GlobalPosition - bullet.GlobalPosition;
+            if (bullet.Direction.Dot(toPlayer) <= 0.0f)
+            {
+                continue; // 正在远去：按了也弹不中
+            }
+
+            var dist = toPlayer.Length();
+            if (nearest < 0.0f || dist < nearest)
+            {
+                secondNearest = nearest;
+                nearest = dist;
+            }
+            else if (secondNearest < 0.0f || dist < secondNearest)
+            {
+                secondNearest = dist;
+            }
+        }
+
+        return nearest;
+    }
+
     /// <summary>母舰停靠阶段：按住召唤键不放——先走完蓄力召唤，再在驻留期触发提前离舰
     /// （两者读同一动作）；离场即过关。</summary>
     private void DriveDockStage()
     {
-        if (StageAdvanced(3, Step.Home))
+        if (StageAdvanced(4, Step.Home))
         {
             Input.ActionRelease(new StringName("dock"));
             return;
         }
 
-        CheckStageReadout(3);
+        CheckStageReadout(4);
         Input.ActionPress(new StringName("dock"));
         OverBudget("母舰停靠");
     }
 
-    /// <summary>返航阶段：长按蓄力（1.5s＝90 帧，取余量后松手）→ 打开基地 → 自动过关。</summary>
+    /// <summary>返航阶段：长按蓄力（1.5s＝90 帧，取余量后松手）→ 打开基地 → 等基地窗口关上后
+    /// 实际打开一次增幅面板（阶段达成条件之二）→ 面板打开即推进、推进后面板收起。</summary>
     private void DriveHomeStage()
     {
-        if (StageAdvanced(4, Step.Boss))
+        if (StageAdvanced(5, Step.Boss))
         {
+            Input.ActionRelease(new StringName("homecoming"));
+            Input.ActionRelease(new StringName("augment_panel"));
+            if (_tutorial!.AugmentPanelOpen())
+            {
+                Fail("返航段推进后增幅面板未收起——面板跨阶段压到首领战头上");
+                return;
+            }
+
             return;
         }
 
-        CheckStageReadout(4);
+        CheckStageReadout(5);
         if (_stepFrame < 120)
         {
             Input.ActionPress(new StringName("homecoming"));
-        }
-        else
-        {
-            Input.ActionRelease(new StringName("homecoming"));
+            return;
         }
 
-        OverBudget("返航");
+        Input.ActionRelease(new StringName("homecoming"));
+        // 基地窗口 1.2s（树暂停）之后按增幅面板键：帧 210 起按，留窗口关上的余量；
+        // 面板没开出来时（蓄力未达成/键未被受理）由超时判据兜底报「返航与增幅面板未推进」
+        if (_stepFrame == 210)
+        {
+            SetAction("augment_panel", press: true);
+            return;
+        }
+
+        if (_stepFrame == 212)
+        {
+            SetAction("augment_panel", press: false);
+            return;
+        }
+
+        OverBudget("返航与增幅面板");
     }
 
     /// <summary>首领阶段：分拍打到狂暴阈值（教程以狂暴为达成判据，击杀不算过关）。</summary>
     private void DriveBossStage()
     {
-        if (StageAdvanced(5, Step.VerifyDone))
+        if (StageAdvanced(6, Step.VerifyDone))
         {
             return;
         }
 
-        CheckStageReadout(5);
+        CheckStageReadout(6);
         // 末阶段的完成标志是完成态本身（不再有下一阶段索引可等）
         if (_tutorial!.IsFinished())
         {
@@ -421,7 +626,8 @@ public partial class TutorialProbeDriver : Node
     {
         if (_afterChain == Step.DockSummon)
         {
-            Begin(Step.KillStage, expectStage: 2, next: Step.DockSummon);
+            _parryNext = Step.DockSummon; // 第三遍：实战清场 → 弹反 → 对接中跳过
+            Begin(Step.KillStage, expectStage: 2, next: Step.Parry);
             return;
         }
 
@@ -441,18 +647,18 @@ public partial class TutorialProbeDriver : Node
     private void DriveDockSummon()
     {
         var tutorial = _tutorial!;
-        if (tutorial.StageIndex() != 3)
+        if (tutorial.StageIndex() != 4)
         {
-            Fail($"对接中跳过的前置阶段不符：期望阶段 4（母舰停靠），实际 {tutorial.StageIndex() + 1}");
+            Fail($"对接中跳过的前置阶段不符：期望阶段 5（母舰停靠），实际 {tutorial.StageIndex() + 1}");
             return;
         }
 
-        CheckStageReadout(3);
+        CheckStageReadout(4);
         Input.ActionPress(new StringName("dock"));
         if (_player is { } player && player.IsInputLocked())
         {
             Input.ActionRelease(new StringName("dock"));
-            _skipTarget = 4;
+            _skipTarget = 5;
             _afterChain = Step.DockSkipVerify;
             StepTo(Step.DockSkipHold);
             return;
@@ -473,7 +679,7 @@ public partial class TutorialProbeDriver : Node
             return;
         }
 
-        if (_tutorial!.StageIndex() != 4)
+        if (_tutorial!.StageIndex() != 5)
         {
             Fail($"对接中跳过未推进到返航阶段（实际 {_tutorial.StageIndex() + 1}）");
             return;
@@ -514,7 +720,7 @@ public partial class TutorialProbeDriver : Node
     /// Boss 在基地背后入场，引擎侧零报错。判据是「窗口内树从未被暂停」。</summary>
     private void DriveHomeSkipHold()
     {
-        if (_tutorial!.StageIndex() == 5)
+        if (_tutorial!.StageIndex() == 6)
         {
             Input.ActionRelease(new StringName("homecoming"));
             Input.ActionRelease(new StringName("give_up"));
@@ -685,7 +891,7 @@ public partial class TutorialProbeDriver : Node
 
         // 只断「报出了改后的键」：写死键名的实现那行里没有 J，照样红；再断「不含出厂键 H」会在
         // 英文文案（Hold …）下把正常文案判红——判据不得依赖某种语言的自然语言词形
-        if (stage == 3 && !text.Contains(ReboundDockKey, System.StringComparison.Ordinal))
+        if (stage == 4 && !text.Contains(ReboundDockKey, System.StringComparison.Ordinal))
         {
             Fail($"母舰停靠阶段的目标行未跟随改键（应含 {ReboundDockKey}）：{text}");
             return;
@@ -797,7 +1003,7 @@ public partial class TutorialProbeDriver : Node
 
     private void ReleaseKeys()
     {
-        foreach (var action in new[] { "boost", "dash", "dock", "homecoming", "give_up" })
+        foreach (var action in new[] { "boost", "dash", "dock", "homecoming", "give_up", "parry", "augment_panel" })
         {
             SetAction(action, press: false);
         }

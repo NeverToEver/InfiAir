@@ -12,13 +12,16 @@ public enum TutorialGoalKind
     /// <summary>实战（阶段 3）：击杀 <c>TargetCount</c> 架敌机。</summary>
     Combat,
 
-    /// <summary>母舰停靠（阶段 4）：长按蓄力触发一次召唤并完成对接。</summary>
+    /// <summary>弹反（阶段 4）：在弹反窗口内成功弹反 <c>TargetCount</c> 发敌弹。</summary>
+    Parry,
+
+    /// <summary>母舰停靠（阶段 5）：长按蓄力触发一次召唤并完成对接。</summary>
     Dock,
 
-    /// <summary>返航与基地（阶段 5）：长按蓄力触发一次返航。</summary>
+    /// <summary>返航与基地（阶段 6）：长按蓄力触发一次返航，并实际打开一次增幅面板。</summary>
     Homecoming,
 
-    /// <summary>首领（阶段 6）：逼首领进入狂暴。</summary>
+    /// <summary>首领（阶段 7）：逼首领进入狂暴。</summary>
     BossEnrage,
 }
 
@@ -44,6 +47,21 @@ public enum TutorialArg
 
     /// <summary>跳过本阶段所用动作（放弃出击）的绑定键。</summary>
     SkipKey,
+
+    /// <summary>弹反动作的绑定键。</summary>
+    ParryKey,
+
+    /// <summary>增幅面板动作的绑定键。</summary>
+    AugmentKey,
+
+    /// <summary>天赋面板动作的绑定键（固定键，不可改）。</summary>
+    TalentKey,
+
+    /// <summary>已弹反次数。</summary>
+    ParryCount,
+
+    /// <summary>弹反目标次数。</summary>
+    ParryGoal,
 
     /// <summary>加速已达成次数。</summary>
     BoostCount,
@@ -78,10 +96,10 @@ public enum TutorialArg
 
 /// <summary>
 /// 单个教程阶段：标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作与数值。
-/// <paramref name="TargetCount"/> 的语义按形态分两种——计数型（训练靶 / 实战：需要击落的数量；
+/// <paramref name="TargetCount"/> 的语义按形态分两种——计数型（训练靶 / 实战 / 弹反：需要达成的数量；
 /// 机动：加速与突进各自需要的次数）与单次触发型（停靠 / 返航 / 首领：达成就完成，恒为 1）。
 /// <paramref name="ChargeKey"/> 非空时表示该阶段另有「蓄力进行中」的替换行（百分比）；
-/// <paramref name="FollowUpKey"/> 非空时表示达标过程中还有一行后续目标（无补参）。
+/// <paramref name="FollowUpKey"/> 非空时表示达标过程中还有一行后续目标（补参见 <paramref name="FollowUpArgs"/>）。
 /// </summary>
 public sealed record TutorialStage(
     TutorialGoalKind Goal,
@@ -91,10 +109,11 @@ public sealed record TutorialStage(
     TutorialArg[] ObjectiveArgs,
     string ChargeKey = "",
     TutorialArg[]? ChargeArgs = null,
-    string FollowUpKey = "");
+    string FollowUpKey = "",
+    TutorialArg[]? FollowUpArgs = null);
 
 /// <summary>
-/// 教程阶段表（纯逻辑，零 Godot 依赖）：六个阶段的顺序、标题与目标文案键、目标计数、
+/// 教程阶段表（纯逻辑，零 Godot 依赖）：七个阶段的顺序、标题与目标文案键、目标计数、
 /// 目标行补参取值来源一处写定，节点、探针与文案三者共用。
 ///
 /// 为什么要有这一份：此前六阶段的顺序、目标数（3 / 5）、补参形态与「哪个阶段要哪个键」全部
@@ -125,7 +144,11 @@ public static class TutorialCurriculum
     /// <summary>跳过提示的补参（长按所用动作的绑定键）。</summary>
     public static readonly TutorialArg[] SkipHintArgs = { TutorialArg.SkipKey };
 
-    /// <summary>六阶段阶段表（顺序即推进顺序）。目标行的补参顺序必须与文案表占位符逐位对齐，
+    /// <summary>弹反段场上保有的射击型靶机数（被反射弹击落或寿命到期离场即按此数补刷；
+    /// 弹反段的教学对象是「朝玩家飞来的敌弹」，场上无靶机＝无弹可教）。</summary>
+    public const int ParryDummyCount = 3;
+
+    /// <summary>七阶段阶段表（顺序即推进顺序）。目标行的补参顺序必须与文案表占位符逐位对齐，
     /// 由单测钉住——补参错位时玩家看到的是错位的数字/键名，不会报错。</summary>
     public static readonly TutorialStage[] Stages =
     {
@@ -155,28 +178,37 @@ public static class TutorialCurriculum
             ObjectiveArgs: new[] { TutorialArg.KillGoal, TutorialArg.KillCount, TutorialArg.KillGoal }
         ),
         new(
-            TutorialGoalKind.Dock,
+            TutorialGoalKind.Parry,
             "TUT_S4_TITLE",
             "TUT_S4_OBJ",
-            TargetCount: 1,
-            ObjectiveArgs: new[] { TutorialArg.DockKey },
-            ChargeKey: "TUT_S4_CHARGE",
-            ChargeArgs: new[] { TutorialArg.ChargePercent },
-            FollowUpKey: "TUT_S4_DOCK"
+            TargetCount: 2,
+            ObjectiveArgs: new[] { TutorialArg.ParryKey, TutorialArg.ParryCount, TutorialArg.ParryGoal }
         ),
         new(
-            TutorialGoalKind.Homecoming,
+            TutorialGoalKind.Dock,
             "TUT_S5_TITLE",
             "TUT_S5_OBJ",
             TargetCount: 1,
-            ObjectiveArgs: new[] { TutorialArg.HomecomingKey, TutorialArg.ChargeSeconds },
+            ObjectiveArgs: new[] { TutorialArg.DockKey },
             ChargeKey: "TUT_S5_CHARGE",
-            ChargeArgs: new[] { TutorialArg.ChargePercent }
+            ChargeArgs: new[] { TutorialArg.ChargePercent },
+            FollowUpKey: "TUT_S5_DOCK"
+        ),
+        new(
+            TutorialGoalKind.Homecoming,
+            "TUT_S6_TITLE",
+            "TUT_S6_OBJ",
+            TargetCount: 1,
+            ObjectiveArgs: new[] { TutorialArg.HomecomingKey, TutorialArg.ChargeSeconds },
+            ChargeKey: "TUT_S6_CHARGE",
+            ChargeArgs: new[] { TutorialArg.ChargePercent },
+            FollowUpKey: "TUT_S6_DOCK",
+            FollowUpArgs: new[] { TutorialArg.AugmentKey, TutorialArg.TalentKey }
         ),
         new(
             TutorialGoalKind.BossEnrage,
-            "TUT_S6_TITLE",
-            "TUT_S6_OBJ",
+            "TUT_S7_TITLE",
+            "TUT_S7_OBJ",
             TargetCount: 1,
             ObjectiveArgs: new[] { TutorialArg.EnragePercent }
         ),
