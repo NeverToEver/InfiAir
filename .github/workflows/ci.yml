@@ -135,7 +135,7 @@ jobs:
       - name: Install Pillow 12.2 (asset reproducibility)
         run: python3 -m pip install --disable-pip-version-check "pillow==12.2"
 
-      - name: Assets reproducibility gate
+      - name: Assets reproducible gate (generator determinism + sync envelope)
         run: bash scripts/ci/check_assets_reproducible.sh
 
       - name: Upload fast-gate failure logs
