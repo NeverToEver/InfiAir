@@ -230,7 +230,6 @@ public partial class ProbeHost : Node
 
     private int _earlyStage;
     private int _earlyChargeFrames;
-    private bool _earlySawChannel;
     private Hud? _earlyHud;
 
     /// <summary>提前离舰蓄力的观测上限（帧）：生产 early_hold_time 2s = 120 帧，取 2.5 倍余量。</summary>
@@ -349,7 +348,6 @@ public partial class ProbeHost : Node
     private int _frame;
     private int _activeFrame;
     private int _fuelStep;
-    private int _shotStep;
     private int _feelStep;
     private bool _feelSawHitStop;
     private bool _feelSawTrauma;
@@ -3415,7 +3413,6 @@ public partial class ProbeHost : Node
     private int _augHpBefore;
     private int _augLockedHpBefore;
     private float _augOffsetDeg;
-    private Vector2 _augAimDir;
     private bool _augDone;
 
     /// <summary>homing 落靶与 dash_strike 触达的契约判定（精英炮塔趟）。两条都属「按 is Enemy 判型时
@@ -3602,8 +3599,9 @@ public partial class ProbeHost : Node
         var target = _augTarget!.AimWorldPosition;
         var toTarget = (target - _player.GlobalPosition).Normalized();
         var coneCos = _player.ConeCos();
-        var homingConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(
-            (float)GameState.Instance.Cfg("augments.homing.lock_cone_deg", 0.0).AsDouble());
+        // 生产只读口：探针自带键读取与默认值会与生产分叉（自带默认 0.0 vs 生产 44.0 时，
+        // 探针会按 0° 锥挑偏角，判定的是错误的几何）
+        var homingConeCos = _player.HomingLockConeCos();
         for (var step = 1; step <= 20; step++)
         {
             foreach (var sign in new[] { 1.0f, -1.0f })
@@ -3622,7 +3620,6 @@ public partial class ProbeHost : Node
                 }
 
                 _augOffsetDeg = offset;
-                _augAimDir = dir;
                 return true;
             }
         }
@@ -4330,7 +4327,6 @@ public partial class ProbeHost : Node
 
             if (_earlyHud.VisibleChargeChannels().Contains(Hud.ChargeChannel.EarlyLeave))
             {
-                _earlySawChannel = true;
                 // 松手与击杀必须**同帧**（先松手再击杀）：跨帧时母舰的 _PhysicsProcess 会先跑完松手
                 // 分支把条子清掉，死亡清理的判据就变成空转（判的是松手路径而非终局路径）。
                 Input.ActionRelease(ActDock);
