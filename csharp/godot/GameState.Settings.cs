@@ -173,12 +173,13 @@ public partial class GameState : Node
     // ---------------- 恢复默认（设置页「全部恢复默认」） ----------------
 
     /// <summary>全部设置回到出厂默认并落盘：键位/难度/画质/音频/无障碍/手柄全量复位。
-    /// 刻意保留 `tutorial_done`（教程完成度不是偏好设置，复位它等于让玩家重看教程）。
+    /// 刻意保留 `tutorial_done` 与 `tutorial_stage`（教程进度不是偏好设置，复位它等于让玩家重看教程）。
     /// 只做内存复位 + 重放必要的运行期副作用（键位/开火动作/手柄装配/显示/窗口/音量/换语言/
     /// 视角与辅瞄与减闪与画面增强的事件回放——服务侧 ResetToDefaultsAndBroadcast 只对变化过的项补发）。</summary>
     public void ResetAllSettings()
     {
         var tutorialDone = TutorialDone;
+        var tutorialStage = TutorialStage;
         // 键位与难度各有独立事实源：先复位它们，再重置设置域字段并重放副作用
         ResetKeyBindings();
         SetDifficulty(new StringName("medium")); // 走玩家改档正口：校验/落盘/广播，已在 medium 时幂等早退
@@ -191,6 +192,7 @@ public partial class GameState : Node
         // 缓存型；无变化时不发信号，不会造成多余重建）
         _settings.ResetToDefaultsAndBroadcast();
         TutorialDone = tutorialDone;
+        TutorialStage = tutorialStage;
         // 语言经 SetLocale 重放（走 LocaleChanged 广播，设置页据此整页重建文案）；
         // TranslationServer 已由其内部写，避免此处再写一次
         if (prevLocale != _settings.Locale)

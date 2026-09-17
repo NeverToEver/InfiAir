@@ -175,7 +175,16 @@ public partial class TitleScreen : CanvasLayer
         hintRow.OffsetRight = 400.0f;
         hintRow.MouseFilter = Control.MouseFilterEnum.Ignore;
         hintRow.Modulate = new Color(1.0f, 1.0f, 1.0f, 0.0f);
-        hintRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_TUTORIAL_HINT"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center));
+        // 教程入口的两种走法：有续接检查点＝「继续教程」，否则＝普通入口文案。
+        // 未完成时用强调色把入口提出来（首局玩家在标题屏认不出该往哪走——这一步是唯一的引导面）；
+        // 已完成且无检查点即回落次级色，不再打扰老玩家。
+        var tutorialResume = GameState.Instance.TutorialStage > 0;
+        var tutorialHighlighted = tutorialResume || !GameState.Instance.TutorialDone;
+        hintRow.AddChild(UITheme.MakeLabel(
+            (string)Tr(tutorialResume ? "TITLE_TUTORIAL_RESUME" : "TITLE_TUTORIAL_HINT"),
+            UITheme.FontCaption,
+            tutorialHighlighted ? UITheme.AccentGold : UITheme.TextDim,
+            HorizontalAlignment.Center));
         hintRow.AddChild(UITheme.MakeLabel((string)Tr("TITLE_PRACTICE"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center));
         AddChild(hintRow);
         var tutIn = hintRow.CreateTween();

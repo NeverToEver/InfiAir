@@ -108,6 +108,12 @@ public static class TutorialCurriculum
     /// <summary>过关推进延迟（s）：达标后停顿一拍再进下一阶段（给结算音效与清场留出时间）。</summary>
     public const float PassDelaySeconds = 1.0f;
 
+    /// <summary>跳过本阶段所需的长按时长（s）。</summary>
+    public const float SkipHoldSeconds = 1.0f;
+
+    /// <summary>死亡后重开本阶段的延迟（s）：先让玩家看清「战机已损毁」，再清场重来。</summary>
+    public const float RetryDelaySeconds = 1.5f;
+
     /// <summary>跳过本阶段的长按提示文案键（常驻在目标行下方，与阶段无关）。</summary>
     public const string SkipHintKey = "TUT_SKIP_HINT";
 

@@ -28,6 +28,7 @@ public partial class Tutorial : Node2D
     private static readonly StringName ActHomecoming = new("homecoming");
     private static readonly StringName ActBoost = new("boost");
     private static readonly StringName ActDash = new("dash");
+    private static readonly StringName ActGiveUp = new("give_up");
 
     /// <summary>移动提示的四向动作（顺序即提示里的拼段顺序：上/左/下/右＝WASD 的书写顺序）。
     /// 四向都可改键，故提示文本不得写死键名。</summary>
@@ -52,6 +53,8 @@ public partial class Tutorial : Node2D
     // 阈值在 _Ready 按配置覆写。阶段切换与门控失效都靠 Reset 归零，不再各自维护累加字段。
     private readonly HoldCharge _homeCharge = new(1.5f);
     private readonly HoldCharge _dockCharge = new(3.0f);
+    /// <summary>跳过本阶段的长按通道（教程是可选内容，卡住的玩家不该被某一步锁住）。</summary>
+    private readonly HoldCharge _skipCharge = new(TutorialCurriculum.SkipHoldSeconds);
     private float _maxHp = 100.0f; // 阶段 3 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
@@ -63,6 +66,7 @@ public partial class Tutorial : Node2D
 
     private Label _titleLabel = null!;
     private Label _objectiveLabel = null!;
+    private Label _skipLabel = null!;
     private string _objectiveKey = "";
     private Godot.Collections.Array _objectiveArgs = new();
     private Control _completePanel = null!;
@@ -109,7 +113,8 @@ public partial class Tutorial : Node2D
         DockChargeTime = CfgFx.Float("mothership.dock_charge_time", DockChargeTime, CfgFx.IntervalFloor);
         _homeCharge.Threshold = HomeChargeTime;
         _dockCharge.Threshold = DockChargeTime;
-        EnterStage(0);
+        // 落点取续接检查点（越界由 core 归一）：中途退出的玩家从上次的阶段继续
+        EnterStage(GameState.Instance.TutorialStage);
         // 固定标记：教程场景就绪观测点（冒烟门禁据此断言教程入场链路跑通）；
         // 场景加载/切场景失败时本行不执行，无头也能判出
         GD.Print("[tutorial] 场景就绪");
@@ -156,6 +161,22 @@ public partial class Tutorial : Node2D
         _objectiveLabel.CustomMinimumSize = new Vector2(1000.0f, 0.0f);
         _objectiveLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _hudLayer.AddChild(_objectiveLabel);
+        // 跳过提示贴在屏底：与目标行分层，不挤占阶段说明的多行文本；完成/失败态下隐藏
+        _skipLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center);
+        _skipLabel.Modulate = new Color(_skipLabel.Modulate, 0.7f); // 比目标行更弱的次级提示
+        _skipLabel.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+        _skipLabel.Position = new Vector2(-300.0f, -64.0f);
+        _skipLabel.CustomMinimumSize = new Vector2(600.0f, 0.0f);
+        _hudLayer.AddChild(_skipLabel);
+    }
+
+    /// <summary>渲染跳过提示（键位取实际绑定；完成/失败态下不显示——那时已无可跳过的阶段）。</summary>
+    private void RefreshSkipHint()
+    {
+        _skipLabel.Visible = !_finished && !_failed;
+        _skipLabel.Text = _skipLabel.Visible
+            ? GdFormat.Format((string)Tr(TutorialCurriculum.SkipHintKey), GameState.Instance.ActionKeyText(ActGiveUp))
+            : "";
     }
 
     private void SetObjectiveTr(string key, Godot.Collections.Array args)
@@ -254,6 +275,7 @@ public partial class Tutorial : Node2D
     {
         _titleLabel.Text = (string)Tr(_progress.Stage.TitleKey);
         SetObjectiveTr(_objectiveKey, _objectiveArgs);
+        RefreshSkipHint();
     }
 
     private void EnterStage(int idx)
@@ -261,6 +283,10 @@ public partial class Tutorial : Node2D
         _stage = TutorialCurriculum.ClampStage(idx);
         _progress.EnterStage(TutorialCurriculum.At(_stage));
         _titleLabel.Text = (string)Tr(_progress.Stage.TitleKey);
+        // 检查点：进入即写（中途退出/死亡重开都从这里落回同一阶段）
+        GameState.Instance.TutorialStage = _stage;
+        GameState.Instance.SaveSettings();
+        RefreshSkipHint();
         PlayStageBanner();
         switch (_progress.Stage.Goal)
         {
@@ -339,7 +365,9 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>玩家死亡：教程无法推进（阶段 4/5 依赖玩家存活操作），提示失败并等待 Esc 退出</summary>
+    /// <summary>玩家死亡：教程不设死局——短暂提示后重开**本阶段**（清场与玩家重生都走场景重载，
+    /// 落点由检查点决定），Esc 仍可随时退出。此前死亡只换一行「任务失败」并要求玩家自己退出，
+    /// 再从第一阶段重来。</summary>
     private void OnPlayerDied()
     {
         if (_finished || _failed)
@@ -350,6 +378,21 @@ public partial class Tutorial : Node2D
         _failed = true;
         _titleLabel.Text = (string)Tr("TUT_FAIL_TITLE");
         SetObjectiveTr("TUT_FAIL_DESC", new Godot.Collections.Array());
+        RefreshSkipHint();
+        TimerFx.OneShot(this, TutorialCurriculum.RetryDelaySeconds, ReloadStage, alwaysProcessing: true);
+    }
+
+    /// <summary>重开本阶段：整场景重载，落点由检查点给出。不另造一套「复活序列」——玩家死亡态在
+    /// 引擎侧已隐藏机体并关掉受击/擦弹/弹反判定，原地复活要逐项反向复位，主路径（重开/继续出击）
+    /// 同样用重载。</summary>
+    private void ReloadStage()
+    {
+        if (_finished)
+        {
+            return;
+        }
+
+        GetTree().ReloadCurrentScene();
     }
 
     /// <summary>阶段 6 软锁兜底：Boss 未触发狂暴即被击杀/逃跑离场（died 两种离场都会发）→ 重置阶段重刷</summary>
@@ -534,6 +577,13 @@ public partial class Tutorial : Node2D
         }
 
         var d = (float)delta;
+        // 跳过本阶段：长按放弃出击键。逐帧推进（推进窗口内也走，避免按住跨窗口时状态陈旧）；
+        // 只在非推进窗口里落地，防与达标推进撞车。
+        if (_skipCharge.Tick(d, Input.IsActionPressed(ActGiveUp)) == HoldChargePhase.Triggered && !_advancing)
+        {
+            SkipStage();
+        }
+
         switch (_progress.Stage.Goal)
         {
             case TutorialGoalKind.Marksmanship:
@@ -650,6 +700,33 @@ public partial class Tutorial : Node2D
 
     }
 
+    /// <summary>跳过本阶段：清场后走与达标同一条推进链；末阶段跳过即收尾（玩家到了这里仍选择
+    /// 结束，教程不再留一条必须打完的尾巴）。跳过不改写完成度语义以外的任何状态。</summary>
+    private void SkipStage()
+    {
+        ClearField();
+        if (TutorialCurriculum.IsLast(_stage))
+        {
+            Finish();
+            return;
+        }
+
+        PassStage();
+    }
+
+    /// <summary>清场：教程场上实体全部回收（完成收尾与跳过共用——跳过后上一阶段的目标仍在场，
+    /// 既会撞伤玩家，也会混进下一阶段的判据与补刷口径）</summary>
+    private void ClearField()
+    {
+        foreach (var child in GetChildren())
+        {
+            if (child is Enemy || child is Boss || child is Bullet || child is Mothership)
+            {
+                child.QueueFree();
+            }
+        }
+    }
+
     private void OpenBase()
     {
         if (_baseUi != null)
@@ -701,17 +778,11 @@ public partial class Tutorial : Node2D
     {
         _finished = true;
         GameState.Instance.TutorialDone = true;
+        GameState.Instance.TutorialStage = 0; // 检查点清零：下次进入从第一阶段起（完成度已记）
         GameState.Instance.SaveSettings();
+        RefreshSkipHint();
         PlaySfxAugmentPick();
-        // 清场
-        foreach (var child in GetChildren())
-        {
-            if (child is Enemy || child is Boss || child is Bullet || child is Mothership)
-            {
-                child.QueueFree();
-            }
-        }
-
+        ClearField();
         _titleLabel.Text = (string)Tr("TUT_DONE");
         SetObjectiveTr("TUT_DONE_DESC", new Godot.Collections.Array());
         // 完成面板走切角面板（与全站视觉语言一致），控件装配后 pivot 置中，入场缩放脉冲

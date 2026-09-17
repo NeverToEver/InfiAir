@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core.Storage;
+using InfiAir.Core.Tutorial;
 
 namespace InfiAir;
 
@@ -15,7 +16,7 @@ namespace InfiAir;
 /// 全屏）+ 渲染分辨率档（分辨率档即实际渲染分辨率，canvas_items 拉伸下窗口物理像素即渲染缓冲尺寸）
 /// + 窗口化自由拖拽（拖拽捕获为自定义档）；ApplyWindow 单点应用，OnWindowResized 捕获拖拽结果
 /// （GameState 侧对根窗口 SizeChanged 去抖后落盘并广播）。
-/// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度域（KeyBindings/TutorialDone/
+/// Godot 绑定层：跨域访问统一经 GameState.Instance——键位/难度/教程进度域（KeyBindings/TutorialDone/TutorialStage/
 /// Difficulty/DIFFICULTY_DEFS）与 SaveSettings/RefreshRegenCache/Cfg/SaveBool 及
 /// GetViewport/GetWindow 均经 Instance 门面访问（跨域键不迁入，保持单一事实源）；_registry
 /// （EntityManager）经构造注入（CameraRef 转发，与 RunProgressionService 注入 BalanceService 同构）。
@@ -826,7 +827,7 @@ public sealed partial class SettingsService : RefCounted
     // ---------------- 设置域持久化桥（SaveSettings 本体留在 GameState 侧） ----------------
 
     /// <summary>设置字段应用（user://settings.json 读入的字典；含键位/窗口/视图缓存副作用）。
-    /// 跨域键经 GameState.Instance 访问：TutorialDone/KeyBindings/Difficulty 本体留在 GameState（Input/Constants
+    /// 跨域键经 GameState.Instance 访问：TutorialDone/TutorialStage/KeyBindings/Difficulty 本体留在 GameState（Input/Constants
     /// 域），本桥只读经门面；Difficulty 恢复后的 RefreshRegenCache 亦经 Instance 调用（RunProgressionService
     /// 回血缓存——GameState.Difficulty.cs 门面包装）。</summary>
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
@@ -849,6 +850,13 @@ public sealed partial class SettingsService : RefCounted
         }
 
         GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
+        // 教程续接检查点判型（对齐 custom 尺寸惯例）：手改档案非数值时跳过该字段，不改动内存值；
+        // 取值区间归一走 core（越界档落回合法阶段，不出现「显示的阶段与跑的阶段脱钩」）
+        var tutorialStage = data.GetValueOrDefault("tutorial_stage", new Variant());
+        if (tutorialStage.VariantType is Variant.Type.Int or Variant.Type.Float)
+        {
+            GameState.Instance.TutorialStage = TutorialCurriculum.ResumeStage(tutorialStage.AsInt32());
+        }
         // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
         var savedLocale = ReadString(data.GetValueOrDefault("locale", ""), "");
@@ -1059,6 +1067,7 @@ public sealed partial class SettingsService : RefCounted
     public Godot.Collections.Dictionary CollectSettingsDict() => new()
     {
         ["tutorial_done"] = GameState.Instance.TutorialDone,
+        ["tutorial_stage"] = GameState.Instance.TutorialStage,
         ["key_bindings"] = GameState.Instance.KeyBindings,
         ["locale"] = Locale,
         ["difficulty"] = GameState.Instance.Difficulty.ToString(),

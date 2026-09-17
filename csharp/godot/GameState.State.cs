@@ -307,6 +307,11 @@ public partial class GameState : Node
 
     public bool TutorialDone { get; set; } = false;
 
+    /// <summary>教程续接检查点：下次进入教程从第几阶段开始（0 = 从第一阶段，合法区间由
+    /// core `TutorialCurriculum.ResumeStage` 归一）。进入阶段时写入、教程完成时清零——
+    /// 教程是可选内容，中途退出的玩家不该被要求从头再看一遍；完成度 `TutorialDone` 不受它影响。</summary>
+    public int TutorialStage { get; set; }
+
     /// <summary>得分（本局会话态）——ScoreService 转发。</summary>
     public int Score { get => _score.Score; set => _score.Score = value; }
 

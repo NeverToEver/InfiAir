@@ -127,6 +127,8 @@ RESET_ALIASES = {
 }
 RESET_EXEMPT = {
     "tutorial_done": "教程完成度不是偏好设置，复位等于让玩家重看教程——GameState.ResetAllSettings 刻意保留",
+    "tutorial_stage": "教程续接检查点与完成度同族（不是偏好设置）：复位等于把玩家已走过的阶段抹掉、"
+                      "下次进入从头再看一遍——GameState.ResetAllSettings 刻意保留",
     "key_bindings": "键位有独立事实源：GameState.ResetAllSettings 先调 ResetKeyBindings()，不归本服务",
     "difficulty": "难度由 GameState.ResetAllSettings 走 SetDifficulty(medium) 正口复位（校验/落盘/广播），"
                   "不归本服务",
