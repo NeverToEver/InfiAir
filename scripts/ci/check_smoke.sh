@@ -49,7 +49,9 @@
 #      下一阶段入场）、目标行补参成形（占位符与实参错位时玩家看到原样的 %s/%d）、键位随改键跟变、
 #      跳过本阶段、死亡重开本阶段（含进度归零）、检查点的写入与完成清零，全是「不崩、不报错、
 #      只是没往下走」的形态。本趟在探针宿主里切到同一生产场景，经生产输入面与生产伤害入口
-#      走满六阶段，两遍流程（第一遍走满并改键，第二遍用跳过与死亡重开）。
+#      走满六阶段，三遍流程（第一遍走满并改键；第二遍连跳两个阶段后阵亡，断重开回到同一阶段且
+#      进度归零；第三遍连跳到停靠阶段，在对接进行中跳过并断输入锁已解、玩家仍能移动，收尾同按
+#      返航键与跳过键断推进窗口内不弹基地）。
 # 判定三件事，缺一不可：
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
@@ -360,8 +362,8 @@ smoke_tutorial() {
 smoke_tutorial_flow() {
   # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满六阶段——断阶段推进、目标行补参
   # 成形、键位随改键跟变、跳过本阶段、死亡重开本阶段且进度归零、检查点写入与完成清零。
-  # 帧数：实测两遍流程 1830 帧，取 2700 帧（45 模拟秒）留约五成余量。
-  run_case "tutorial flow probe smoke" 2700 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
+  # 帧数：实测三遍流程 2666 帧，取 3900 帧（65 模拟秒）留约五成余量。
+  run_case "tutorial flow probe smoke" 3900 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
   expect_marker "教程全周期" "${PROBE_LOG_BASE}.tutorial_flow.log" "[tutorial-probe] 全周期完成"
 }
 
