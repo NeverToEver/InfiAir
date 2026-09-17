@@ -690,6 +690,12 @@ public partial class Player : CharacterBody2D
     /// Player 的实际档位取值分叉（接线坏了照绿）。见 ROADMAP 零引用成员口径。</summary>
     public float ConeCos() => _coneCos;
 
+    /// <summary>制导增幅锁定锥的余弦阈值（只读诊断口）：与 <see cref="ConeCos"/> 同族，
+    /// 供探针取「生产实际在用的锥」——探针自带一份键读取与默认值会与生产分叉
+    /// （默认值写错时探针按错误的锥挑偏角，判定照绿但测的不是生产链路）。
+    /// 该值不随天赋是否点亮变化（未点亮时生产不消费它），故无条件装载。</summary>
+    public float HomingLockConeCos() => _homingLockConeCos;
+
     /// <summary>上一渲染帧进磁吸窗口的输入量（只读诊断口，见字段注释）。
     /// 零运行期引用，保留理由与 <see cref="_probeMagnetInput"/> 同。</summary>
     public float MagnetInputLastFrame() => _probeMagnetInput;
@@ -784,15 +790,17 @@ public partial class Player : CharacterBody2D
         _dashUnlocked = dashStacks > 0;
         _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(AugPhaseDash) - 1f, 0f));
         // ---- 作战增幅扩展（乘算走 EffLevel 浮点层级；整数语义走层数）----
+        // 锁定锥余弦无条件装载（不随天赋点亮与否）：探针的只读口要拿生产真值，
+        // 未点亮时生产不消费它（_homingAugTurnRate=0 → 不走这条取目标路径），故无行为影响
+        var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
+        // 该键语义＝整角（接受域 ±coneDeg/2）；口径与换算单源在 core AimCone
+        _homingLockConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(coneDeg);
         var homingEff = (float)GameState.Instance.TalentEffLevel(AugHoming);
         if (homingEff > 0f)
         {
             _homingAugTurnRate = CfgFx.Float("augments.homing.turn_rate_deg", 150.0f, 0.0f) * homingEff;
             _homingLockTime = CfgFx.Float("augments.homing.lock_time", 8.0f, CfgFx.IntervalFloor);
             _homingLockRange = CfgFx.Float("augments.homing.lock_range", 900.0f, 0.0f);
-            var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
-            // 该键语义＝整角（接受域 ±coneDeg/2）；口径与换算单源在 core AimCone
-            _homingLockConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(coneDeg);
         }
         else
         {
@@ -1483,11 +1491,10 @@ public partial class Player : CharacterBody2D
                 if (homingTarget != null)
                 {
                     var dot = aimDir.Dot((homingTarget.AimWorldPosition - GlobalPosition).Normalized());
-                    var angT = Mathf.Clamp((dot - _coneCos) / (1.0f - _coneCos), 0.0f, 1.0f);
+                    var angT = Core.Combat.AimCone.ConeStrength(dot, _coneCos);
                     homingRate = _homingTurnRate * _coneStrength * angT
                         * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.AimWorldPosition));
-                    // NaN 守卫——cone_angle_deg=360 时 _coneCos=1 使 angT 0/0 得
-                    // NaN，homingRate=NaN 恒不满足 ≤0 守卫（NaN 比较 false），弱追踪修正失控
+                    // 纵深防御：锥内强度的 0/0 已由 core 处理（全向锥恒满强度），此处兜非有限配置乘子
                     if (homingRate <= 0.0f || float.IsNaN(homingRate))
                     {
                         homingTarget = null;
@@ -1689,7 +1696,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         // 过滤基准用机头方向（含机身 Rotation）——-π/2 全局上方在
         // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；AngleDifference 已处理 ±π wrap
         var noseAngle = Vector2.Up.Rotated(Rotation).Angle();
@@ -1718,7 +1725,7 @@ public partial class Player : CharacterBody2D
     /// <summary>盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。</summary>
     private Vector2[] ParrySectorPoints(float radius, int count)
     {
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         var pts = new Vector2[count + 2];
         pts[0] = Vector2.Zero;
         for (var i = 0; i <= count; i++)
@@ -1747,7 +1754,7 @@ public partial class Player : CharacterBody2D
     /// 每段一个四边形（内弧两点 + 外弧两点），逐段子节点一次构建（热路径零分配）。</summary>
     private Godot.Collections.Array ParryRimSegments(float radius, int count)
     {
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         var segs = new Godot.Collections.Array();
         const float GapRatio = 0.22f; // 段间缝隙占段宽比例
         var inner = radius * 0.80f;

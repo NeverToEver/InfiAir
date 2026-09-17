@@ -320,7 +320,7 @@ public class PlayerVisuals
             return;
         }
 
-        var arc = Mathf.DegToRad(arcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(arcDeg);
         var centerA = -Mathf.Pi / 2.0f - arc + 2.0f * arc * shine;
         var w = Mathf.DegToRad(14.0f); // 高光带角宽
         var sp = _parryShinePoly; // 预分配复用，防每物理帧 new Vector2[6]
