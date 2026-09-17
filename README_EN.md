@@ -125,7 +125,7 @@ builds/          Export and packaging output (not tracked)
 - **Build**: `dotnet build` (warnings are errors, `TreatWarningsAsErrors`).
 - **Pre-commit verification gates and commit-message rules live in [AGENTS.md](AGENTS.md)**; CI runs the same gate set as the local workflow.
 - **Packaging**: `./release.sh` exports Linux/Windows and packages them into `builds/release/`; `./release.sh --publish` additionally pushes the tag, creates the GitHub Release and uploads the assets.
-- Design intent: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md) · historical balance review: [BALANCE_REVIEW](docs/BALANCE_REVIEW.md) · release notes: [RELEASE_NOTES](docs/RELEASE_NOTES.md).
+- Design intent: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md) · historical balance review: [BALANCE_REVIEW](docs/BALANCE_REVIEW.md) · release notes: [RELEASE_NOTES](docs/RELEASE_NOTES.md) · third-party asset licensing and industry-practice research: [REFERENCES](docs/REFERENCES.md).
 
 ## License
 

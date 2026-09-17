@@ -125,7 +125,7 @@ builds/          导出与打包产物（不入库）
 - **构建**：`dotnet build`（零警告口径，`TreatWarningsAsErrors`）。
 - **提交前必过的验证门禁与提交信息规范见 [AGENTS.md](AGENTS.md)**；CI 与本地是同一套口径。
 - **打包发布**：`./release.sh` 导出 Linux/Windows 并打包到 `builds/release/`；`./release.sh --publish` 继续推送 tag、建 GitHub Release 并上传资产。
-- 设计意图见 [DESIGN_BASELINE](docs/DESIGN_BASELINE.md)；方向 / 债务 / 决策索引见 [ROADMAP](docs/ROADMAP.md)；历史平衡审查存档见 [BALANCE_REVIEW](docs/BALANCE_REVIEW.md)；发布说明见 [RELEASE_NOTES](docs/RELEASE_NOTES.md)。
+- 设计意图见 [DESIGN_BASELINE](docs/DESIGN_BASELINE.md)；方向 / 债务 / 决策索引见 [ROADMAP](docs/ROADMAP.md)；历史平衡审查存档见 [BALANCE_REVIEW](docs/BALANCE_REVIEW.md)；发布说明见 [RELEASE_NOTES](docs/RELEASE_NOTES.md)；公开素材许可证与行业实践调研存档见 [REFERENCES](docs/REFERENCES.md)。
 
 ## 许可证
 

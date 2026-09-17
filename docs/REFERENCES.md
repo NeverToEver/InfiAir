@@ -1,0 +1,108 @@
+# 公开素材、许可证与行业实践参考
+
+> **非纪律存档**（与 `docs/BALANCE_REVIEW.md`、`docs/RELEASE_NOTES.md` 同族）：记录一次联网调研取到的**事实与出处**，供后续决策引用。
+> 它不是口径单源——设计口径见 `docs/DESIGN_BASELINE.md`，流程与门禁见 `AGENTS.md`，方向与开放项见 `docs/ROADMAP.md`。
+> 调研日期 2026-09-18；所有引号内文字为对官方页面的**逐字摘录**（链接见 §5）。凡未能核验的来源一律标注「需人工核验」，不做条款推测。
+> 落地状态：可采纳候选与行业建议中，属玩家可感或无客观对错的部分**只作提议**，逐条登记在 `docs/ROADMAP.md`「待人类裁定」；不涉及玩家可感面的已在对应批次落地（见该文件 Decisions）。
+
+## 1 素材来源与许可证事实
+
+口径：「再分发」指随游戏二进制/发布包分发。**能零摩擦使用的只有三类**——CC0 1.0 / Unlicense（无署名义务、可商用、可入包、无传染）、OFL 1.1（字体，可按条件嵌入与随包分发）、MIT / ISC / Apache-2.0（图标与代码类，需随副本保留许可与版权声明）。
+
+| 来源 | 许可 | 署名 | 商用 | 再分发进包 | 传染 | 核验 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Kenney.nl | CC0（站点 FAQ + 每个素材页两处标注） | 不需要 | 允许 | 允许 | 无 | 官方原文已核验 |
+| OpenGameArt | 逐条目（CC0 / CC-BY 3.0·4.0 / CC-BY-SA 3.0·4.0 / GPL 2·3 / OGA-BY） | 视条目 | 允许 | 视条目 | 视条目 | 条目页与 FAQ 已核验 |
+| Freesound | 逐条（CC0 / CC-BY 4.0 / CC-BY-NC 4.0；旧库另含已退休的 Sampling+ 1.0） | CC0 不需、CC-BY 必需 | CC0/BY 允许，NC 不允许 | 允许（受许可约束） | BY 无、NC 非商用 | 官方 FAQ 已核验 |
+| Game-icons.net | CC BY 3.0 | 必需（逐图标作者不同） | 允许 | 允许 | 无 | about 页已核验 |
+| Google Fonts / Noto 系 | SIL OFL 1.1 | 无「署名」义务，但须随副本附版权声明与许可全文 | 允许（含随软件售卖） | 允许 | 仅覆盖字体自身衍生物 | OFL 全文与 FAQ 已核验 |
+| Poly Haven | CC0（全站） | 不需要 | 允许 | 允许 | 无 | license 页已核验 |
+| ambientCG | CC0 1.0（全站） | 不需要 | 允许 | 允许（官方明示可入游戏） | 无 | license 页已核验 |
+| Godot Shaders | 逐条（CC0 / MIT / GPL v3；**图片与视频不在其中**） | MIT 需保留声明 | 允许（GPL 除外） | 允许（GPL 除外） | GPL v3 有 | FAQ 已核验 |
+| Lucide / Feather / Material Symbols | ISC / MIT / Apache-2.0 | 需保留声明 | 允许 | 允许 | 无 | 仓库许可文件已核验 |
+| incompetech（Kevin MacLeod） | CC BY 4.0（另售付费授权） | 必需（站点指定格式，且要求「放在玩家看得见的地方」） | 允许 | 允许 | 无 | FAQ 已核验 |
+| incompetech 之外的 Pixabay / itch.io / Wikimedia Commons / Shadertoy / Sonniss / Musopen / sfxr 原版 | — | — | — | — | — | **需人工核验**（403 或域名不可达，卡点见 §5 末） |
+| FreePD.com | 站点已于 2025 年永久关闭 | — | — | — | — | 首页公告已核验（**公有领域源也会消失**的现成反例） |
+
+关键条款要点（原文逐字见 §5）：
+
+- **CC0 1.0 §4**：不豁免商标与专利，且「makes no representations or warranties of any kind」——挑选时按「能不能想象它出现在商业产品的商店页上」做二次筛（可识别真人、商标、知名 IP 元素不进）。
+- **CC BY 4.0 §3(a)(1)**：共享时须保留作者、版权声明、许可声明、免责声明与作品链接，并**标明是否修改**；§2(a)(6) 明示不构成原作者背书。
+- **CC BY-SA 4.0 §3(b)**：改编物必须继续以 BY-SA 分发 → 与「MIT 仓库 + 闭源商业发行」**硬冲突**（OpenGameArt 上大量高质量素材属此类，挑选时逐条看 `License(s):` 字段）。
+- **OFL 1.1**：可随任意软件捆绑、再分发与售卖，条件是每份副本含版权声明与许可全文（可作独立文本文件）；字体自身及衍生物须继续以 OFL 分发，但**用字体排出来的作品不受传染**；不得单独售卖字体。
+- **OFL-FAQ 1.10**：字体嵌进可执行体时可省独立许可文本，但 FAQ 明确「strongly recommend against」走这条捷径——本仓库把 OFL 全文平铺进发布包，属更保守也更安全的形态。
+
+## 2 与本项目纪律的冲突分析（含已收口的一条）
+
+1. **「素材一律程序化生成」+ `NOTICE` 的单源声明**：把下载素材放进 `assets/` 会让 `NOTICE` 的「唯一第三方素材是字体」立刻失真。
+2. **门禁与纪律之间曾有一条空隙（本批已收口）**：素材门禁原本判的是「生成器确定 + 产物与生成器同步」，一个**已提交、生成器不产出**的手工素材不会被判红（跑完 `regenerate_all.sh` 后 `git status` 依旧干净）。现已补「产物来源登记表」判定：`assets/` 与 `data/` 下每个被跟踪的非 `*.import` 文件都按来源分类（生成物 / 手写源 / 第三方 / 引擎伴随文件），未登记的新增、登记项失效、登记为生成物却没被本次重跑刷新，三种形态都判红。
+3. **玩家可见文案单源**：任何需要署名的许可（CC-BY 类）都要求在玩家可见处署名，而本仓库玩家可见文本只能来自 `data/translations.csv` 且「新增玩家可见内容与文案」属人类决策 → 可通过关于页满足，代价是新文案键（中英双语 + 过文案门禁）。
+4. **传染性许可（CC-BY-SA / GPL）无解**：与发布形态直接冲突，不采纳。
+5. **发布包合规面**：`release.sh` 会平铺 `LICENSE` / `NOTICE` / `assets/fonts/NotoSansSC-OFL.txt` 并逐件断言；引入任何新第三方素材必须同步扩这三件清单（v3.34 不发布的原因正是包内缺授权文本）。
+6. **合规惯例**：行业通行做法是「人读的 `NOTICE` + 每种许可的全文文件 + 逐条条目（组件 / 版本 / 来源 URL / 版权行 / 许可标识 / 是否修改）」，本仓库现有结构已是该形态；素材类二进制文件可用 REUSE 规范的 `.license` 伴随文件挂许可（PNG/WAV 无法写注释头）。CC0 虽不要求署名，工程上仍建议留「来源 URL + 抓取日期」（自证合规 + 源站可能消失）。
+
+## 3 可采纳 / 不可采纳
+
+**可采纳（按性价比；均属提议）**
+
+| 候选 | 用途 | 落地要做什么 | 代价 |
+| --- | --- | --- | --- |
+| 新增 OFL 字体（Google Fonts / Noto 系） | 标题字、数字字 | 扩 `NOTICE` + `release.sh` 三件套 | 制度成本近零；体积与渲染一致性需过目 |
+| ambientCG / Poly Haven（CC0） | `docs/` 配图与美术参考（不进 `res://`） | 注明来源与抓取日期 | 与 2D 程序化美术基本无关，仅参考价值 |
+| Kenney（全站 CC0，含 Audio 分类） | 音效 / 音乐候选 | 若入包：扩 `NOTICE`、扩 `release.sh` 清单、改「素材一律程序化生成」口径 | 破政策；门禁判据要重写 |
+| Godot Shaders 的 CC0 / MIT 条目 | 着色器参考 | 逐条核验页尾许可、避开 GPL v3 | 本仓库着色器已是 MIT 自有资产，收益有限 |
+| jsfxr（移植仓库含 UNLICENSE） | 只作合成算法参考，代码重写为纯 Python | 只读参考、不复制代码 | 收益是思路不是素材；原版 sfxr 许可待核验 |
+
+**不可采纳**：CC-BY-SA 3.0/4.0（含 OpenGameArt 的 LPC 系）、GPL 2/3 素材与着色器、Freesound 的 CC-BY-NC 与 Sampling+ 1.0、许可未核验的 Shadertoy / Pixabay / Sonniss / itch.io 未标注包、Wikimedia Commons（CC-BY-SA 占比高且叠肖像/商标/全景自由风险）、以及任何带第三方权利的 CC0/PD 内容。
+
+**「用 CC0 音效替换程序化合成」的时间账（本机实测，Python 3.12.3）**：`generate_audio.py` 全量合成 13 个 wav 墙钟 **145 秒**（那是在多路门禁并行的负载下测的）；把三首 BGM 摘掉后，10 个音效只要 **0.78 秒**——即素材门的耗时几乎全在三首 BGM（112 秒音频）的纯 Python 逐样本合成。**换掉 BGM 才能省时间，换音效几乎不省。**
+
+## 4 行业实践对照（只列结论与出处）
+
+### 4.1 弹幕射击 / 街机
+
+| 实践 | 本项目现状 |
+| --- | --- |
+| 判定点远小于机体、且判定点可见 | **已做到**：判定盒 2.8px、擦弹环内层豁免、判定点有光点与光圈（`Player.cs`；`balance.json player.graze_radius`） |
+| 命中反馈：顿帧 2–10 帧 + trauma 震动模型（GDC《Juicing Your Cameras With Math》） | **已做到且取值已定稿**：四档顿帧 0.03/0.07/0.11/0.16s、trauma 模型（`core/GameFeel/`，`--feel-probe` 断复位） |
+| 弹幕不得仅靠色相区分（XAG 103） | **部分做到**：敌弹与玩家弹共用同一多边形，默认档只靠色相；高对比档给敌弹亮色轮廓且默认关 → 见 ROADMAP「待人类裁定」 |
+| 难度曲线：单调爬升 + 软上限 + 显式地板/硬顶 | **已做到**（同类里的上乘：曲线形状可单测，`--long-probe` 断单调/有顶/斜率独立/软上限） |
+| 擦弹与连击构成风险回报闭环 | **已做到**：擦弹吃难度乘区与连击加权，单弹只计一次 |
+| Boss 转阶段清弹 + 有限无敌 + 超时逃跑阀门 | **已做到**（`--boss-probe` 覆盖阶段机与狂暴复位） |
+| 弹数预算（怒首领蜂约 245 发同屏为参照） | **已做到**：敌弹硬上限 500、到顶按模拟时间节流告警；本作上限约为该参照的 1.6–2.0 倍 |
+| 双向 rank（死亡降难度，Battle Garegga 式） | **不建议**：与「必死曲线 + 压力无界」冲突；现有受击喘息已是收窄版 |
+
+### 4.2 无障碍（GAG Basic/Intermediate/Advanced、XAG、APX）
+
+**已做到**：音量三分路、减少闪光、屏幕震动强度（0% 即关）、命中顿帧强度、高对比弹体、可改键与灵敏度/死区、辅助瞄准三档、帧率与垂直同步、练习模式（无失败练习）、难度可局中修改、可跳过的返场过场、检查点存档。
+
+**未覆盖（全部已登记为提议）**：长按通道的「切换」替代（GAG Intermediate Motor；本作三条蓄力通道是纯长按）、文本对比度与准星配色选项（GAG Intermediate Vision）、文字界面背后的动效开关（XAG 117，注意它明确「活跃玩法期间的背景移动不在约束内」）、过场可暂停（XAG 108）、游戏内无障碍特性说明（GAG Basic General）。
+
+**闪烁的量化判据（XAG 118 / WCAG 2.3.1）**：亮度变化 ≥10% 记一次「闪」，**超过约 3 次/秒**、或占屏面积 ≥20%、或低强度长时间持续即判失败；红色闪（`R/(R+G+B) ≥ 0.8`）阈值更低。本项目的「频率低于阈值」目前只是声明 → 见 ROADMAP 债务区。
+
+**已裁定不做、不要再当缺失提**：游戏速度可调（速度即难度、与必死曲线耦合，三档难度 + 辅助瞄准覆盖同一诉求）、屏幕朗读与字幕（无配音与叙事对白）、局内计分显示、在线排行榜、移动端与触屏、随存随取（惩罚性存档是设计的一部分）。
+
+### 4.3 自动化测试与确定性
+
+| 实践 | 本项目现状 |
+| --- | --- |
+| 固定步长 + 判定只看模拟状态（Godot `--fixed-fps` 禁用实时同步） | **已做到且严于多数同类**：五条确定性硬规则 + 真实时间允许清单双向锁 |
+| 「输入 + 种子 = 可复现的一局」 | **一半**：表现层随机已确定化（星场/残景/特效），**玩法层随机仍走 `GD.Rand*` 默认序列**（暴击、标记、刷怪、Boss 走位、迷雾触发）→ 种子注入是「实现者可做」的开放项 |
+| bot/soak 的判据要简单、能失败、指向具体链路（arXiv 2202.12777：业界对自动化代理持怀疑，关键在判据而非拟人性） | **已做到**：`--autoplay-probe` 判「整局零击杀 / 存活却 60 模拟秒无进展 / 跑局中的引擎错误」，每 10 模拟秒一条遥测；长局 soak（900 秒）走人工项 |
+| soak 暴露泄漏与性能衰减（Valve 开发者 wiki） | **部分**：对象池化全面、有「池化复用后缓存仍连着」的探针，但退出期资源统计走白名单（泄漏类不判） |
+
+### 4.4 Godot 4 / GL Compatibility
+
+- **已做到**：帧内零 `GetNode`/零 LINQ/零容器分配（脚本扫描全库）、热路径配置在 load 期缓存、`FrameCache` 帧级共享缓存、按需重绘纪律、`Callable`/信号只在构建期绑定、`GD.Load` 的生命周期取舍有注释说明。
+- **已核验的文档订正**：官方渲染器对照表把 **Glow/SSAO 在 Compatibility 标为支持**——不支持的是 2D/3D HDR 渲染（辉光拿不到 HDR 阈值语义）、compute shaders、`CompositorEffects`、particle trails、MSAA 2D、debanding、decals、depth of field、SDFGI、volumetric fog、SSR。本作手写全屏后处理的真实理由是「引擎给不了辉光＋调色＋晕影＋颗粒＋动态分级这一整套组合」（口径已订正到 `DESIGN_BASELINE` §2.2 与该 shader 头注释）。
+- **启动期着色器预热**：Compatibility 下 ubershader 与预热机制不适用（只适用 Forward+/Mobile），官方建议在加载期把材质/着色器/粒子显示一帧；本作实测单帧 > 1.4s，当前处理只是钳制推进步长（保状态机不连跳），不是消除卡顿 → 已登记提议。
+- **不建议采纳**：把子弹改成 `MultiMesh`（官方定位是成千上万实例，本作敌弹上限 500 且要保留 `Area2D` 碰撞与既有对象池语义）、server API 化（同因）、把物理 tick 提到 120Hz（会改「帧数＝模拟时长」的既有口径）、接入第三方遥测/崩溃上报 SDK（违反运行时零第三方依赖）。
+
+## 5 参考来源（本次实际可访问）
+
+**许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`、`wiki.creativecommons.org/wiki/Recommended_practices_for_attribution`
+**素材站**：`kenney.nl/support`、`kenney.nl/assets/category:Audio`、`opengameart.org/content/faq`、`freesound.org/help/faq/`、`game-icons.net/about.html`、`polyhaven.com/license`、`ambientcg.com/license`、`godotshaders.com/faq/`、`incompetech.com/music/royalty-free/faq.html`、`freepd.com`、`lucide.dev/license`、`github.com/feathericons/feather`、`github.com/google/material-design-icons`、`github.com/chr15m/jsfxr`
+**玩法与无障碍**：`hardcoregaming101.net/battle-garegga`、`.../dodonpachi`、`.../touhou`、`gdcvault.com/play/1023470`、`hardingfpa.com`、`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`accessible.games/accessible-player-experiences/`
+**测试与引擎**：`arxiv.org/abs/2202.12777`、`.../2208.07811`、`.../2107.12061`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,physics/interpolation/index,scripting/c_sharp/*}`
+
+**未能核验（需人工核验，不作任何条款推断）**：Pixabay（403）、itch.io（域名不可达）、Wikimedia Commons（域名不可达）、Shadertoy（403）、Sonniss GDC 音效包（403）、Musopen（403）、sfxr 原版 drpetter.se（403）、Font Awesome Free（需 JS）、`fonts.google.com`（超时；但仓库内已含该字体 OFL 全文与 NOTICE，可视为等价证据）。

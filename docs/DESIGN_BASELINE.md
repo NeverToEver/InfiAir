@@ -222,7 +222,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   落地：`scenes/practice.tscn` + `GameState.Practice.cs`——三处进度写入点（`SaveRun` / `DeleteRunSave` / `RecordRunResult`）各一条 `PracticeActive` 早退，故「练习不落盘、死亡不删档」是结构性的（死亡删档的本局门控挡不住练习局，它按生产语义活跃）；`--practice-probe` 与冒烟趟断这三条。练习局的 RunTime / 难度 / 里程碑照常在内存里推进（手感必须与正局一致），只是永不落盘。
 - **音乐分层**：至少 Boss 战与基地 / 标题各有独立曲目（现状全套只有一首循环）。
   边界：走既有程序化音频管线（零第三方依赖），素材可复现门禁照旧。
-  落地：`bgm_boss.wav` / `bgm_base.wav` 两首（同一程序化管线，重跑可复现）；曲目选择下沉 core 并单测钉住，`MusicDirector` 只做播放与淡入淡出适配。标题屏仍用原曲目。
+  落地：`bgm_boss.wav` / `bgm_base.wav` 两首（同一程序化管线，重跑可复现）；曲目选择下沉 core 并单测钉住，`MusicDirector` 只做播放与淡入淡出适配。**标题屏无 BGM**（`title.tscn` 无音频节点、`MusicDirector` 只在 `Main` 实例化；原「标题屏仍用原曲目」的写法与实现不符，已按实测订正），标题屏只有程序化星空与远景实况战场的画面运动。
 - **高对比弹体**：辅助页开关，给敌弹加**形状 / 描边**编码（不靠色相），落实 Game Accessibility Guidelines 的「关键信息不得仅由固定颜色传达」。
   边界：纯表现层、玩法判定零改动（同 `reduce_flash` 口径）；GAG 的「游戏速度可调」**不做**（速度即难度、与必死曲线耦合），登记为有意例外。
   落地：`BulletAppearance.SkinFor`（core，单测钉住映射与中性态）＋ 敌弹**亮色**轮廓贴图档。轮廓取亮色而非深色：本作背景中位亮度 9/255，深色描边在可读像素上等于没画——无障碍编码必须是亮度编码。关闭开关时贴图逐位退回原档。
