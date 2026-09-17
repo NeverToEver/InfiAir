@@ -63,6 +63,12 @@ public partial class PracticeHost : Node
         if (_driver.Tick())
         {
             SetProcess(false); // 请求均已受理：本节点不再逐帧空转（练习局其余部分由生产链驱动）
+            // 落位标记（冒烟断言它）：练习场景真的起来了（宿主注入赶在 Main._Ready 之前）且两个
+            // 直选请求都走生产链受理完毕——请求送不进生产链时这一行不出现，门禁按缺标记判红。
+            // 标记打在练习宿主自己身上：切场景会释放请求方（探针宿主 / 结算页），由请求方自述
+            // 就成了「按下了就算到」——练习场景根本没起来也照样绿。
+            GD.Print(GdFormat.Format("[practice] 直选内容已受理（Boss 型别 %d / 事件 %s）",
+                _setup.BossType, _setup.EncounterId));
         }
     }
 }

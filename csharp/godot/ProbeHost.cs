@@ -5298,13 +5298,16 @@ public partial class ProbeHost : Node
                     _driver.SeedScore(); // 与练习宿主同一条落地路径（补门槛分 → 请 Boss/事件）
                 }
 
+                // 难度断的是**实际生效值**（GameState.Difficulty），不是 Practice 里回显的设置：
+                // 后者与探针传进去的是同一个对象，判据恒真——删掉 BeginPractice 的起始难度应用，
+                // 面板选了难档而实际仍按上一档跑（命中/伤害/档位奖励全不同）也照样绿。
                 if (GameState.Instance.Practice.BossType != _practiceSetup.BossType
-                    || GameState.Instance.Practice.DifficultyName != _practiceSetup.DifficultyName)
+                    || GameState.Instance.Difficulty != new StringName(_practiceSetup.DifficultyName))
                 {
                     GD.PushError(GdFormat.Format(
-                        "[practice-probe] 练习态与直选设置不符（局内 Boss=%d 难度=%s，期望 %d/%s）——"
+                        "[practice-probe] 练习态与直选设置不符（局内 Boss=%d 生效难度=%s，期望 %d/%s）——"
                         + "面板选的东西没落到本局",
-                        GameState.Instance.Practice.BossType, GameState.Instance.Practice.DifficultyName,
+                        GameState.Instance.Practice.BossType, GameState.Instance.Difficulty,
                         _practiceSetup.BossType, _practiceSetup.DifficultyName));
                     _practiceProbe = false;
                     return;
@@ -5425,11 +5428,11 @@ public partial class ProbeHost : Node
                 _practiceProbe = false;
 
                 // 收尾再走一次**真实入口**：EnterPractice 会切到 scenes/practice.tscn（练习宿主 +
-                // 内嵌 main.tscn），本节点随场景易主释放——故完成标记在上一步就打。
-                // 这一段的价值在于：入口路径（场景资源/宿主注入/Main 的练习分支）写坏时会在同一份
-                // 日志里留下引擎错误或 PushError（切场景失败打 ERROR: Cannot open file），
-                // 由 check_smoke.sh 的错误正则判红；跑通则留下 `[practice] 练习局就绪` 与
-                // `[practice] 已按直选请求 …` 两行，是这条生产入口真的跑起来了的证据。
+                // 内嵌 main.tscn），本节点随场景易主释放——故这里打完标记就交棒，后面的判定由
+                // **练习宿主自己**打的那一行承担：`[practice] 直选内容已受理`（两请求都过生产链
+                // 才打），它才是「练习场景起来了且直选内容送得到」的判据——本节点打的这一行只
+                // 证明探针段自身跑完，切场景之后的事它看不到（在切换前打、由切换方自述，
+                // 练不到入口本身）。切场景失败仍由本趟的错误正则兜住（ERROR: Cannot open file）。
                 GameState.Instance.EnterPractice(_practiceSetup);
                 return;
         }
