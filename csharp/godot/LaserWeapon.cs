@@ -284,19 +284,12 @@ public partial class LaserWeapon : Node2D
                 continue;
             }
 
-            if (DistToSegmentSq(node.GlobalPosition, start, end) <= hitRadiusSq)
+            var pos = node.GlobalPosition;
+            if (Core.Combat.SegmentDistance.PointToSegmentSq(pos.X, pos.Y, start.X, start.Y, end.X, end.Y) <= hitRadiusSq)
             {
                 // 激光路径不传 ScoreScale——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同）。
                 EntityDamage.Dispatch(node, TickDamage);
             }
         }
-    }
-
-    /// <summary>点到线段距离平方（静态纯函数；配合 hitRadiusSq 平方比较，调用方免开方）。</summary>
-    private static float DistToSegmentSq(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var ab = b - a;
-        var t = Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0.0f, 1.0f);
-        return (p - (a + ab * t)).LengthSquared();
     }
 }

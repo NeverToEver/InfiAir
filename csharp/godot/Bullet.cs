@@ -488,14 +488,10 @@ public partial class Bullet : Area2D, IParryable
         CancelGrace();
     }
 
-    /// <summary>点到原点距离（弹心相对轨迹段 ab 与命中框圆心最近距；事件率，开方可接受）。</summary>
-    private static float SegmentClosestToOrigin(Vector2 a, Vector2 b)
-    {
-        var ab = b - a;
-        var lenSq = ab.LengthSquared();
-        var t = lenSq > 0.0f ? Mathf.Clamp(-a.Dot(ab) / lenSq, 0.0f, 1.0f) : 0.0f;
-        return (a + ab * t).Length();
-    }
+    /// <summary>点到原点距离（弹心相对轨迹段 ab 与命中框圆心最近距；事件率，开方可接受）。
+    /// 算式与退化语义（零长轨迹段＝到入口点的距离）单源在 core SegmentDistance。</summary>
+    private static float SegmentClosestToOrigin(Vector2 a, Vector2 b) =>
+        Core.Combat.SegmentDistance.PointToSegment(0.0f, 0.0f, a.X, a.Y, b.X, b.Y);
 
     /// <summary>机制一：启动宽限窗口（事件驱动；一次性 Timer 挂子弹下随场景释放）。</summary>
     private void StartGraceCheck(Area2D hitbox)
