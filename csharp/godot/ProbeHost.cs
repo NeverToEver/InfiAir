@@ -4,7 +4,8 @@ using InfiAir.Core.Text;
 
 // 探针宿主整体条件编译：仅编辑器/调试构建（Debug 定义 TOOLS、ExportDebug 定义 DEBUG）编入，
 // 发布导出（ExportRelease 两者皆无）整类不进 InfiAir.dll——测试设施不随发布包分发。
-// scene 侧 scenes/probe_host.tscn 已在 export_presets.cfg 排除，二者一致。
+// scene 侧 scenes/probe_host.tscn 与源码侧本文件/ProbeHost.Play.cs、以及测试工程 csharp/tests/* 已在
+// export_presets.cfg 的 exclude_filter 排除，二者一致（实测导出日志：343 条打包条目中无探针/测试）。
 #if DEBUG || TOOLS
 namespace InfiAir;
 
