@@ -48,7 +48,6 @@ public partial class SfxPlayer : Node
     private AudioStreamPlayer[][] _voices = [];
     private int[] _voiceNext = [];
     private ulong[] _lastTriggerMs = [];
-    private AudioStream[] _streams = [];
 
     /// <summary>headless 判定缓存一次：dummy 音频驱动不混音，播放实例退出时既不自然结束也
     /// 无法 stop 释放，必报 ObjectDB 泄漏噪音；无头路径不建实例、不播。</summary>
@@ -90,14 +89,14 @@ public partial class SfxPlayer : Node
         _voices = new AudioStreamPlayer[count][];
         _voiceNext = new int[count];
         _lastTriggerMs = new ulong[count];
-        _streams = new AudioStream[count];
         for (var i = 0; i < count; i++)
         {
-            _streams[i] = GD.Load<AudioStream>(Paths[i]);
+            var stream = GD.Load<AudioStream>(Paths[i]);
             var players = new AudioStreamPlayer[VoiceCounts[i]];
             for (var v = 0; v < players.Length; v++)
             {
-                players[v] = new AudioStreamPlayer { Bus = SfxBus };
+                // 声部与音源一一绑定且此后不变：装载期写一次，播放路径免每次原生属性写
+                players[v] = new AudioStreamPlayer { Bus = SfxBus, Stream = stream };
                 AddChild(players[v]);
             }
 
@@ -124,7 +123,6 @@ public partial class SfxPlayer : Node
         var players = _voices[i];
         var p = players[_voiceNext[i]];
         _voiceNext[i] = (_voiceNext[i] + 1) % players.Length;
-        p.Stream = _streams[i];
         p.VolumeDb = (float)(volumeDb ?? BaseDb[i]);
         var jitter = PitchJitter[i];
         p.PitchScale = pitchScale is double pitch

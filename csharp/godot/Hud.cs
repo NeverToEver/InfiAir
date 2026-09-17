@@ -529,7 +529,9 @@ public partial class Hud : CanvasLayer
     /// <summary>蓄力条槽位互压的运行期护栏：两条通道同时蓄力时（例如返航 + 天赋面板）条盒互压
     /// 会让玩家把一条的进度读成另一条的。槽位算式已在 core 由单测钉住，这里防的是「实际盒高被
     /// 字号/样式撑过预算」——那种漂移只有运行期量得出来。每帧调用、每次会话只报一次，
-    /// 走 PushError 撞冒烟与截图探针的错误正则。</summary>
+    /// 走 PushError 撞冒烟与截图探针的错误正则。
+    /// 几何只在「可见集变化」时量：单通道蓄力持续上千帧而盒矩形不变，每帧重取一次是白工
+    /// （掩码带上尺寸是否定型，故「可见但本帧尺寸未定」的条会在尺寸落定的那一帧被重新量到）。</summary>
     private void VerifyChargeBarsDoNotOverlap()
     {
         if (_chargeOverlapChecked)
@@ -537,38 +539,59 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        var shown = new List<(ChargeChannel Channel, Rect2 Area)>();
+        // 掩码位序 = ChargeChannel 值；尺寸未定（&lt;= 0）的条不入掩码，等到定型那帧再量
+        var mask = 0;
         foreach (var kv in _chargeBars)
         {
             var bar = kv.Value;
-            // 未参与布局（不可见或尺寸尚未定）的条跳过：拿零尺寸去比会误报
-            if (!bar.Visible || bar.Size.Y <= 0.0f)
+            if (bar.Visible && bar.Size.Y > 0.0f)
             {
-                continue;
+                mask |= 1 << (int)kv.Key;
             }
-
-            shown.Add((kv.Key, bar.GetGlobalRect()));
         }
 
-        if (shown.Count < 2)
+        if (mask == _chargeMeasuredMask)
+        {
+            return;
+        }
+
+        _chargeMeasuredMask = mask;
+        var shown = 0;
+        foreach (var kv in _chargeBars)
+        {
+            if ((mask & (1 << (int)kv.Key)) != 0)
+            {
+                _chargeOverlapBuf[shown] = (kv.Key, kv.Value.GetGlobalRect());
+                shown += 1;
+            }
+        }
+
+        if (shown < 2)
         {
             return; // 单条在场不可能互压；等到真的两条同屏再判
         }
 
         _chargeOverlapChecked = true;
-        for (var i = 0; i < shown.Count; i++)
+        for (var i = 0; i < shown; i++)
         {
-            for (var j = i + 1; j < shown.Count; j++)
+            for (var j = i + 1; j < shown; j++)
             {
-                if (shown[i].Area.Intersects(shown[j].Area))
+                if (_chargeOverlapBuf[i].Area.Intersects(_chargeOverlapBuf[j].Area))
                 {
-                    GD.PushError($"[hud] 蓄力条槽位互压：{shown[i].Channel} 与 {shown[j].Channel} "
+                    GD.PushError($"[hud] 蓄力条槽位互压：{_chargeOverlapBuf[i].Channel} 与 {_chargeOverlapBuf[j].Channel} "
                         + $"（槽位节距 {HudLayout.ChargeSlotPitch}，盒高预算 {HudLayout.ChargeBarHeight}）——"
                         + "两条通道同时蓄力时会把一条的进度读成另一条的");
                 }
             }
         }
     }
+
+    /// <summary>互压量测缓冲（栈上放不下且每帧调用，故按通道数预分配复用，零逐帧分配）。</summary>
+    private readonly (ChargeChannel Channel, Rect2 Area)[] _chargeOverlapBuf =
+        new (ChargeChannel, Rect2)[ChargeBarSpecs.Count];
+
+    /// <summary>上次量过几何的可见集掩码（初值 0 = 尚无任何条参与布局，故首个非空掩码必被量到）。</summary>
+    private int _chargeMeasuredMask;
 
     private bool _chargeOverlapChecked;
 

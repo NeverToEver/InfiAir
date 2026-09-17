@@ -23,6 +23,10 @@ public partial class Main : Node2D
 
     /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
     private static readonly StringName NoActiveEncounter = new();
+    // 逐帧输入查询的动作名静态持有：免每帧把 C# 字符串转成 StringName 的原生 intern 开销
+    private static readonly StringName ActDock = new("dock");
+    private static readonly StringName ActHomecoming = new("homecoming");
+    private static readonly StringName ActGiveUp = new("give_up");
     // 静态 PackedScene 持有违反「静态字段禁持 Godot RefCounted」规则（退出 segfault 先例），
     // 改实例字段——Main 每局重建实例，加载命中资源缓存。
     private readonly PackedScene MothershipScene = GD.Load<PackedScene>("res://scenes/mothership.tscn");
@@ -448,7 +452,7 @@ public partial class Main : Node2D
         // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（蓄力互斥窗口期补全）；
         // 逐帧维护——暂停/死亡冻结 _Process 时残留 true 由 _ExitTree/_Ready 复位兜住
         GameState.Instance.SummonInProgress = _charging || _summonWindow != null;
-        if (canCharge && Input.IsActionPressed("dock"))
+        if (canCharge && Input.IsActionPressed(ActDock))
         {
             _charging = true;
             _chargeTime += d;
@@ -487,7 +491,7 @@ public partial class Main : Node2D
 
         // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期本局不暂停）播放中禁止——与 dock 蓄力
         // 的 _summonWindow 守卫对齐，防 B 在母舰机库小窗演出期间触发返航打断召唤流程
-        if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed("homecoming"))
+        if (!_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed(ActHomecoming))
         {
             _homeChargeTime += d;
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.Homecoming, _homeChargeTime / HOME_CHARGE_TIME);
@@ -504,7 +508,7 @@ public partial class Main : Node2D
 
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
         // 与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
-        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed("give_up"))
+        if (_giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging && !_player.IsDead() && Input.IsActionPressed(ActGiveUp))
         {
             _giveUpCharge += d;
             _hud.SetCharge(InfiAir.Hud.ChargeChannel.GiveUp, _giveUpCharge / GIVE_UP_HOLD_TIME);
@@ -1071,10 +1075,7 @@ public partial class Main : Node2D
                 continue;
             }
 
-            if (e is Node2D n2d)
-            {
-                Explosion.SpawnAt(this, n2d.GlobalPosition);
-            }
+            Explosion.SpawnAt(this, e.GlobalPosition);
 
             e.QueueFree();
         }

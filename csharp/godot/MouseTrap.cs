@@ -33,21 +33,24 @@ public partial class MouseTrap : Node
     /// 供 mouse_exited 时生成 warp 目标；从未进入窗口内时为负，此时不拉回）</summary>
     private Vector2 _lastKnownPos = new(-1.0f, -1.0f);
 
+    /// <summary>宿主窗口引用（_Ready 取一次）：逐帧路径上 GetWindow() 是原生调用，
+    /// 而本节点的宿主窗口在本节点生命周期内不变（场景重载会重建实例，不会换窗口）。</summary>
+    private Window _win = null!;
+
     public override void _Ready()
     {
         ProcessMode = Node.ProcessModeEnum.Always; // 暂停时也维持位置缓存与防御；放行判定在 _trap_active
-        var win = GetWindow();
-        win.MouseExited += OnMouseExited;
+        _win = GetWindow();
+        _win.MouseExited += OnMouseExited;
     }
 
     public override void _ExitTree()
     {
         // Window 信号断开——节点未 free 重入树防双连回调；场景重载后防移出窗口回调已释放实例
-        var win = GetWindow();
-        if (win != null
-            && win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
+        if (GodotObject.IsInstanceValid(_win)
+            && _win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
         {
-            win.MouseExited -= OnMouseExited;
+            _win.MouseExited -= OnMouseExited;
         }
     }
 
@@ -58,9 +61,8 @@ public partial class MouseTrap : Node
             return; // headless 无真实鼠标/窗口事件，confine 逻辑全部跳过
         }
 
-        var win = GetWindow();
-        var mp = win.GetMousePosition();
-        if (mp.X >= 0.0f && mp.Y >= 0.0f && mp.X < win.Size.X && mp.Y < win.Size.Y)
+        var mp = _win.GetMousePosition();
+        if (mp.X >= 0.0f && mp.Y >= 0.0f && mp.X < _win.Size.X && mp.Y < _win.Size.Y)
         {
             _lastKnownPos = mp;
         }
@@ -76,12 +78,11 @@ public partial class MouseTrap : Node
     /// 聚焦用 HasFocus() 实时查询而非缓存信号（焦点事件可能被 OS 抢占吞掉，见文件头注释）。</summary>
     private bool TrapActive()
     {
-        var win = GetWindow();
         return TrapEnabled(
             GameState.Instance.MouseLock,
-            win.Visible,
-            win.HasFocus(),
-            win.Size.X > 0 && win.Size.Y > 0,
+            _win.Visible,
+            _win.HasFocus(),
+            _win.Size.X > 0 && _win.Size.Y > 0,
             !GetTree().Paused,
             Input.MouseMode == Input.MouseModeEnum.Hidden);
     }

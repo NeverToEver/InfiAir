@@ -19,6 +19,11 @@ public partial class Tutorial : Node2D
     public float HomeChargeTime = 1.5f;
     public float DockChargeTime = 3.0f; // 母舰召唤蓄力（mothership.dock_charge_time，对齐正局）
 
+    // 逐帧输入查询的动作名静态持有：免每帧把 C# 字符串转成 StringName 的原生 intern 开销
+    private static readonly StringName ActDock = new("dock");
+    private static readonly StringName ActHomecoming = new("homecoming");
+    private static readonly StringName ActBoost = new("boost");
+
     private static readonly string[] StageTitles =
     {
         "TUT_S1_TITLE",
@@ -328,11 +333,16 @@ public partial class Tutorial : Node2D
         return n;
     }
 
-    /// <summary>敌机配置取「默认表 + balance 覆盖」首项（教程只用 straight 基础型）。
-    /// 经 Spawner 的共用 merge 入口，保证教程与正局同源——不得直读 BuildEnemyTypes 默认表。</summary>
-    private static Godot.Collections.Dictionary EnemyTypeConfig()
+    /// <summary>教程敌机配置（首项，教程只用 straight 基础型）。
+    /// 经 Spawner 的共用 merge 入口，保证教程与正局同源——不得直读 BuildEnemyTypes 默认表。
+    /// 整表构建含 5 张字典、5 次贴图加载与一次 cfg 合并，而刷怪是逐只调用，故取到后缓存
+    /// （机型表在跑动中不变；Enemy 只读该表，不复用会写坏共享配置）。
+    /// 实例字段而非静态：静态持 Godot 对象在退出期先于场景树释放时崩。</summary>
+    private Godot.Collections.Dictionary? _enemyTypeConfig;
+
+    private Godot.Collections.Dictionary EnemyTypeConfig()
     {
-        return Spawner.BuildMergedEnemyTypes()[0];
+        return _enemyTypeConfig ??= Spawner.BuildMergedEnemyTypes()[0];
     }
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
@@ -478,7 +488,7 @@ public partial class Tutorial : Node2D
             case 1:
                 {
                     // 加速/冲刺输入计数（rising edge）
-                    if (Input.IsActionJustPressed("boost"))
+                    if (Input.IsActionJustPressed(ActBoost))
                     {
                         _boostCount = Mathf.Min(_boostCount + 1, 2);
                         UpdateBoostObjective();
@@ -524,7 +534,7 @@ public partial class Tutorial : Node2D
                     // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
                     if (_mothership == null && !_advancing)
                     {
-                        if (Input.IsActionPressed("dock"))
+                        if (Input.IsActionPressed(ActDock))
                         {
                             _dockCharge += d;
                             _objectivePoll -= d;
@@ -552,7 +562,7 @@ public partial class Tutorial : Node2D
 
             case 4:
                 {
-                    if (Input.IsActionPressed("homecoming"))
+                    if (Input.IsActionPressed(ActHomecoming))
                     {
                         _homeCharge += d;
                         _objectivePoll -= d;
