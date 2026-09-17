@@ -58,6 +58,12 @@ SHIFT_GAIN = 0.6       # 最佳平移的 MAD 低于原样该比例 → 判为几
 SIGNED_MEAN_MAX = 0.5  # 平坦区逐通道有符号均值上限（≈ 半个 8 位色阶，0..255）
 EDGE_FLAT_MAX = 2.0    # 平坦区(梯度<8)里「差 >8」的命中率上限（%）
 NOISE_MAX_MAD = 0.5    # 噪声底线上限：超过它说明同引擎两遍就不可重复，判据不可用
+# 「通道差 >32」的像素占比上限：MAD 是均值，**少量像素但差异极大**的结构改动会被均值摊平，
+# 三条归因全不命中时工具会默认放行——over32 因此必须进判定。取值分两段：相对段跟同引擎基线
+# （同一套 NOISE_FACTOR 口径），绝对段只兜「基线恰好为 0」的过苛情形。
+# **该绝对值尚未在真实升级记录上校准**（升级当时的产物未单独留存该列）；下次跑升级 A/B 时按
+# 实测把两段一起收，或在命令行用 --over32-limit-pct 临时覆盖。
+OVER32_ABS = 0.2       # 跨引擎「通道差 >32」像素占比的绝对允许量（%；1080p 下约 64×64 块）
 
 
 def capture(godot: str, out_dir: pathlib.Path, log: pathlib.Path) -> bool:
@@ -164,6 +170,8 @@ def main() -> int:
     ap.add_argument("--keep", action="store_true", help="保留工作目录（默认跑完删掉）")
     ap.add_argument("--reuse", action="store_true",
                     help="复用工作目录里已有的截图（不重新捕获；调阈值或做破坏验证时用）")
+    ap.add_argument("--over32-limit-pct", type=float, default=OVER32_ABS,
+                    help=f"「通道差 >32」像素占比的绝对允许量（%%），默认 {OVER32_ABS}（未校准，见头注）")
     args = ap.parse_args()
 
     if args.runs < 2:
@@ -193,22 +201,29 @@ def main() -> int:
 
     # 噪声底线**逐页**取：全局最大值会被单页的抖动抬起来，容忍随之膨胀、把真差异遮掉
     # （本工具首版正是这么漏判的：一处基线 21.9 把容忍抬到 32.8，换成另一页也照判「等价」）。
+    # 强差异列（over32）同样逐页取基线：MAD 是均值，几处「少量像素、差异极大」的结构改动会被
+    # 均值摊平，只判 MAD 会让它整体放行。
     noise = {page: 0.0 for page in PAGES}
+    noise_over32 = {page: 0.0 for page in PAGES}
     for tag in ("a", "b"):
         for i in range(2, args.runs + 1):
             for page, v in compare(work / f"{tag}1", work / f"{tag}{i}").items():
                 noise[page] = max(noise[page], v["mad"])
+                noise_over32[page] = max(noise_over32[page], v["over32"])
     noise_max = max(noise.values())
 
     cross = compare(work / "a1", work / "b1")
 
+    def over32_limit(page: str) -> float:
+        return max(noise_over32[page] * NOISE_FACTOR, args.over32_limit_pct)
+
     print(f"\n噪声底线（逐页，同引擎两遍的最大 MAD）：最大 {noise_max:.3f}")
-    print(f"{'页面':<24}{'基线':>8}{'跨引擎 MAD':>12}{'>8 占比':>10}{'>32 占比':>10}{'容忍':>8}")
+    print(f"{'页面':<24}{'基线':>8}{'基线>32':>9}{'跨引擎 MAD':>12}{'>8 占比':>10}{'>32 占比':>10}{'容忍':>8}")
     for page in PAGES:
         m = cross[page]
         limit = noise[page] * NOISE_FACTOR + NOISE_ABS
-        print(f"{page:<24}{noise[page]:>8.3f}{m['mad']:>12.3f}{m['over8']:>9.2f}%"
-              f"{m['over32']:>9.2f}%{limit:>8.3f}")
+        print(f"{page:<24}{noise[page]:>8.3f}{noise_over32[page]:>8.2f}%{m['mad']:>12.3f}"
+              f"{m['over8']:>9.2f}%{m['over32']:>9.2f}%{limit:>8.3f}")
 
     # 基线本身超出上限＝同引擎两遍就不可重复（截图序列含抖动元素，或被改过），此时任何
     # 「在容忍内」的结论都不成立——判据不可用必须显式失败，不能顺势把容忍放大后照判等价。
@@ -218,19 +233,28 @@ def main() -> int:
               f"或确认工作目录未被改动。证据保留在 {work}")
         return 1
 
+    # 小面积强差异：基线里几乎没有（同引擎两遍是同一套光栅化路径），跨引擎却出现成片
+    # 「通道差 >32」的像素——那是换了内容而不是换了抗锯齿，必须在 MAD 之外单独判。
+    over32_hot = [page for page in PAGES if cross[page]["over32"] > over32_limit(page)]
+
     worst = max(cross.items(), key=lambda kv: kv[1]["mad"])
     worst_limit = noise[worst[0]] * NOISE_FACTOR + NOISE_ABS
-    if worst[1]["mad"] <= worst_limit:
-        print(f"\n判定：视觉等价（最大 MAD {worst[1]['mad']:.3f} 在噪声容忍内 {worst_limit:.3f}）。")
+    if worst[1]["mad"] <= worst_limit and not over32_hot:
+        print(f"\n判定：视觉等价（最大 MAD {worst[1]['mad']:.3f} 在噪声容忍内 {worst_limit:.3f}；"
+              "无小面积强差异）。")
         if not args.keep:
             shutil.rmtree(work)
         return 0
 
-    print(f"\n跨引擎差异超出噪声（最大 {worst[1]['mad']:.3f} > 逐页容忍 {worst_limit:.3f}），逐条归因：")
+    if over32_hot:
+        print(f"\n跨引擎出现小面积强差异（通道差 >32 的像素占比超基线）："
+              + "、".join(f"{p} {cross[p]['over32']:.2f}% > {over32_limit(p):.2f}%" for p in over32_hot))
+
+    print(f"\n跨引擎差异超出噪声（最大 MAD {worst[1]['mad']:.3f} > 逐页容忍 {worst_limit:.3f}），逐条归因：")
     bad_reasons = []
     for page, m in cross.items():
         page_limit = noise[page] * NOISE_FACTOR + NOISE_ABS
-        if m["mad"] <= page_limit:
+        if m["mad"] <= page_limit and page not in over32_hot:
             continue
         r = attribute(m["a"], m["b"], m["mx"])
         moved = r["best"][0] < r["base_mad"] * SHIFT_GAIN
@@ -244,6 +268,10 @@ def main() -> int:
             bad_reasons.append(f"{page}: 整体色偏/明暗差（平坦区均值偏移超标）")
         elif r["flat"] > EDGE_FLAT_MAX:
             bad_reasons.append(f"{page}: 差异不止于边缘（平坦区命中率超标）")
+        elif page in over32_hot:
+            bad_reasons.append(
+                f"{page}: 小面积强差异（通道差 >32 的像素 {m['over32']:.2f}% 超容忍 "
+                f"{over32_limit(page):.2f}%，基线 {noise_over32[page]:.2f}%）")
 
     if bad_reasons:
         print("\n判定：检出**结构级差异**（需人工判读）：")
