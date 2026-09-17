@@ -168,8 +168,8 @@ public partial class ProbeHost : Node
         """{"version":1,"score":900,"kills":7,"boss_kills":2,"combo":5,"milestone_count":4,"run_time":300.0,"difficulty_multiplier":1.6,"dda_timer":12.5,"difficulty_time_step":2,"health":42.5,"augments":{"extra_life":1},"talent_levels":{"extra_life":1},"talent_overcharged":[],"talent_route":"","talent_reset_tokens":1,"talent_bonus_overcharge_slots":1,"talent_cache_values":[],"rp":6,"refresh_points":2,"missions":{"kill_15":{"progress":3,"claimed":false,"goal":15,"baseline":1}},"last_kind_value":{"kill":12}}""";
 
     /// <summary>正常 settings.json：同前，取值刻意全非默认（回退实现会把它们全部读成默认而判红）；
-    /// 无障碍的无障碍四项开关（减闪 / 高对比 / 画面增强 / 鼠标锁定）同样取非默认值——
-    /// 高对比进表也是「全部恢复默认」补发信号那半判据的前提（值没变过就无从判漏发）。</summary>
+    /// 四个开关（减闪 / 高对比 / 画面增强 / 鼠标锁定）同样取非默认值——高对比进表也是
+    /// 「全部恢复默认」补发信号那半判据的前提（值没变过就无从判漏发）。</summary>
     private const string ValidSettingsJson =
         """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"high_contrast":true,"world_post_fx":false,"mouse_lock":false}""";
 
@@ -177,7 +177,7 @@ public partial class ProbeHost : Node
     private const float AssertedHealth = 42.5f;
 
     /// <summary>损坏的 best.json（截断的 JSON）：读入即被隔离，本趟断「隔离之后仍允许写记录」。
-    /// 这是真本事——损坏档曾让记录写门槛为假，整场会话的记录再也不落盘（静默丢记录）。</summary>
+    /// 这是实测过的坏法——损坏档让记录写门槛为假，整场会话的记录再也不落盘（静默丢记录）。</summary>
     private const string CorruptBestJson = "{\"version\":1,\"survived_seconds\":";
 
     /// <summary>版本不符的 best.json：语法合法、字段齐全（与编解码器同键名），读数刻意远好于本趟——

@@ -270,7 +270,7 @@ public partial class Main : Node2D
             ApplyNewRun();
             // 入场演出照走（DESIGN_BASELINE §1.16「练习手感必须与正局一致」）：漏掉这一句时练习局
             // 既没有落点（玩家停在场景初始位）也没有入场无敌窗口（只剩 1s 出生保护），两处手感
-            // 都只在练习里不同，不崩不报错——直选请求的等待条件（入场地窗口内 spawner 停驱动）
+            // 都只在练习里不同，不崩不报错——直选请求的等待条件（入场窗口内 spawner 停驱动）
             // 也就跟着失效。
             StartEntrySequenceInternal();
             GD.Print("[practice] 练习局就绪");
