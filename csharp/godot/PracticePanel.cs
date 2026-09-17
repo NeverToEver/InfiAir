@@ -22,6 +22,14 @@ public partial class PracticePanel : CanvasLayer
     /// <summary>行数（Boss 型别 / 起始难度 / 遭遇事件）。</summary>
     public const int RowCount = 3;
 
+    /// <summary>面板画层：CanvasLayer 的默认层是 1，落到开出它的页之下就整块被压住——标题屏在层 1
+    /// （同层靠树序，面板后入树故在上面，看着是好的），而结算页在层 20，死亡页开面板时面板被压在
+    /// 结算页下：玩家按「练习模式」只看到轮盘消失、屏幕毫无反应，而面板其实已经收了输入
+    /// （Esc/方向键/回车都生效）——这类静默坏点编译与冒烟都判不出来，只有画面判得出来。
+    /// 取 30：高于全部页面（标题 1 / HUD 2 / 天赋 10 / 暂停 15 / 设置 16 / 结算 20 / 基地 25），
+    /// 低于退出确认（40）。</summary>
+    private const int PanelLayer = 30;
+
     /// <summary>开始请求（开始按钮与手柄 A/回车同一出口）。打开方负责 EnterPractice。</summary>
     public event Action<PracticeSetup>? StartRequested;
 
@@ -35,6 +43,7 @@ public partial class PracticePanel : CanvasLayer
 
     public override void _Ready()
     {
+        Layer = PanelLayer;
         // 结算页的轮盘挂在暂停的树上（死亡即 SetTreePaused(true)）：面板必须自己 Always 才收得到输入
         ProcessMode = ProcessModeEnum.Always;
         // 初始值取上一次用过的设置（PendingPractice 在练习场景消费后仍留着值）：连着练同一个 Boss 时
