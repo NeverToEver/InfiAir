@@ -175,6 +175,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **死亡自动重开本阶段**：教程不设失败死局——死亡后短暂提示并重开**当前**阶段（清场、重置该阶段进度、重刷目标），Esc 随时可退出。此前死亡只把 HUD 换成「任务失败」并要求玩家自己 Esc 退出，再从第一阶段重来。
 - **跳过本阶段**：长按 `give_up`（放弃出击的键位）1 秒跳过当前阶段，屏上常驻「长按 <实际按键> 跳过本阶段」提示。教程是可选内容，卡住的玩家不该被某一步锁住。
 - 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
+- **覆盖缺口（已知）**：弹反 / 增幅 / 天赋不在这六段内，手柄侧也只有键鼠提示——补法与收口条件见 `docs/ROADMAP.md`「工作计划」P1，本文件不重复登记。
 - 教程是独立于 `Main` 的生产入口，回归面两趟：冒烟直开 `tutorial.tscn` 断 `[tutorial] 场景就绪`（入场链路）；`--tutorial-probe` 在探针宿主里实例化同一场景，经生产输入与生产伤害入口走满六阶段，断阶段推进 / 改键后目标行跟变 / 跳过 / 死亡重开 / 检查点落盘与完成清零。
 
 ### 1.12 Exit/Back Navigation
