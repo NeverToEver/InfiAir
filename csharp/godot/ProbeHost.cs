@@ -590,6 +590,15 @@ public partial class ProbeHost : Node
             }
         }
 
+        if (_playProbe && expectUserDir.Length == 0)
+        {
+            // 安全互锁：模拟游玩真跑一局（会写设置、可能死亡删档），必须在隔离用户目录里跑——
+            // 不带 --expect-user-dir 时拒绝启动，避免动到开发者真实的检查点与设置。
+            GD.PushError("[play-probe] 未给 --expect-user-dir：模拟游玩会写 user://（含死亡删档），"
+                + "拒绝在开发者真实用户目录下开跑；用临时目录并把 APPDATA/XDG_DATA_HOME/HOME 一起指过去");
+            _playProbe = false;
+        }
+
         VerifyUserDirIsolation(expectUserDir);
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
