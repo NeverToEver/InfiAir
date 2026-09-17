@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Progression;
 using InfiAir.Core.Storage;
 using InfiAir.Core.Text;
 
@@ -143,6 +144,17 @@ public partial class TitleScreen : CanvasLayer
         else if (GameState.Instance.LastRunLoadStatus == SaveLoadStatus.Unreadable)
         {
             GD.PushWarning("InfiAir: 本局存档暂时不可读——本次不提供继续（旧档未被删除，可稍后重启重试）");
+        }
+
+        // 跨局最好成绩一行（口径见 DESIGN_BASELINE §1.16）：无可信记录或尚无成绩时不显示——
+        // 空记录与「读不出」都不得写成一行「暂无记录」蒙混过去。
+        var best = GameState.Instance.Best;
+        if (GameState.Instance.BestKnown && best != BestRecord.Empty)
+        {
+            vbox.AddChild(UITheme.MakeLabel(
+                GdFormat.Format(Tr("BEST_LINE"), BestRecord.FormatDuration(best.SurvivedSeconds),
+                    best.BossKills, best.MaxDifficulty),
+                UITheme.FontBody, UITheme.TextDim, HorizontalAlignment.Center));
         }
 
         // 标题块滑入淡入（1.0s 起，与机体飞入并行）

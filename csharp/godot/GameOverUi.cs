@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core;
+using InfiAir.Core.Progression;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -17,6 +18,7 @@ public partial class GameOverUi : RadialMenuLayer
     private Label _killsLabel = null!;
     private Label _bossKillsLabel = null!;
     private Label _goalLabel = null!;
+    private Label _bestLabel = null!;
     private VBoxContainer _statsBox = null!;
     private Label _titleLabel = null!;
     private ChamferedPanel _plate = null!;
@@ -60,6 +62,10 @@ public partial class GameOverUi : RadialMenuLayer
         // 结算页是玩家复盘时唯一会细看的地方（Brotato 的「打过 wave20 算胜」同款锚点）。
         _goalLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.AccentGold);
         _statsBox.AddChild(_goalLabel);
+        // 跨局最好成绩：必死曲线上「比上次打得久吗」只在这里有读数（计分显示已裁，
+        // 本记录不含分数——口径见 DESIGN_BASELINE §1.16）
+        _bestLabel = UITheme.MakeLabel("", UITheme.FontBody, UITheme.TextDim);
+        _statsBox.AddChild(_bestLabel);
 
         var gs = GameState.Instance;
         // IsConnected 守卫：未走 _ExitTree 的重入树路径会重复订阅，
@@ -110,6 +116,26 @@ public partial class GameOverUi : RadialMenuLayer
         _goalLabel.Text = GdFormat.Format(Tr("GO_GOAL_RESULT"),
             achieved ? Tr("GO_BOSS_ACHIEVED") : Tr("GO_BOSS_PENDING"));
         _goalLabel.AddThemeColorOverride("font_color", achieved ? UITheme.AccentGold : UITheme.TextDim);
+        RefreshBestLine();
+    }
+
+    /// <summary>历史最好成绩一行：本局刷新时打「新纪录」，否则读上次最好；盘上记录读不出时
+    /// 留空（显示「暂无记录」等于把「读不出」说成「没打过」）。</summary>
+    private void RefreshBestLine()
+    {
+        var gs = GameState.Instance;
+        if (!gs.BestKnown)
+        {
+            _bestLabel.Text = "";
+            return;
+        }
+
+        var improved = gs.BestImprovedThisRun;
+        _bestLabel.Text = gs.Best == BestRecord.Empty
+            ? Tr("BEST_NONE")
+            : GdFormat.Format(Tr(improved ? "BEST_NEW" : "BEST_LINE"),
+                BestRecord.FormatDuration(gs.Best.SurvivedSeconds), gs.Best.BossKills, gs.Best.MaxDifficulty);
+        _bestLabel.AddThemeColorOverride("font_color", improved ? UITheme.AccentGold : UITheme.TextDim);
     }
 
     /// <summary>装配结算菜单（打开时重装，复位轮盘导航态）。</summary>

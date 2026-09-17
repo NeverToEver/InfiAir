@@ -247,6 +247,7 @@ public partial class GameState : Node
         }
 
         SetTreePaused(false);
+        RecordRunResult(); // 本局终结：先把结果并进跨局记录（ResetRun 之后读数就没了）
         DeleteRunSave(); // 本局终结：检查点作废（与死亡删档同口径）
         ResetRun();
         ((SceneTree?)Engine.GetMainLoop())?.ReloadCurrentScene();
@@ -587,6 +588,7 @@ public partial class GameState : Node
         // 本局存档：死亡即删档（不可读档回滚，保住必死曲线紧张感）。PlayerDied 由
         // Player.DieInternal 在死亡结算后发射；本 autoload 与引擎同生命周期，无需退订。
         PlayerDied += OnPlayerDiedDeleteRunSave;
+        LoadBestRecord(); // 跨局结果记录（user://best.json）：与 run.json 分区，读不出时不覆盖
     }
 
     /// <summary>死亡即删档（本局存档单一钩子）——仅真实本局删（门控见 <see cref="_runActive"/>）：
@@ -600,6 +602,7 @@ public partial class GameState : Node
             return;
         }
 
+        RecordRunResult(); // 先定格本局结果（记录是跨局读数，删档只针对检查点）
         DeleteRunSave();
     }
 
