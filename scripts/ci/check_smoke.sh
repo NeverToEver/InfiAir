@@ -65,6 +65,14 @@
 # 退回串行（同一份判定逻辑，只换调度）。
 set -uo pipefail
 
+# 引擎探测与 run.sh 同口径：**.NET 版优先**。裸 `godot` 在装了标准版的机器上会命中不含 C# 的那一版
+# （标准版打不开含 C# 的工程，且引擎跑起来会把 InfiAir.csproj 的 Godot.NET.Sdk 版本改写成自己那版，
+# 污染工作树）。gates.py/CI 会显式传 GODOT，这里是手跑时的兜底。
+if [ -z "${GODOT:-}" ]; then
+  for candidate in godot-mono godot godot4; do
+    if command -v "$candidate" >/dev/null 2>&1; then GODOT="$candidate"; break; fi
+  done
+fi
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/smoke.log}"
 # 引擎错误正则。`Invalid polygon data, triangulation failed.` 是程序化绘制的静默坏点：

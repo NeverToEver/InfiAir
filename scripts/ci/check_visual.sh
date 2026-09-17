@@ -12,6 +12,14 @@
 # Xvfb + Mesa 软件光栅（系统包，非项目代码依赖）。
 set -uo pipefail
 
+# 引擎探测与 run.sh 同口径：**.NET 版优先**。裸 `godot` 在装了标准版的机器上会命中不含 C# 的那一版
+# （标准版打不开含 C# 的工程，且引擎跑起来会把 InfiAir.csproj 的 Godot.NET.Sdk 版本改写成自己那版，
+# 污染工作树）。gates.py/CI 会显式传 GODOT，这里是手跑时的兜底。
+if [ -z "${GODOT:-}" ]; then
+  for candidate in godot-mono godot godot4; do
+    if command -v "$candidate" >/dev/null 2>&1; then GODOT="$candidate"; break; fi
+  done
+fi
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/visual.log}"
 SHOT_DIR="$(mktemp -d)"
@@ -84,11 +92,22 @@ if ! grep -qF "[shot-probe] 截图序列完成" "$LOG"; then
   tail -20 "$LOG"
   exit 1
 fi
-if grep -E "$ERR" "$LOG" | grep -vE "$ERR_ALLOW" | grep -q .; then
-  echo "::error::截图探针日志有引擎错误"
-  grep -E "$ERR" "$LOG" | grep -vE "$ERR_ALLOW" | head -10
-  exit 1
+# 错误行判定先落文件再取内容，**不用** `grep | grep -v | grep -q` 管道：错误行极多时末级 `grep -q`
+# 一命中就退出，上游 grep 收到 SIGPIPE，pipefail 下整条管道返回非 0（141）——于是「日志里有上千行
+# 引擎错误」反而被判成「没有错误」（同 check_smoke.sh 已修的形态，此处曾漏改；实测 3000 行
+# `ERROR: Invalid polygon data` 仍打「ok」退回 0）。
+ERR_FILE="$LOG.errs"
+grep -E "$ERR" "$LOG" > "$ERR_FILE" 2>/dev/null || true
+if [ -s "$ERR_FILE" ]; then
+  grep -vE "$ERR_ALLOW" "$ERR_FILE" > "$ERR_FILE.kept" 2>/dev/null || true
+  if [ -s "$ERR_FILE.kept" ]; then
+    echo "::error::截图探针日志有引擎错误"
+    head -10 "$ERR_FILE.kept"
+    rm -f "$ERR_FILE" "$ERR_FILE.kept"
+    exit 1
+  fi
 fi
+rm -f "$ERR_FILE" "$ERR_FILE.kept"
 
 # 生成截图模式：把 PNG 留到指定目录
 if [ -n "${KEEP_SHOTS:-}" ]; then
