@@ -20,12 +20,14 @@ public partial class TalentFanView : Control
     /// <summary>悬停节点变化（null = 离开；联动左侧轮盘高亮）。</summary>
     public event Action<string?>? NodeHovered;
 
-    private const float CardW = 128f;
-    private const float CardH = 128f;
+    private const float CardW = (float)TalentFanGeometry.CardSize;
+    private const float CardH = (float)TalentFanGeometry.CardSize;
     private const float HoverScale = 1.07f;   // 悬停/焦点放大峰值
     private const float HoverTime = 0.12f;
 
-    private readonly TalentFanLayout _layout = new() { Width = 1240.0, Height = 720.0 };
+    /// <summary>布局域 = 本控件实际尺寸（见 <see cref="OnResized"/>），初值取装配口径常量。
+    /// 不可自持一份宽度——曾自持 1240 而控件装配宽 900，右端卡越界压进详情卡。</summary>
+    private TalentFanLayout _layout = BuildLayout(TalentFanGeometry.ViewportWidth, TalentFanGeometry.ViewportHeight);
     private readonly Dictionary<string, ChamferedPanel> _cards = new();
     private readonly Dictionary<string, Label> _levelLabels = new();
     private readonly Dictionary<string, Label> _badgeLabels = new();
@@ -48,7 +50,25 @@ public partial class TalentFanView : Control
     public TalentFanView()
     {
         MouseFilter = Control.MouseFilterEnum.Ignore;
-        Resized += () => QueueRedraw();
+        Resized += OnResized;
+    }
+
+    /// <summary>按视口尺寸重建布局域（尺寸变化即重排；布局域始终跟控件实际尺寸走）。</summary>
+    private static TalentFanLayout BuildLayout(double width, double height)
+        => new() { Width = width, Height = height };
+
+    /// <summary>尺寸变化（含首次布局）：布局域跟进并重排卡位，再重绘连线与根芯片。</summary>
+    private void OnResized()
+    {
+        var size = Size;
+        if (size.X > 0.0f && size.Y > 0.0f
+            && (Math.Abs(size.X - _layout.Width) > 0.5 || Math.Abs(size.Y - _layout.Height) > 0.5))
+        {
+            _layout = BuildLayout(size.X, size.Y);
+            LayoutCards();
+        }
+
+        QueueRedraw();
     }
 
     /// <summary>切换展示大类（null = 调用方切概览模式并自行隐藏本控件）。</summary>
@@ -161,6 +181,8 @@ public partial class TalentFanView : Control
         first?.GrabFocus();
     }
 
+    /// <summary>卡位 = 布局中心（钳进可用区）− 半个卡边：钳制保证整张卡落在扇形视口内
+    /// （右端卡不越进详情栏、左端卡不探出视口左缘），扇形径向展开与节点排序不变。</summary>
     private void LayoutCards()
     {
         if (_categoryId == null)
@@ -170,11 +192,15 @@ public partial class TalentFanView : Control
 
         var cat = TalentTree.Category(_categoryId);
         var positions = _layout.Compute(cat.Lines.Select(l => (IReadOnlyList<string>)l.NodeIds).ToList());
+        var size = Size;
+        var width = size.X > 0.0f ? size.X : _layout.Width;
+        var height = size.Y > 0.0f ? size.Y : _layout.Height;
         foreach (var pos in positions)
         {
             if (_cards.TryGetValue(pos.NodeId, out var card))
             {
-                card.Position = new Vector2((float)pos.X - CardW / 2f, (float)pos.Y - CardH / 2f);
+                var (x, y) = TalentFanGeometry.ClampCardCenter(pos.X, pos.Y, width, height, CardW);
+                card.Position = new Vector2((float)x - CardW / 2f, (float)y - CardH / 2f);
             }
         }
     }
@@ -429,10 +455,12 @@ public partial class TalentFanView : Control
 
     /// <summary>可升级呼吸脉冲（点数充足的未满节点边框明暗交替；ReduceFlash 时静止）。
     /// 走势聚合态 _anyUpgradeable 在 RefreshStates/RebuildCards 时重算，本方法只读缓存；
-    /// 相位基准为本控件累计的模拟时间（delta 来自 _Process），与墙钟/帧率无关。</summary>
+    /// 相位基准为本控件累计的模拟时间（delta 来自 _Process），与墙钟/帧率无关。
+    /// 可见性判 IsVisibleInTree 而非 Visible：面板关闭只把 CanvasLayer 置 Visible=false，
+    /// 本 Control 的 Visible 仍为 true、_Process 照跑——只要有点数可加就会永久每约 1.57s 全卡重刷样式。</summary>
     public override void _Process(double delta)
     {
-        if (!Visible || _categoryId == null || GameState.Instance.ReduceFlash)
+        if (!IsVisibleInTree() || _categoryId == null || GameState.Instance.ReduceFlash)
         {
             return;
         }

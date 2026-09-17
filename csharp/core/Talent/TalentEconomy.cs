@@ -202,8 +202,10 @@ public sealed class TalentCache
 
     /// <summary>整体还原点值序列（读档用）：覆盖式写入，不做衰减/回补/裁剪——
     /// 快照已是历史衰减后的真实状态，重算会二次衰减、回补会凭空加点。null/空 = 清空。
-    /// 非有限或负值钳为 0：点值序列若混入 NaN，<see cref="Effective"/> 会变 NaN，
-    /// 使花费判据恒假、<see cref="Spend"/> 空转放行——手改存档可借此白拿天赋。</summary>
+    /// 手改存档是威胁模型，输入一律钳进点值不变量 [0, 1]：非有限或非正值钳 0（NaN 会让
+    /// <see cref="Effective"/> 变 NaN、花费判据恒假而 <see cref="Spend"/> 空转放行）；
+    /// 正超值钳 1.0（Grant 只追加 1.0、ApplyDecay 只下调，序列里本不存在 >1 的点——
+    /// 原样入列等于手改存档白拿天赋）。</summary>
     public void RestoreValues(IEnumerable<double>? values)
     {
         _values.Clear();
@@ -214,7 +216,7 @@ public sealed class TalentCache
 
         foreach (var v in values)
         {
-            _values.Add(double.IsFinite(v) && v > 0.0 ? v : 0.0);
+            _values.Add(!double.IsFinite(v) || v <= 0.0 ? 0.0 : Math.Min(v, 1.0));
         }
     }
 }
@@ -226,7 +228,12 @@ public static class TalentEconomy
     public static int CostForLevel(TalentConfig config, int level) =>
         config.CostBase + Math.Max(level, 0) * config.CostIncrement;
 
-    /// <summary>节点生效上限：结构上限 → 互斥锁扣减（机制 A）→ 路线契约减半（机制 C），下限钳 1。</summary>
+    /// <summary>节点生效上限：结构上限 → 互斥锁扣减（机制 A）→ 路线契约减半（机制 C），
+    /// 下限 <see cref="TalentConfig.RouteCapFloor"/>（防 1 级节点被扣减/减半削到 0）。
+    ///
+    /// 钳制顺序是语义的一部分：先钳下限再钳回结构上限。结构上限是硬顶——下限只保证
+    /// 「扣到 0 的节点仍买得起 1 级」，不得把 max_stacks=1 的节点抬到 3 级（消费点判
+    /// level &gt;= cap 即已满），max_stacks=0 的不可升级节点也不得被抬到 1。</summary>
     public static int EffectiveCap(TalentConfig config, int maxLevel, int mutexReduction, bool routeHalved)
     {
         var cap = maxLevel;
@@ -240,7 +247,8 @@ public static class TalentEconomy
             cap /= 2;
         }
 
-        return Math.Max(Math.Min(cap, maxLevel), config.RouteCapFloor);
+        var floor = Math.Max(config.RouteCapFloor, 0);
+        return Math.Clamp(cap, Math.Min(floor, maxLevel), maxLevel);
     }
 
     /// <summary>
@@ -269,13 +277,20 @@ public static class TalentEconomy
 
         if (focusDiscounted && focusOver > 0)
         {
-            eff *= 1.0 - Math.Min(config.FocusPenaltyCap, config.FocusPenaltyPerLevel * focusOver);
+            eff *= 1.0 - FocusPenalty(config, focusOver);
         }
 
         return Math.Max(eff, 0.0);
     }
 
-    /// <summary>专注惩罚超限档数：焦点属性最高等级超阈值 1 级起算一档（未触发返回 0）。
+    /// <summary>专注惩罚折扣率（<see cref="FocusOver"/> 档数 → 比例，上限 <see cref="TalentConfig.FocusPenaltyCap"/>）。
+    /// 面板显示与 <see cref="EffectiveLevel"/> 的生效值共用这一个式子——同式两写会在改参数时分叉
+    /// （面板说 -12%、实际按 -6% 扣，玩家无法从界面判断真实收益）。</summary>
+    public static double FocusPenalty(TalentConfig config, int over) =>
+        Math.Min(config.FocusPenaltyCap, config.FocusPenaltyPerLevel * Math.Max(over, 0));
+
+    /// <summary>专注惩罚超限档数：焦点属性最高等级达到阈值即算一档（达到阈值 7 级 → 1，8 级 → 2；
+    /// 未达阈值返回 0）。
     ///
     /// **生效面是显式约束，不是意外**（人类已决策保留阈值 7，承认该设计约束）：
     /// 阈值 7 现网**只对 extra_life 生效**——其结构上限 10 是唯一可能达阈值的节点；
@@ -299,6 +314,77 @@ public static class TalentEconomy
     /// <summary>机制 D 风险加点消耗：下一级消耗 × 倍率。</summary>
     public static int OverchargeCost(TalentConfig config, int baseCost) =>
         (int)Math.Ceiling(baseCost * config.OverchargeCostMult);
+
+    /// <summary>节点读档层级上限：结构上限（非正＝不可升级/脏配置 → 0，不得放行任何层级），
+    /// 风险加点节点再 +1 级。
+    /// 层级还原与增幅表上限必须共用这一个式子——两处各写一份会在改规则时分叉
+    /// （talent_levels 保留超载那一级而 Augments 被削掉，同一节点两套层级）。
+    /// 上限是「读档许可」，不等于 <see cref="EffectiveCap"/>（生效上限随互斥/路线浮动，
+    /// 读档时按结构上限判，否则绑定路线就会把已买层级判成非法）。</summary>
+    public static int RestoreLimit(int maxLevel, bool isOvercharged) =>
+        maxLevel <= 0 ? 0 : maxLevel + (isOvercharged ? 1 : 0);
+
+    /// <summary>
+    /// 读档层级还原：钳 [0, <see cref="RestoreLimit"/>]。
+    /// 风险加点那一级是玩家花双倍价买的（<see cref="OverchargeCost"/>）且永久锁定，读档无条件钳回
+    /// 结构上限会让它静默消失——乘算消费端少一级效果，玩家无从察觉。
+    /// 未标记风险加点的节点仍钳回结构上限：存档是威胁模型，抬级得有对应的锁定标记。
+    /// </summary>
+    public static int RestoreLevel(int raw, int maxLevel, bool isOvercharged) =>
+        Math.Clamp(raw, 0, RestoreLimit(maxLevel, isOvercharged));
+
+    /// <summary>
+    /// 读档「基地补给超载槽」条数钳制：钳 [0, <paramref name="cap"/>]。
+    /// 上限是补给档位（base.supply.overcharge_slot_max）——手改档把该字段写成 999 会让本局每个
+    /// 节点都能风险加点一次（名额判定读 config + 补给档）、且不再受补给售罄限制，
+    /// 而这条不变量在读档侧此前只剩「钳 ≥0」。
+    /// 数值域取 double 与存档数值读取同口径（Int/Float 互通）：非有限值按「无值」归 0——
+    /// NaN 与任何比较都假，放行会让名额上限静默失效。
+    /// <paramref name="cap"/> ≤ 0（坏配置）归 0：不得把「不可购置」当成「不设上限」。
+    /// </summary>
+    public static int ClampBonusSlots(double raw, int cap)
+    {
+        if (!double.IsFinite(raw) || raw <= 0.0)
+        {
+            return 0;
+        }
+
+        var limit = Math.Max(cap, 0);
+        return raw >= limit ? limit : (int)raw;
+    }
+
+    /// <summary>
+    /// 读档风险加点名单过滤：只保留 <paramref name="knownIds"/> 内的 id（未知 id 抬高不了任何节点，
+    /// 留着只会占名额、让真实节点少一次风险加点）、去重、并按 <paramref name="limit"/> 截断
+    /// （上限 ＝ 配置档 + 基地补给档；手改档塞满全部节点＝每节点白拿一级）。
+    /// 输出顺序＝输入顺序（存档里没有序语义，保序只为让重放结果可复现）。
+    /// </summary>
+    public static List<string> FilterOvercharged(
+        IEnumerable<string> raw, IReadOnlyCollection<string> knownIds, int limit)
+    {
+        var result = new List<string>();
+        if (limit <= 0)
+        {
+            return result;
+        }
+
+        var known = new HashSet<string>(knownIds);
+        var seen = new HashSet<string>();
+        foreach (var id in raw)
+        {
+            if (result.Count >= limit)
+            {
+                break;
+            }
+
+            if (known.Contains(id) && seen.Add(id))
+            {
+                result.Add(id);
+            }
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// 有效缓存是否已够点亮「当前任一可选节点」：返回其中最便宜的下一级价，0 = 尚不可购。

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 using InfiAir.Core;
+using InfiAir.Core.Missions;
 using InfiAir.Core.Talent;
 using InfiAir.Core.Text;
 
@@ -41,8 +42,7 @@ public partial class BaseConsole : RadialMenuLayer
     private VBoxContainer _missionsBox = null!;
     private Button _refreshButton = null!; // 任务轮换——刷新任务按钮
     private Label _refreshPointsLabel = null!;
-    private Label _refreshHintLabel = null!; // 点数不足提示（临时显示，2s 后隐藏）
-    private Godot.Timer? _refreshHintTimer;
+    private Label _refreshHintLabel = null!; // 刷新受阻提示（无空位 / 点数不足；随刷新资格常显）
     private readonly Dictionary<string, Label> _titleLabels = new();
     private Label _routeHintLabel = null!;
     private readonly Dictionary<string, ChamferedPanel> _pages = new();
@@ -81,7 +81,9 @@ public partial class BaseConsole : RadialMenuLayer
 
     /// <summary>数据抖动装饰：3Hz 正弦 α0.92–1.0 + 每 2.7s 一次 0.06s 的 1px 横向错位闪
     /// （tween 循环，不加 _process；本层 process_mode=Always，暂停态照常播放）。
-    /// 页面隐藏时经 VisibleChanged 暂停/恢复（关页后不再空转）。</summary>
+    /// 隐藏即停由调用方手工驱动：ShowBase 与 OnResumePressed 的退场回调各调一次
+    /// <see cref="OnVisibleChangedForFx"/>；**新增隐藏本层的路径必须同步补调**，
+    /// 否则 5 条循环 tween 会在关页后继续空转（本层未订阅 VisibilityChanged）。</summary>
     private void ApplyDataFlicker(Label label)
     {
         var tween = CreateTween().SetLoops();
@@ -103,8 +105,10 @@ public partial class BaseConsole : RadialMenuLayer
     private readonly List<Tween> _dataFlickerTweens = new();
     private Tween? _scanTween;
 
-    /// <summary>页面隐藏时暂停装饰 tween、可见时恢复；树暂停期间照常播放
-    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。</summary>
+    /// <summary>暂停装饰 tween（隐藏时）或恢复（可见时）；树暂停期间照常播放
+    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。
+    /// 由 ShowBase / OnResumePressed / _Ready 手工调用——本层未订阅 VisibilityChanged，
+    /// 新增隐藏路径须同步补调（见 <see cref="ApplyDataFlicker"/>）。</summary>
     private void OnVisibleChangedForFx()
     {
         void Apply(Tween? tween)
@@ -401,8 +405,11 @@ public partial class BaseConsole : RadialMenuLayer
         _refreshButton.Pressed += OnRefreshPressed;
         refreshRow.AddChild(_refreshButton);
         ((VBoxContainer)panel.GetNode("Body")).AddChild(refreshRow);
+        // 受阻原因说明常显（置灰按钮按不动，「按下才提示」等于没有提示），故它不是错误：
+        // 用次级文字色而非 Danger——「点数还没攒够」是常态读数、不是出错，红色常驻会读成故障，
+        // 而 Danger 在本项目留给「须立即处置」的警告（见 DESIGN_BASELINE §1.9.1 的灯色语义）。
         _refreshHintLabel = MakeLabel("", 16);
-        _refreshHintLabel.AddThemeColorOverride("font_color", UITheme.Danger);
+        _refreshHintLabel.AddThemeColorOverride("font_color", UITheme.TextDim);
         _refreshHintLabel.HorizontalAlignment = HorizontalAlignment.Left;
         _refreshHintLabel.Visible = false;
         ((VBoxContainer)panel.GetNode("Body")).AddChild(_refreshHintLabel);
@@ -643,15 +650,19 @@ public partial class BaseConsole : RadialMenuLayer
         _buyCacheButton.Text = GdFormat.Format((string)Tr("BASE_SUPPLY_CACHE_FMT"), cacheCost);
         _buyCacheButton.Disabled = rp < cacheCost || SupplyCfg("cache_points", 2) <= 0;
         var slotCost = SupplyCfg("overcharge_cost_rp", 8);
-        var slotsMaxed = GameState.Instance.Talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2);
+        // 售罄上限读天赋服务的单一读取点（读档钳制与售罄判定共用同一档位，不在此处再读一次键）
+        var slotsMaxed = GameState.Instance.Talent.BonusOverchargeSlots
+            >= GameState.Instance.Talent.BonusOverchargeSlotsMax;
         _buyOverchargeButton.Text = slotsMaxed
             ? (string)Tr("BASE_SUPPLY_OVERCHARGE_MAXED")
             : GdFormat.Format((string)Tr("BASE_SUPPLY_OVERCHARGE_FMT"), slotCost);
         _buyOverchargeButton.Disabled = slotsMaxed || rp < slotCost;
-        // 任务轮换：刷新点数与按钮状态（点数不足禁用；提示在 OnRefreshPressed 内）
+        // 任务轮换：刷新点数与按钮状态；受阻原因由 SyncRefreshHint 常显
+        // （置灰按钮按不动，「按下才提示」对置灰玩家等于没有提示）
         _refreshPointsLabel.Text = GdFormat.Format((string)Tr("BASE_REFRESH_POINTS"), GameState.Instance.RefreshPoints);
         _refreshButton.Text = GdFormat.Format((string)Tr("BASE_REFRESH_FMT"), GameState.Instance.REFRESH_COST);
-        _refreshButton.Disabled = !GameState.Instance.CanRefreshMissions();
+        _refreshButton.Disabled = GameState.Instance.CanRefreshMissions();
+        SyncRefreshHint();
         RefreshRoutes();
         RefreshMissions();
     }
@@ -663,10 +674,15 @@ public partial class BaseConsole : RadialMenuLayer
     /// <summary>路线契约刷新（机制 C）：三条路线行（绑定/切换/生效中）+ 重置代币购置行。</summary>
     private void RefreshRoutes()
     {
-        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧行并存闪一帧
+        // 重建旧行：先隐藏（立即退出容器布局）再 QueueFree（帧末释放）。本方法由行内按钮的
+        // pressed 回调（绑定/切换路线/购置代币）经 Refresh 进入——同步 Free() 会释放**正在派发
+        // 信号的发射者祖先**，引擎报「freed while a signal is being emitted from it」，
+        // 同批被释放的兄弟控件若被后续代码触碰还会抛 ObjectDisposedException。
         foreach (var child in _routesBox.GetChildren())
         {
-            child.Free();
+            var row = (Control)child;
+            row.Visible = false;
+            row.QueueFree();
         }
 
         var talent = GameState.Instance.Talent;
@@ -724,10 +740,12 @@ public partial class BaseConsole : RadialMenuLayer
 
     private void RefreshMissions()
     {
-        // 同步删除防同帧并存闪一帧
+        // 旧行先隐藏再 QueueFree——见 RefreshRoutes 的说明（领取按钮的 pressed 回调经 Refresh 走到这里）
         foreach (var child in _missionsBox.GetChildren())
         {
-            child.Free();
+            var row = (Control)child;
+            row.Visible = false;
+            row.QueueFree();
         }
 
         // 任务轮换：渲染在场任务（active_mission_ids），非固定 MISSION_DEFS
@@ -785,9 +803,6 @@ public partial class BaseConsole : RadialMenuLayer
         }
     }
 
-
-
-
     public void Resume() => OnResumePressed();
 
     private void OnRepairPressed()
@@ -837,12 +852,12 @@ public partial class BaseConsole : RadialMenuLayer
         Refresh();
     }
 
-    /// <summary>超载槽补给：RP → 本局风险加点上限 +1（上限 base.supply.overcharge_slot_max，随存档保存）。</summary>
+    /// <summary>超载槽补给：RP → 本局风险加点上限 +1（上限由天赋服务给出，随存档保存）。</summary>
     private void OnBuyOverchargePressed()
     {
         var cost = SupplyCfg("overcharge_cost_rp", 8);
         var talent = GameState.Instance.Talent;
-        if (talent.BonusOverchargeSlots >= SupplyCfg("overcharge_slot_max", 2))
+        if (talent.BonusOverchargeSlots >= talent.BonusOverchargeSlotsMax)
         {
             return;
         }
@@ -884,51 +899,44 @@ public partial class BaseConsole : RadialMenuLayer
         Refresh();
     }
 
-    /// <summary>刷新任务：消耗 RefreshPoints 重抽（余额不足时提示；成功播音效并重绘任务面板）。</summary>
+    /// <summary>刷新任务：消耗 RefreshPoints 重抽（受阻原因见提示区；成功播音效并重绘任务面板）。</summary>
     private void OnRefreshPressed()
     {
         if (GameState.Instance.RefreshMissions())
         {
             GameState.Instance.PlaySfx(SfxId.AugmentPick);
-            HideRefreshHint();
-        }
-        else
-        {
-            ShowRefreshHint((string)Tr("BASE_NO_REFRESH_POINTS"));
         }
 
+        // 成功或失败都重绘：受阻原因由状态驱动（见 SyncRefreshHint），成功时自动收起
         Refresh();
     }
 
-    private void ShowRefreshHint(string text)
+    /// <summary>提示区当前显示的文本（探针读口；"" = 未显示）：置灰原因是否真的画在界面上，
+    /// 只有读标签这一条路能断——探针据此断言「无空位时显示的是领取指引」。</summary>
+    public string RefreshHintText => _refreshHintLabel.Visible ? _refreshHintLabel.Text : "";
+
+    /// <summary>按当前刷新资格同步提示区。
+    ///
+    /// 提示必须由状态驱动而与「按下」无关：按钮受阻即置灰、置灰按钮不派发 pressed，
+    /// 原先「失败才提示」的分支在置灰态根本走不到，玩家只能看到一颗没有原因的灰按钮。
+    /// 选词与优先序全在 core（MissionRefresh.RefreshBlockReason）：无空位优先于点数不足，
+    /// 因为无空位的自解动作只有「去领取已完成的任务」且从界面看不出这条规则，
+    /// 点数不足则点数读数就摆在旁边的标签上；领取后若点数仍不足会自动改口。
+    /// </summary>
+    private void SyncRefreshHint()
     {
-        _refreshHintLabel.Text = text;
+        var reason = GameState.Instance.MissionRefreshBlockReason();
+        if (reason.Length == 0)
+        {
+            _refreshHintLabel.Text = "";
+            _refreshHintLabel.Visible = false;
+            return;
+        }
+
+        _refreshHintLabel.Text = (string)Tr(reason == MissionRefresh.ReasonSlots
+            ? "BASE_NO_REFRESH_SLOTS"
+            : "BASE_NO_REFRESH_POINTS");
         _refreshHintLabel.Visible = true;
-        if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
-        {
-            _refreshHintTimer.Stop();
-            _refreshHintTimer.QueueFree();
-        }
-
-        _refreshHintTimer = new Godot.Timer
-        {
-            OneShot = true,
-            WaitTime = 2.0,
-        };
-        _refreshHintTimer.Timeout += HideRefreshHint;
-        AddChild(_refreshHintTimer);
-        _refreshHintTimer.Start();
-    }
-
-    private void HideRefreshHint()
-    {
-        _refreshHintLabel.Visible = false;
-        // 一次性提示 Timer 触发后自清理（否则每次提示泄漏一个已触发 Timer）
-        if (_refreshHintTimer != null && GodotObject.IsInstanceValid(_refreshHintTimer))
-        {
-            _refreshHintTimer.QueueFree();
-            _refreshHintTimer = null;
-        }
     }
 
     /// <summary>继续出击退场：AnimateModalClose 语义——交互与输入当帧立即断开（鼠标穿透 +

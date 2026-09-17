@@ -38,7 +38,7 @@ public partial class MetaHealthFX : CanvasLayer
     private static readonly Color CRACK_CYAN = new(0x6fd8ffff);
     private static readonly Color CRACK_YELLOW = new(0xffc24bff);
     private static readonly Color CRACK_ORANGE = new(0xff8a2bff);
-    private static readonly Color CRACK_RED = new(0xff3b4eff);
+    private static readonly Color CRACK_RED = UITheme.Danger; // 色带末档即调色板「警报红」，不另起一份字面量
     private const float COLOR_BAND = 0.08f;
 
     // 冲刺速度模糊口径（仅读取 Player.Dashing，纯视觉）：冲刺激活时并入现有径向模糊通道

@@ -126,7 +126,7 @@ public partial class BossFire : RefCounted
         }
     }
 
-    /// <summary>环弹（差异化狂暴各型共用）：meta=enrage_ring（与快照环弹同标记）。</summary>
+    /// <summary>环弹（差异化狂暴各型共用）：与快照环弹同表现。</summary>
     public void FireRing(Node2D boss, int pCount, float pSpeed, int pDamage, float pOffset)
     {
         var count = Mathf.Max(2, pCount); // cfg 直读为 0 时 float(i)/float(p_count) 除零 NaN 方向
@@ -140,7 +140,6 @@ public partial class BossFire : RefCounted
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
-            b.SetMeta("bullet_type", new StringName("enrage_ring"));
         }
 
         FlashMuzzle(boss, Vector2.Zero); // 全向环弹：闪光置机体中心
@@ -165,7 +164,6 @@ public partial class BossFire : RefCounted
 
             // 横向散布必须按实际道数动态定心——写死 (i - 1.5f) 仅对 4 道居中，laserCount 配 2/3/5… 时散布偏心
             laser.Position = boss.Position + aim * MuzzleOffset + side * (i - (lasers - 1) * 0.5f) * 44.0f * WorldScale;
-            laser.SetMeta("bullet_type", new StringName("laser"));
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
             var poly = laser.SpriteNode(); // 缓存引用，不再每次 get_node（Bullet 为 C# 类）
             if (poly != null)
@@ -185,7 +183,6 @@ public partial class BossFire : RefCounted
             }
 
             b.Position = boss.Position + dir * MuzzleOffset;
-            b.SetMeta("bullet_type", new StringName("enrage_ring"));
         }
 
         FlashMuzzle(boss, aim * MuzzleOffset); // 快照激光阀：闪光朝自机方位

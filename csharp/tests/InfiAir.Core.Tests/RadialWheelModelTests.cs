@@ -228,6 +228,50 @@ public sealed class RadialWheelModelTests
     }
 
     [Fact]
+    public void IndexAtAngle_NonIntegerScroll_NeverHitsInvisibleSlot()
+    {
+        // 生产参数（SlotAngle=27 / HalfSpan=66 / FadeDeg=18）下滚动位 0.5（滚动动画/非整数位）：
+        // item3 弧角 67.5° 已在可视弧外，AlphaAt=0，展示层按 AlphaAt ≤ 0.05 剔除（不画这张卡）；
+        // 而查询 66° 距该槽仅 1.5°（半槽距 13.5° 内），旧实现只按角距吸附 → 返回 3，点击命中没画出来的卡。
+        var wheel = Flat(6);
+        wheel.ScrollTo(0.5);
+        Assert.Equal(0.0, wheel.AlphaAt(wheel.AngleOf(3)));
+        Assert.Null(wheel.IndexAtAngle(66.0));
+        Assert.Null(wheel.IndexAtAngle(64.0));
+
+        // 校验不得把端点区打成死区：可见邻槽仍可命中
+        Assert.Equal(1, wheel.IndexAtAngle(13.5));
+    }
+
+    [Fact]
+    public void IsVisibleAt_SingleSource_GatesHitTest()
+    {
+        // 可见性判据单源：绘制剔除、命中判定、引线锚点三处此前各抄一份阈值（0.01 / 0.05），
+        // 生产参数下出现「不画却可点」的槽与「已画但锚点消失」的卡。core 暴露唯一判据后，
+        // 不可见即不可点（RadialWheel.FocusedTipLocal 消费同一判据，不再自写阈值）。
+        Assert.Equal(0.01, RadialWheelModel.VisibleAlphaThreshold, 12);
+
+        // 槽 3 弧角落在渐隐带内但已低于阈值：AlphaAt 仍 >0（不是弧外淡出），判据为假。
+        var invisible = Flat(6);
+        invisible.ScrollTo(3.0 - 64.95 / invisible.SlotAngle);
+        var invisibleAngle = invisible.AngleOf(3);
+        Assert.Equal(64.95, invisibleAngle, 6);
+        Assert.True(invisible.AlphaAt(invisibleAngle) > 0.0);
+        Assert.True(invisible.AlphaAt(invisibleAngle) < RadialWheelModel.VisibleAlphaThreshold);
+        Assert.False(invisible.IsVisibleAt(invisibleAngle));
+        Assert.Null(invisible.IndexAtAngle(invisibleAngle)); // 槽心就在查询角上，不可见即无命中
+        Assert.Null(invisible.IndexAtAngle(63.0));           // 最近槽仍是它，不可见即无命中
+
+        // 对照：刚过阈值的槽可见且可命中——阈值不得把整段渐隐带打成死区
+        var visible = Flat(6);
+        visible.ScrollTo(3.0 - 64.9 / visible.SlotAngle);
+        var visibleAngle = visible.AngleOf(3);
+        Assert.True(visible.AlphaAt(visibleAngle) >= RadialWheelModel.VisibleAlphaThreshold);
+        Assert.True(visible.IsVisibleAt(visibleAngle));
+        Assert.Equal(3, visible.IndexAtAngle(visibleAngle));
+    }
+
+    [Fact]
     public void Easing_EndpointsPinned()
     {
         Assert.Equal(0.0, RadialWheelModel.BounceOut(0.0), 9);

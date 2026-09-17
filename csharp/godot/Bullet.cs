@@ -17,11 +17,7 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>碰撞半径唯一事实源（Player 擦弹环形带判定引用此常量）。</summary>
     public const float CollisionRadius = 6.0f;
 
-    /// <summary>bullet_type meta 键静态缓存（Enemy/TurretBattery/BossFire 写入，
-    /// 本类 ApplyFaction 复位消费；不得每发 SetMeta/HasMeta 字符串字面量转换）。</summary>
-    internal static readonly StringName MetaBulletType = new("bullet_type");
-
-    /// <summary>组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，MetaBulletType 同款）。</summary>
+    /// <summary>组名静态缓存（命中热路径 IsInGroup 字符串字面量逐次转换，零分配）。</summary>
     private static readonly StringName GroupEnemy = new("enemy");
     private static readonly StringName GroupPlayerHitbox = new("player_hitbox");
 
@@ -365,7 +361,7 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>爆炸弹增幅：命中时对周围敌机造成固定 AoE 伤害（主目标同吃，Boss 除外）。</summary>
     private void Explode()
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         var radiusSq = ExplosiveRadius * ExplosiveRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
@@ -388,19 +384,19 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>导弹溅射（母舰导弹）：半径内全部敌机（含主目标与 Boss）追加固定伤害。</summary>
     private void Splash()
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         var radiusSq = SplashRadius * SplashRadius; // 平方距离比较免每敌 sqrt
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
-            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d || n2d is not IDamageable)
+            if (!GodotObject.IsInstanceValid(node) || node is not IDamageable)
             {
                 continue;
             }
 
-            if (n2d.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            if (node.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
             {
-                EntityDamage.Dispatch(n2d, SplashDamage, ScoreScale);
+                EntityDamage.Dispatch(node, SplashDamage, ScoreScale);
             }
         }
 
@@ -492,14 +488,10 @@ public partial class Bullet : Area2D, IParryable
         CancelGrace();
     }
 
-    /// <summary>点到原点距离（弹心相对轨迹段 ab 与命中框圆心最近距；事件率，开方可接受）。</summary>
-    private static float SegmentClosestToOrigin(Vector2 a, Vector2 b)
-    {
-        var ab = b - a;
-        var lenSq = ab.LengthSquared();
-        var t = lenSq > 0.0f ? Mathf.Clamp(-a.Dot(ab) / lenSq, 0.0f, 1.0f) : 0.0f;
-        return (a + ab * t).Length();
-    }
+    /// <summary>点到原点距离（弹心相对轨迹段 ab 与命中框圆心最近距；事件率，开方可接受）。
+    /// 算式与退化语义（零长轨迹段＝到入口点的距离）单源在 core SegmentDistance。</summary>
+    private static float SegmentClosestToOrigin(Vector2 a, Vector2 b) =>
+        Core.Combat.SegmentDistance.PointToSegment(0.0f, 0.0f, a.X, a.Y, b.X, b.Y);
 
     /// <summary>机制一：启动宽限窗口（事件驱动；一次性 Timer 挂子弹下随场景释放）。</summary>
     private void StartGraceCheck(Area2D hitbox)
@@ -636,11 +628,7 @@ public partial class Bullet : Area2D, IParryable
         // modulate 复位为白（玩家弹呼吸脉冲亮度残留——反射/换阵营复用同实例）
         _sprite.SelfModulate = Colors.White;
         _sprite.Modulate = Colors.White;
-        if (HasMeta(MetaBulletType))
-        {
-            RemoveMeta(MetaBulletType);
-        }
-
+        // 不在此复位 bullet_type meta：写入侧已全部退役、全库无读取点
         if (IsPlayerBullet)
         {
             CollisionLayer = 2; // 第 2 层：player_bullet

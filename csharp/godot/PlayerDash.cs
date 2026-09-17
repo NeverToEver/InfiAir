@@ -42,6 +42,17 @@ public class PlayerDash
 
     public bool IsDashing() => Dashing;
 
+    /// <summary>中止进行中的冲刺（外部编排锁输入时调用）：只清残留位移与残影计时，
+    /// **不回滚已扣燃料与已置冷却**——中断来自编排（母舰召唤/对接）而非玩家决策，
+    /// 退款会把「锁输入」变成白拿一次冷却重置。残留不清的表现是解锁后第一帧用旧 DashDir
+    /// 把剩余冲刺跑完（最多一个 dash_distance 的位移 + 残影）。</summary>
+    public void Cancel()
+    {
+        Dashing = false;
+        DashTimer = 0.0f;
+        AfterimageTimer = 0.0f;
+    }
+
     public float CooldownRemaining() => DashCooldown;
 
     /// <summary>冷却递减（Player._physics_process 每帧调用）。</summary>

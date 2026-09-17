@@ -37,8 +37,6 @@ public partial class GameEventManager : Node
     public static readonly StringName GroupEncounter = new StringName("encounter");
 
     /// <summary>分组常量实例属性转发（UPPER_SNAKE 访问口径保持）。</summary>
-    public StringName GROUP_FOG => GroupFog;
-
     public StringName GROUP_ENCOUNTER => GroupEncounter;
 
     /// <summary>事件工厂注册表（唯一事实源；迷雾默认注册，遭遇经 register_encounter 注入）。</summary>
@@ -225,7 +223,7 @@ public partial class GameEventManager : Node
         _fogForcedId = EmptyId; // 跨局不残留强制迷雾事件（诊断入口）
         if (!active)
         {
-            EndFog();
+            EndFogInterrupted();
             // 遭遇活跃态一并复位（防场景重入残留 → 对从未 start 的新实例广播幽灵
             // EventEnded 残留）
             _encounterActiveId = EmptyId;
@@ -419,7 +417,7 @@ public partial class GameEventManager : Node
     {
         if (pGroup == GroupFog)
         {
-            EndFog();
+            EndFogInterrupted();
         }
         else if (pGroup == GroupEncounter)
         {
@@ -448,13 +446,6 @@ public partial class GameEventManager : Node
                 EmitSignal(SignalName.EventEnded, id);
             }
         }
-    }
-
-    /// <summary>全部事件终止（返航/死亡路径：迷雾清除 + 遭遇打断）。</summary>
-    public void EndAll()
-    {
-        EndFog();
-        EndActive(GroupEncounter);
     }
 
     /// <summary>当前 fog 事件剩余时长（无事件返回 0）。</summary>
@@ -655,9 +646,12 @@ public partial class GameEventManager : Node
                 _encounterActiveId = EmptyId;
                 EmitSignal(SignalName.EventEnded, id);
             }
-            else if (active && _encounterActiveId == EmptyId)
+            else if (active && _encounterActiveId == EmptyId && !_encounterEndPending.ContainsKey(id))
             {
-                _encounterActiveId = id; // 手动 start 兜底登记
+                // 手动 start 兜底登记。已被打断、正在收尾（pending 期）的事件不再登记回来——
+                // 反了的话收起期 ActiveId/AnyOtherEncounterActive 仍读作「有遭遇在跑」，
+                // 只在「收尾期树暂停、Main._Process 不跑」时侥幸不显形
+                _encounterActiveId = id;
             }
         }
     }
@@ -760,7 +754,14 @@ public partial class GameEventManager : Node
         return true;
     }
 
-    private void EndFog()
+    private void EndFog() => EndFogInternal(grantSurvivalReward: true);
+
+    /// <summary>打断路径的迷雾收尾：只清效果、**不发存活补偿**。「存活补偿」的语义是扛满整段
+    /// （自然到期或事件主动 request_end），被打断＝没扛满；若照发，玩家长按 B 蓄力 1.5s 即可命中
+    /// 6~8s 的窗口白拿一笔（进里程碑换天赋点）。</summary>
+    private void EndFogInterrupted() => EndFogInternal(grantSurvivalReward: false);
+
+    private void EndFogInternal(bool grantSurvivalReward)
     {
         var id = _fogActiveId;
         if (id == EmptyId)
@@ -785,8 +786,8 @@ public partial class GameEventManager : Node
         _fogCooldownLeft = FOG_MIN_INTERVAL;
         _fogCheckTimer = FOG_CHECK_INTERVAL;
         // 存活补偿：迷雾是纯干扰，给一笔随难度增长的分使其成为风险回报
-        // （原为纯负反馈无奖励 → 玩家理性选择是躲无可躲的纯损失）
-        if (FOG_REWARD_SCORE > 0)
+        // （原为纯负反馈无奖励 → 玩家理性选择是躲无可躲的纯损失）；只在扛满整段时给。
+        if (grantSurvivalReward && FOG_REWARD_SCORE > 0)
         {
             GameState.Instance.AddScore((int)Math.Round(FOG_REWARD_SCORE * GameState.Instance.KillScoreFactor()));
         }

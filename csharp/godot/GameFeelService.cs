@@ -12,7 +12,7 @@ namespace InfiAir;
 /// 或子弹时间把顿帧顶掉），故合成收口在本服务：Main 只上报自己的演出倍率（SetEnrageTimeScale），
 /// 实际写入 = 演出倍率 × 顿帧倍率。
 ///
-/// 顿帧倍率取**严格正值**（effects.hit_stop.scale，默认 0.05）：引擎把 delta 按时间缩放后
+/// 顿帧倍率取**严格正值**（effects.hit_stop.freeze_scale，默认 0.06）：引擎把 delta 按时间缩放后
 /// 再传给 _Process，倍率为 0 时 delta 恒 0、剩余时长永远推不完（冻死）；且帧长被压到 0 后
 /// 无法还原未缩放时长。取正值后可反解真实帧长（delta / 当前总倍率），固定步长下精确可重复。
 ///
@@ -104,12 +104,16 @@ public sealed partial class GameFeelService : RefCounted
         ApplyTimeScale();
     }
 
-    /// <summary>清顿帧残留（保持演出倍率与 trauma 不变）：暂停/模态入口调用——
-    /// 冻结是「按真实时间流逝」的战斗现象，暂停中继续压低全局时间缩放会让 Always 的
-    /// 暂停菜单/设置页慢放（实测 0.5s 的轮盘滑入变约 8s）。</summary>
-    public void ClearHitStop()
+    /// <summary>暂停/模态入口的复位口：把本服务对全局时间缩放的影响**整份**清掉
+    /// （顿帧冻结 + 演出倍率），trauma 保留。只清一半是本类踩过的坑——顿帧清了、
+    /// Boss 狂暴演出倍率（0.24）留着时，暂停页/设置页/天赋面板等 Always UI 会以 24%
+    /// 速度播放，玩家读作「菜单卡死」。
+    /// 演出倍率归 1 只在这里与 ResetAll 两处发生；恢复本局后 Main 的 ramp 会在下一帧
+    /// 重新上报自己的倍率（它不查当前值、只按 _timeScaleRamp 推进），故复位不会与自愈打架。</summary>
+    public void ClearForPause()
     {
         _hitStop.Clear();
+        _enrageScale = 1.0;
         ApplyTimeScale();
     }
 

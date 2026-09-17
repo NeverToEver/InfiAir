@@ -24,13 +24,15 @@ uniform vec2  u_texel = vec2(0.0005208, 0.0009259); // 1/1920, 1/1080（运行�
 uniform float u_bloom_threshold = 0.52;   // 亮部阈值（低于此不参与泛光）
 uniform float u_bloom_intensity = 0.75;   // 泛光强度
 uniform float u_bloom_radius = 5.5;       // 环采样半径（像素）
-uniform vec3  u_bloom_tint = vec3(1.0, 0.74, 0.36); // 泛光暖调（战术琥珀）
+uniform vec3  u_bloom_tint = vec3(1.0, 0.741176, 0.360784); // 泛光暖调（战术琥珀）
 uniform float u_quality = 1.0;            // >0.5 = 双环 8 tap，否则单环 4 tap
 
 // 色彩分级（暖调 gain + 轻微 lift + S 曲线对比）
+// 下列字面默认值是「死默认」：WorldPostFx._Ready 的 PushStaticParams 即按 data/balance.json
+// effects.world_post.* 全量覆盖；默认值仍与 balance.json 同值，防漏写时落到旧常数。
 uniform float u_grade = 0.55;
 uniform vec3  u_gain = vec3(1.085, 1.0, 0.90);
-uniform vec3  u_lift = vec3(0.014, 0.010, 0.006);
+uniform vec3  u_lift = vec3(0.015686, 0.011765, 0.007843);
 uniform float u_contrast = 0.18;
 
 // 晕影 / 颗粒

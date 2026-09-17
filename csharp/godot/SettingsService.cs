@@ -24,7 +24,8 @@ namespace InfiAir;
 /// 保持唯一 autoload：GameState 约定。信号：本服务以 C# 事件 ViewZoomChanged/
 /// WindowModeChanged/ResolutionChanged/AimAssistChanged/ReduceFlashChanged/MouseLockChanged/
 /// JoySettingsChanged/LocaleChanged 通知；GameState 订阅后转发为同名信号（发射点/次数/顺序
-/// 保持不变——LoadSettings 直写字段路径不发服务事件，无双发）。
+/// 保持不变——LoadSettings 直写字段路径不发服务事件，故结尾显式补发一次 JoySettingsChanged，
+/// 与 SyncHitStopScale 同款「直写字段须同步进消费域」的收口）。
 /// </summary>
 public sealed partial class SettingsService : RefCounted
 {
@@ -134,6 +135,40 @@ public sealed partial class SettingsService : RefCounted
         MasterVolume = 0.8;
         MusicVolume = 0.8;
         SfxVolume = 0.8;
+    }
+
+    /// <summary>「全部恢复默认」的完整复位：内存字段回默认 + 对**确实变化过**的缓存型设置项补发事件。
+    /// ResetToDefaults 直写字段、刻意不发事件（运行期副作用由调用侧重放），但视角/辅瞄/减闪/画面增强
+    /// 这四项的消费方（Main 相机 zoom、Player 与 AimFrameLayer 的辅瞄参数、Hud 与 MetaHealthFX 的减闪、
+    /// WorldPostFx 与 VisualFxDirector 的画面增强）都是「_Ready 读一次 + 信号刷新」的缓存型：
+    /// 战斗中点「全部恢复默认」后设置值与落盘已回默认、表现仍按旧值跑（相机 zoom 与 ViewWorldRect()
+    /// 分叉还会让实体在玩家看不见的域里生成/存活），要等切场景才自愈。无变化则不发，避免多余重建。</summary>
+    public void ResetToDefaultsAndBroadcast()
+    {
+        var prevZoomFactor = _viewZoomFactor;
+        var prevAimAssist = AimAssistLevel;
+        var prevReduceFlash = ReduceFlash;
+        var prevWorldPostFx = WorldPostFx;
+        ResetToDefaults();
+        if (prevZoomFactor != _viewZoomFactor)
+        {
+            ViewZoomChanged?.Invoke(_viewZoomFactor);
+        }
+
+        if (prevAimAssist != AimAssistLevel)
+        {
+            AimAssistChanged?.Invoke(AimAssistLevel);
+        }
+
+        if (prevReduceFlash != ReduceFlash)
+        {
+            ReduceFlashChanged?.Invoke(ReduceFlash);
+        }
+
+        if (prevWorldPostFx != WorldPostFx)
+        {
+            WorldPostFxChanged?.Invoke(WorldPostFx);
+        }
     }
 
     // ---------------- 信号 C# 事件 ----------------
@@ -246,12 +281,6 @@ public sealed partial class SettingsService : RefCounted
     }
 
     public double ViewZoomFactor() => _viewZoomFactor;
-
-    public void SetViewZoomFactor(double factor)
-    {
-        _viewZoomFactor = factor;
-        InvalidateViewRectCache();
-    }
 
     // ---------------- 窗口管理（窗口模式 + 渲染分辨率档 + 自由拖拽） ----------------
 
@@ -671,6 +700,10 @@ public sealed partial class SettingsService : RefCounted
         JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
     }
 
+    /// <summary>重放手柄设置广播（不改成对字段）：供「全部恢复默认」在直写字段后补发——
+    /// ResetToDefaults 不发服务事件，不补发则 Player 仍按旧灵敏度跑（设置页/存档已回默认）。</summary>
+    public void EmitJoySettingsChanged() => JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
+
     /// <summary>手柄设置 setter：摇杆死区（0.05..0.90，径向语义）。读取侧生效——Player 移动/瞄准
     /// 经 StickShaper 整形时每帧读取本值，不写 InputMap（摇杆 action 的 InputMap deadzone 恒 0.05
     /// 只滤硬件噪声，扳机阈值恒 0.2，均与本设置解耦）。只更新内存 + 广播；不自动写盘</summary>
@@ -770,23 +803,26 @@ public sealed partial class SettingsService : RefCounted
     public void ApplySettingsDict(Godot.Collections.Dictionary data)
     {
         // 版本决策（单源 SettingsMigration.CurrentVersion，写档方 GameState.PersistVersionValue 引用同一常量）：
-        // 同版直读；旧版走下方各旧键迁移分支；更高版保守拒绝——未知字段逐字段回退，降级必须可观测。
+        // 同版直读；旧版走下方各旧键迁移分支；更高版按 DESIGN_BASELINE §1.15 承诺的**逐字段默认值回退**
+        // ——降级安装/手改档里可能有当前代码不认识的字段语义，照读已知键名等于猜未来格式，
+        // 故把整表当空档处理（各字段落到保存当前值的默认档），保留告警、不拒绝加载、不改写格式。
+        // 注意：空表只影响本方法后续取值；键位等跨域字段仍在下方按空表语义回到默认。
         // version 键保持 data.GetValueOrDefault 直读形态（设置对称门禁据此判定「真读」）。
         var savedVersion = data.GetValueOrDefault("version", SettingsMigration.CurrentVersion);
-        var versionDecision = SettingsMigration.DecideVersion(
-            savedVersion.VariantType is Variant.Type.Int or Variant.Type.Float
-                ? savedVersion.AsInt64()
-                : SettingsMigration.CurrentVersion,
-            SettingsMigration.CurrentVersion);
+        var savedVersionNumber = savedVersion.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? savedVersion.AsInt64()
+            : (long)SettingsMigration.CurrentVersion;
+        var versionDecision = SettingsMigration.DecideVersion(savedVersionNumber, SettingsMigration.CurrentVersion);
         if (versionDecision == SaveVersionDecision.RejectNewer)
         {
-            GD.PushWarning($"InfiAir: settings.json 版本 {savedVersion.AsInt64()} 高于当前支持的 {SettingsMigration.CurrentVersion}，未知字段按默认值回退");
+            GD.PushWarning($"InfiAir: settings.json 版本 {savedVersionNumber} 高于当前支持的 {SettingsMigration.CurrentVersion}，按逐字段默认值回退");
+            data = new Godot.Collections.Dictionary();
         }
 
         GameState.Instance.TutorialDone = GameState.Instance.SaveBool(data.GetValueOrDefault("tutorial_done", GameState.Instance.TutorialDone), GameState.Instance.TutorialDone);
         // locale 加载经 zh/en 白名单守卫（同 SetLocale）——手改非法值保持当前语言，
         // 避免 locale 变量与 TranslationServer 状态不一致
-        var savedLocale = data.GetValueOrDefault("locale", Locale).AsString();
+        var savedLocale = ReadString(data.GetValueOrDefault("locale", ""), "");
         if (savedLocale == "zh" || savedLocale == "en")
         {
             Locale = savedLocale;
@@ -794,7 +830,10 @@ public sealed partial class SettingsService : RefCounted
 
         // key_bindings 手改档案的类型守卫——非 Dictionary / 子值非 Array 时跳过该字段，
         // 不崩溃、不提前返回（其余字段照常加载）；typed 赋值在运行期校验失败会抛错并丢后续字段。
-        // 旧名迁移判定单源在 SettingsMigration.TryMapKeyBindingAction（新名已绑过则丢弃旧条目）。
+        // 动作名白名单＝可改键动作清单（唯一事实源 GameState.REBINDABLE_ACTIONS）：不在清单里的
+        // 条目丢弃——收下会永久回写进设置档（下次落盘把它固化），且 ApplyKeyBindings 不认它，
+        // 盘上留一条谁也读不懂的死绑。旧名迁移判定单源在 SettingsMigration.TryMapKeyBindingAction
+        //（新名已绑过则丢弃旧条目），迁移后再过白名单（旧名映射出的新名须真的可改键）。
         GameState.Instance.KeyBindings.Clear();
         var savedKeys = data.GetValueOrDefault("key_bindings", new Variant());
         if (savedKeys.VariantType == Variant.Type.Dictionary)
@@ -831,11 +870,16 @@ public sealed partial class SettingsService : RefCounted
                     continue; // 新动作名已在表中：旧条目不得覆盖真值
                 }
 
+                if (!GameState.Instance.REBINDABLE_ACTIONS.Contains(new StringName(mappedAction)))
+                {
+                    continue; // 白名单外动作名：丢弃（不落回设置档、不进 InputMap）
+                }
+
                 GameState.Instance.KeyBindings[new StringName(mappedAction)] = keys;
             }
         }
 
-        var savedDifficulty = data.GetValueOrDefault("difficulty", "").AsStringName();
+        var savedDifficulty = ReadStringName(data.GetValueOrDefault("difficulty", new Variant()), new StringName());
         if (GameState.Instance.DIFFICULTY_DEFS.ContainsKey(savedDifficulty))
         {
             // 读档恢复难度（不写盘、不发事件）；服务侧刷新被动回血与档位倍率缓存——
@@ -846,7 +890,7 @@ public sealed partial class SettingsService : RefCounted
         CtrlToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("ctrl_toggle_mode", CtrlToggleMode), CtrlToggleMode);
         ShiftToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("shift_toggle_mode", ShiftToggleMode), ShiftToggleMode);
         FireToggleMode = GameState.Instance.SaveBool(data.GetValueOrDefault("fire_toggle_mode", FireToggleMode), FireToggleMode);
-        var savedZoom = data.GetValueOrDefault("view_zoom", "").AsStringName();
+        var savedZoom = ReadStringName(data.GetValueOrDefault("view_zoom", new Variant()), new StringName());
         if (VIEW_ZOOM_LEVELS.ContainsKey(savedZoom))
         {
             ViewZoom = savedZoom;
@@ -859,13 +903,13 @@ public sealed partial class SettingsService : RefCounted
         // RESOLUTION_LEVELS，本类不复制档位表；结果必为合法档或默认档）。
         // resolution 键保留 data.GetValueOrDefault 直读：设置对称门禁据它判定「真读」
         //（core 内部取键不在门禁正则可见范围内），非法/缺失才走 core 决策。
-        var savedMode = data.GetValueOrDefault("window_mode", "").AsStringName();
+        var savedMode = ReadStringName(data.GetValueOrDefault("window_mode", new Variant()), new StringName());
         if (savedMode == WindowModeWindowed || savedMode == WindowModeBorderless)
         {
             WindowMode = savedMode;
         }
 
-        var savedResolution = data.GetValueOrDefault("resolution", "").AsStringName();
+        var savedResolution = ReadStringName(data.GetValueOrDefault("resolution", new Variant()), new StringName());
         if (RESOLUTION_LEVELS.ContainsKey(savedResolution) || savedResolution == ResolutionCustom)
         {
             Resolution = savedResolution;
@@ -893,14 +937,14 @@ public sealed partial class SettingsService : RefCounted
 
         ApplyWindow();
 
-        var savedAim = data.GetValueOrDefault("aim_assist", "").AsStringName();
+        var savedAim = ReadStringName(data.GetValueOrDefault("aim_assist", new Variant()), new StringName());
         if (AIM_ASSIST_ORDER.Contains(savedAim))
         {
             AimAssistLevel = savedAim;
         }
 
         // 性能：帧率上限档（白名单）+ 垂直同步；非法值保持默认，末尾统一应用到引擎
-        var savedFps = data.GetValueOrDefault("fps_cap", "").AsStringName();
+        var savedFps = ReadStringName(data.GetValueOrDefault("fps_cap", new Variant()), new StringName());
         if (FPS_CAP_LEVELS.ContainsKey(savedFps))
         {
             FpsCap = savedFps;
@@ -933,8 +977,23 @@ public sealed partial class SettingsService : RefCounted
             JoyDeadzone = Mathf.Clamp(joyDz.AsDouble(), 0.05, 0.9);
         }
 
+        // 读档直写字段不发 setter 事件：手柄两项须补一次通知（同上方 SyncHitStopScale 的收口方式）。
+        // Player 的 _aimJoySpeed 唯一写入口是本事件回调，漏发则灵敏度改了不生效——
+        // 设置页显示 3000、实际仍按 1400 跑（Player 构造时不入树、订阅在 _Ready，此刻补发安全）。
+        JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
+
         JoyVibration = GameState.Instance.SaveBool(data.GetValueOrDefault("joy_vibration", JoyVibration), JoyVibration);
     }
+
+    /// <summary>设置档字符串字段读（locale）：仅接受 String/StringName，其余回退
+    /// <paramref name="fallback"/>（As* 是宽松转换，数字会被读成 "123" 这类假字符串）。</summary>
+    private static string ReadString(Variant v, string fallback) =>
+        v.VariantType is Variant.Type.String or Variant.Type.StringName ? v.AsString() : fallback;
+
+    /// <summary>设置档 StringName 字段读（难度/视角/窗口模式/分辨率/瞄准档/帧率档）：仅接受
+    /// String/StringName，其余回退 <paramref name="fallback"/>（白名单查表对回退值判否＝保持当前档）。</summary>
+    private static StringName ReadStringName(Variant v, StringName fallback) =>
+        v.VariantType is Variant.Type.String or Variant.Type.StringName ? v.AsStringName() : fallback;
 
     /// <summary>音量字段读档：非数值/越界回退当前值（对齐 joy 字段惯例，手改档案不触发 Variant 转换错误）。</summary>
     private static double ReadVolume(Variant raw, double fallback)

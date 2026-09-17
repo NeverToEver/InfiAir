@@ -138,7 +138,9 @@ public partial class GameOverUi : RadialMenuLayer
                 GameState.Instance.ExitToTitle();
                 break;
             case "quit":
-                GameState.Instance.SaveSettings();
+                // 退出清理与 ExitConfirm 同口（设置落盘 + 停音效）：直接 Quit 会漏掉未播完的
+                // 音效实例，退出期资源统计里表现为泄漏；本页无二次确认与淡出，故不走其演出层
+                GameState.Instance.ExecuteExitCleanup();
                 GetTree().Quit();
                 break;
         }

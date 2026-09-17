@@ -412,7 +412,7 @@ public partial class EnrageSequence : RefCounted
     {
         var minions = new Godot.Collections.Array();
         // 统一实体管理器批量 API：收集在场活跃小怪
-        // 直接遍历注册表（for_each_enemy 的 bool 谓词无法用 Callable.From——无 Func 重载）；
+        // 直接遍历注册表（托管 List<Node2D>，逐敌零封送）；
         // 语义等价：失效实例跳过 + Enemy 判型 + 活跃过滤
         foreach (var item in GameState.Instance.Enemies)
         {

@@ -1,12 +1,15 @@
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
 /// <summary>
 /// 子弹对象池（挂在 Main 下）：
 /// 复用 bullet.tscn 实例，避免高频 instantiate/free。活跃弹挂 Main 下（清场遍历可见），
-/// 闲置弹收回池节点下。同屏敌弹显式硬上限（500）保持。
+/// 闲置弹收回池节点下。同屏敌弹显式硬上限（500）保持；**判据用活跃敌弹数**（敌弹注册表
+/// 的 O(1) Count），不得用全场弹总数——后者会让上限随玩家火力被吃掉，表现为打得越猛
+/// 敌弹越稀的隐性难度漂移（判据单源在 core 层 EnemyBulletCap，配单测）。
 /// </summary>
 public partial class BulletPool : Node
 {
@@ -15,6 +18,12 @@ public partial class BulletPool : Node
 
     /// <summary>同屏敌弹显式硬上限（仅限制敌弹，玩家火力不受限）。</summary>
     public const int MaxEnemyActive = 500;
+
+    /// <summary>截断告警节流间隔（模拟秒，_Process 的 delta 累计；判定与模拟不用墙钟）。</summary>
+    private const double CapWarnInterval = 2.0;
+
+    /// <summary>距上次截断告警的累计模拟秒数；初值 = 间隔，首次截断立即可观测。</summary>
+    private double _capWarnElapsed = CapWarnInterval;
 
     private readonly Godot.Collections.Array<Bullet> _free = new();
 
@@ -39,7 +48,8 @@ public partial class BulletPool : Node
         }
     }
 
-    /// <summary>活跃子弹总数（MetaHealthFX 亮度代理经本实例读取；转发 Bullet.ActiveCount）。</summary>
+    /// <summary>活跃子弹总数（MetaHealthFX 亮度代理经本实例读取；转发 Bullet.ActiveCount）。
+    /// 注意与 MaxEnemyActive 的判据不同源：敌弹上限只看敌弹（见 Fire）。</summary>
     public int ActiveBulletCount => Bullet.ActiveCount;
 
     /// <summary>活跃爆炸实例数（同上；转发 Explosion.LiveCount()）。</summary>
@@ -54,9 +64,17 @@ public partial class BulletPool : Node
     public Bullet? Fire(
         Vector2 pDirection, float pSpeed, int pDamage, bool pIsPlayer, bool pHoming, float pHomingTime)
     {
-        // 同屏敌弹显式硬上限（玩家弹永不限制）
-        if (!pIsPlayer && Bullet.ActiveCount >= MaxEnemyActive)
+        // 同屏敌弹显式硬上限（玩家弹永不限制）。判据 = 活跃敌弹数（敌弹注册表与 Bullet 的
+        // 注册/注销成对维护，与「当前活跃敌弹」同义）；弃发可观测——超限时按节流打一条告警，
+        // 否则截断完全静默（部分敌机开火直接 return，表现为敌弹无解释地变稀）
+        if (EnemyBulletCap.ShouldDrop(!pIsPlayer, GameState.Instance.EnemyBullets.Count, MaxEnemyActive))
         {
+            if (_capWarnElapsed >= CapWarnInterval)
+            {
+                _capWarnElapsed = 0.0;
+                GD.PushWarning($"[BulletPool] 同屏敌弹达硬上限 {MaxEnemyActive}，本次开火弃发（每 {CapWarnInterval} 模拟秒至多一条）");
+            }
+
             return null;
         }
 
@@ -112,6 +130,7 @@ public partial class BulletPool : Node
     /// 待帧末删除的弹跳过。</summary>
     public override void _Process(double delta)
     {
+        _capWarnElapsed += delta; // 告警节流按模拟时间轴推进（与停放作业同帧）
         if (_pendingPark.Count == 0)
         {
             return;

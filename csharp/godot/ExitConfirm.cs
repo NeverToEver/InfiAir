@@ -5,8 +5,9 @@ namespace InfiAir;
 /// <summary>
 /// 全局退出确认窗（复用组件）。
 /// normal/battle 双模式：battle 模式显示进度损失警告（战斗中退出路径：
-/// 暂停 →「退出游戏」→ 本窗，构成二次确认）。确认后统一执行退出前清理：
-/// 设置落盘 → 资源 hook → 淡出 0.3s → quit。
+/// 暂停 →「退出游戏」→ 本窗，构成二次确认）。确认后统一执行退出前清理
+/// （GameState.ExecuteExitCleanup：设置落盘 + 停音效，与结算页退出同口）
+/// → 淡出 0.3s → quit。
 /// Esc/手柄 B 取消由 BackNavigator 路由到 cancel()；取消（按钮/Esc 同路径）经
 /// Canceled 事件通知打开者恢复（暂停页在弹确认窗前隐藏了自己，不恢复则树保持
 /// 暂停且无任何可见 UI——软锁）。
@@ -151,7 +152,7 @@ public partial class ExitConfirm : CanvasLayer
 
     /// <summary>取消退出（Esc/手柄 B 由 BackNavigator 路由到这里）。
     /// 退场动画期间即断开输入与鼠标命中（AnimateModalClose），逻辑交接在回调内同步完成，
-    /// 故退场残影不会截获已交还给下一层的输入。</summary>
+    /// 故退场残影不会截获已交还给下一层的输入；_closing 与 _exiting 同口径守卫退场中的重复触发。</summary>
     public void Cancel()
     {
         if (_exiting || _closing)
@@ -168,12 +169,15 @@ public partial class ExitConfirm : CanvasLayer
 
     private void OnOkPressed()
     {
-        if (_exiting)
+        // _closing 同口径守卫：退场动画期间本窗的子控件已摘除鼠标命中，但守卫不依赖上层
+        // 「按钮点不到」这件事实——退场中误触/程序化触发都不得真的退出游戏。
+        if (_exiting || _closing)
         {
             return;
         }
+
         _exiting = true;
-        ExecuteExitCleanup(_battle);
+        GameState.Instance.ExecuteExitCleanup();
         FadeAndQuit();
     }
 
@@ -182,7 +186,7 @@ public partial class ExitConfirm : CanvasLayer
     /// 此处留在游戏内让玩家重试或改选「不保存退出」（破坏性意图须显式）。</summary>
     private void OnSaveQuitPressed()
     {
-        if (_exiting)
+        if (_exiting || _closing)
         {
             return;
         }
@@ -196,20 +200,8 @@ public partial class ExitConfirm : CanvasLayer
         }
 
         _exiting = true;
-        ExecuteExitCleanup(_battle);
+        GameState.Instance.ExecuteExitCleanup();
         FadeAndQuit();
-    }
-
-    private void ExecuteExitCleanup(bool battle)
-    {
-        GameState.Instance.SaveSettings();
-        OnExitCleanup();
-    }
-
-    /// <summary>退出前资源/连接清理 hook：本项目无网络代码；停止未播完的音效，避免退出时播放实例泄漏</summary>
-    private void OnExitCleanup()
-    {
-        GameState.Instance.StopAllSfx();
     }
 
     /// <summary>短暂过渡动画（淡出黑屏 0.3s）后退出，避免突兀切进程</summary>

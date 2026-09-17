@@ -54,6 +54,13 @@ public partial class AbilitySocket : Control
     private bool _reduceFlash;
     private float _pulse = -1.0f;
 
+    // ---- 绘制顶点缓冲（实例级一次分配）----
+    // 充能追赶与就绪脉冲期间本控件逐帧重绘，_Draw 内不得再 new 顶点数组
+    // （与 FuelTank 同款纪律）；容量由切角点数固定（八边形 + 回起点），绘制时只原地改写。
+    // Draw* 调用在调色器入队时即复制数据，复用同一缓冲安全（同一缓冲不得跨两次 Draw 调用并存）。
+    private readonly Vector2[] _chamfer = new Vector2[8];   // 瓦片切角八边形
+    private readonly Vector2[] _frameLoop = new Vector2[9]; // 瓦片闭合描边（八边形 + 回起点）
+
     /// <summary>字形种类与身份色（装配时一次设定；两者共同构成该槽的身份）。</summary>
     public void Configure(Glyph kind, Color accent)
     {
@@ -169,8 +176,7 @@ public partial class AbilitySocket : Control
 
     public override void _Draw()
     {
-        var pts = UITheme.ChamferPoints(Size, Chamfer);
-        if (pts.Length == 0)
+        if (!UITheme.FillChamferPoints(_chamfer, Size, Chamfer))
         {
             return;
         }
@@ -181,11 +187,11 @@ public partial class AbilitySocket : Control
 
         // 瓦片底：未就绪更暗（读数靠亮度层级，不靠边框粗细）
         var bgAlpha = lit ? 0.30f : 0.16f;
-        DrawColoredPolygon(pts, new Color(_accent, bgAlpha));
+        DrawColoredPolygon(_chamfer, new Color(_accent, bgAlpha));
         var borderCol = _locked
             ? new Color(UITheme.TextDim, 0.35f)
             : new Color(lit ? _accent : new Color(UITheme.TextDim, 1.0f), lit ? 0.9f : 0.5f);
-        DrawPolyline(CloseLoop(pts), borderCol, 1.0f, true);
+        DrawPolyline(ClosedFrame(), borderCol, 1.0f, true);
 
         DrawGlyph(center, glyphAlpha);
 
@@ -202,7 +208,7 @@ public partial class AbilitySocket : Control
 
         if (_pulse >= 0.0f)
         {
-            DrawPulse(center, pts.Length);
+            DrawPulse(center);
         }
     }
 
@@ -224,21 +230,20 @@ public partial class AbilitySocket : Control
         }
     }
 
-    /// <summary>就绪确认脉冲：一圈外扩并淡出（一次性），不参与常态循环。</summary>
-    private void DrawPulse(Vector2 center, int ptCount)
+    /// <summary>就绪确认脉冲：一圈外扩并淡出（一次性），不参与常态循环（只走圆弧，不参与切角几何）。</summary>
+    private void DrawPulse(Vector2 center)
     {
         var radius = Mathf.Min(Size.X, Size.Y) * 0.5f + 1.0f + ReadyPulseGrow * _pulse;
         var alpha = (1.0f - _pulse) * 0.5f;
         DrawArc(center, radius, 0.0f, Mathf.Tau, 28, new Color(_accent, alpha), 1.5f, true);
-        _ = ptCount; // 参数保留：脉冲只走圆弧，不参与切角几何
     }
 
-    private static Vector2[] CloseLoop(Vector2[] pts)
+    /// <summary>闭合环（首点补到末尾）写入并返回实例缓冲，零分配。</summary>
+    private Vector2[] ClosedFrame()
     {
-        var outPts = new Vector2[pts.Length + 1];
-        System.Array.Copy(pts, outPts, pts.Length);
-        outPts[^1] = pts[0];
-        return outPts;
+        System.Array.Copy(_chamfer, _frameLoop, _chamfer.Length);
+        _frameLoop[^1] = _chamfer[0];
+        return _frameLoop;
     }
 
     /// <summary>锁定横杠：一道压在字形上的短横线，与「充能中」的压暗明确区分。</summary>

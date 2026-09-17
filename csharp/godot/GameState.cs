@@ -185,7 +185,7 @@ public partial class GameState : Node
         _input = new InputBindingsService();
     }
 
-    /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 main 打印分段耗时）</summary>
+    /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 ProbeHost 打印开机到首帧的一行耗时）</summary>
     public int BootTicksMsec { get; set; } = 0;
 
     /// <summary>母舰召唤窗口（H 蓄力中或机库小窗演出中）。遭遇事件触发门控读取——窗口期玩家
@@ -199,8 +199,9 @@ public partial class GameState : Node
     {
         if (paused)
         {
-            // 暂停即清顿帧残留：否则 Always 的暂停菜单/设置页会被冻结倍率（0.06）慢放
-            _gameFeel.ClearHitStop();
+            // 暂停即清掉手感域对时间缩放的全部影响（顿帧冻结 + 狂暴演出倍率）：只清顿帧会让
+            // Always 的暂停菜单/设置页/天赋面板被 0.24 的演出倍率慢放（见 GameFeelService.ClearForPause）
+            _gameFeel.ClearForPause();
         }
 
         var tree = (SceneTree?)Engine.GetMainLoop();
@@ -208,6 +209,16 @@ public partial class GameState : Node
         {
             tree.Paused = paused;
         }
+    }
+
+    /// <summary>退出前统一清理：设置落盘 + 停止未播完的音效（带播未停时 AudioStreamPlayback
+    /// 会在退出时泄漏，见 SfxPlayer）。**所有退出路径共用**——散在各 UI 里直调
+    /// SaveSettings + Quit 会漏掉清理，新增清理项时必然只落一半。
+    /// 不负责退出动画/二次确认：那些属各入口的演出编排（如 ExitConfirm 的淡出）。</summary>
+    public void ExecuteExitCleanup()
+    {
+        SaveSettings();
+        StopAllSfx();
     }
 
     /// <summary>终止本局回标题屏单口（结算页「返回标题」/暂停/教程 Esc/BackNavigator 同路由）：
@@ -302,10 +313,10 @@ public partial class GameState : Node
     /// 属性转发保持外部语法不变；内部用 C# PascalCase。
     /// 热路径缓存，避免每帧 get_nodes_in_group 分配。
     /// enemy/boss 在 _ready/_exit_tree 时注册/注销，player 单独缓存引用。</summary>
-    public Godot.Collections.Array<Node> Enemies => _registry.Enemies;
+    public List<Node2D> Enemies => _registry.Enemies;
 
     /// <summary>敌弹注册表转发（death_replay 录制数据源，替代 get_children 遍历）</summary>
-    public Godot.Collections.Array<GodotObject> EnemyBullets => _registry.EnemyBullets;
+    public List<Bullet> EnemyBullets => _registry.EnemyBullets;
 
     public Node2D? PlayerRef
     {
@@ -347,49 +358,23 @@ public partial class GameState : Node
     /// <summary>统一事件管理器转发（全局单例访问口；挂本节点下，_ready 时 add_child）</summary>
     public GameEventManager Events => _events;
 
-    public void RegisterEnemy(Node node) => _registry.RegisterEnemy(node);
+    public void RegisterEnemy(Node2D node) => _registry.RegisterEnemy(node);
 
     /// <summary>统一单位绑定样板：add_to_group("enemy") + 注册 + entity_registered</summary>
-    public void BindEnemy(Node node) => _registry.BindEnemy(node);
+    public void BindEnemy(Node2D node) => _registry.BindEnemy(node);
 
     /// <summary>统一单位解绑（_exit_tree 调用；注销 + entity_unregistered）</summary>
-    public void UnbindEnemy(Node node) => _registry.UnbindEnemy(node);
-
-    /// <summary>计数（谓词可选过滤）。spread 上限/统计用。
-    /// Callable 空判定（Godot C# Callable 无 IsValid 属性——空 callable 的 Method 为空 StringName，
-    /// 替代 GDScript predicate.is_valid()）。</summary>
-    public int CountEnemies(Variant predicate = default)
-    {
-        var count = 0;
-        var hasPredicate = predicate.VariantType == Variant.Type.Callable
-            && predicate.AsCallable().Method != new StringName();
-        foreach (var node in _registry.Enemies)
-        {
-            if (!GodotObject.IsInstanceValid(node))
-            {
-                continue;
-            }
-
-            if (hasPredicate && !predicate.AsCallable().Call(node).AsBool())
-            {
-                continue;
-            }
-
-            count += 1;
-        }
-
-        return count;
-    }
+    public void UnbindEnemy(Node2D node) => _registry.UnbindEnemy(node);
 
     /// <summary>敌弹注册/注销转发（Bullet 激活/回收时维护）</summary>
-    public void RegisterEnemyBullet(GodotObject b) => _registry.RegisterEnemyBullet(b);
+    public void RegisterEnemyBullet(Bullet b) => _registry.RegisterEnemyBullet(b);
 
-    public void UnregisterEnemyBullet(GodotObject b) => _registry.UnregisterEnemyBullet(b);
+    public void UnregisterEnemyBullet(Bullet b) => _registry.UnregisterEnemyBullet(b);
 
     /// <summary>注册表存在性判定 O(1)（追踪弹热路径，替代 enemies.has() 线性扫描）</summary>
-    public bool EnemiesHas(Node node) => _registry.HasEnemy(node);
+    public bool EnemiesHas(Node2D node) => _registry.HasEnemy(node);
 
-    public void UnregisterEnemy(Node node) => _registry.UnregisterEnemy(node);
+    public void UnregisterEnemy(Node2D node) => _registry.UnregisterEnemy(node);
 
     private void OnRegistryEntityRegistered(Node node) => EmitSignal(SignalName.EntityRegistered, node);
 
@@ -604,8 +589,19 @@ public partial class GameState : Node
         PlayerDied += OnPlayerDiedDeleteRunSave;
     }
 
-    /// <summary>死亡即删档（本局存档单一钩子）。</summary>
-    private void OnPlayerDiedDeleteRunSave() => DeleteRunSave();
+    /// <summary>死亡即删档（本局存档单一钩子）——仅真实本局删（门控见 <see cref="_runActive"/>）：
+    /// 教程死亡走同一信号且被教程当预期终态，标题屏等非本局场景也可能有玩家实体；
+    /// 无门控会让「玩教程顺手抹掉玩家真实检查点」（同 ExitToTitle 对此类误伤的规避）。
+    /// 死亡探针趟只断「管理器 EndActive → 事件 Abort → 归还波次/Boss 互斥」，不依赖删档，不受影响。</summary>
+    private void OnPlayerDiedDeleteRunSave()
+    {
+        if (!_runActive)
+        {
+            return;
+        }
+
+        DeleteRunSave();
+    }
 
     // 运行期时钟门控：仅真实本局（main 为 current_scene）累积 RunTime/推进 survive 任务/
     // 难度时间档/连击窗口——welcome 等非本局场景的停留时间不得污染下一局难度曲线。
@@ -655,12 +651,14 @@ public partial class GameState : Node
     /// <summary>屏幕震动唯一入口（所有来源的震动强度在此按无障碍倍率折算后累加 trauma）。
     /// 倍率 0 = 完全关闭画面震动；过场内部的镜头抖动不走本入口，属演出编排不经此缩放。
     /// 相机位移改由 CameraShake 每帧按 trauma^2 采样（Eiserloh trauma 惯例）：小额冲击近乎无感、
-    /// 大额才猛烈，高频抖动不再叠加成持续晃动；信号仍在发（WorldPostFx 的重击脉冲按原始强度取阈）。</summary>
+    /// 大额才猛烈，高频抖动不再叠加成持续晃动。
+    /// 信号发的是**原始强度**：WorldPostFx 的重击泛光脉冲按未折算值取阈（量程 8~24）——
+    /// 发折算值会让「屏幕震动强度」滑杆 ≤33% 时连泛光一起关掉，而它与「减少闪光」是两个
+    /// 独立的无障碍项（滑杆只管运动，不该连坐频闪层）。</summary>
     public void Shake(double strength)
     {
-        var scaled = strength * _settings.ShakeScale;
-        _gameFeel.AddShake(scaled);
-        EmitSignal(SignalName.ScreenShake, scaled);
+        _gameFeel.AddShake(strength * _settings.ShakeScale);
+        EmitSignal(SignalName.ScreenShake, strength);
     }
 
     /// <summary>命中顿帧请求（唯一入口）：档位在 balance.json effects.hit_stop.* 取时长。
@@ -679,8 +677,6 @@ public partial class GameState : Node
     /// <summary>Boss 狂暴子弹时间的演出倍率上报（Main 调用；1.0 = 无演出）。
     /// 时间缩放收口在 GameFeelService——Main 不再直写 Engine.TimeScale（直写会与顿帧互覆盖）。</summary>
     public void SetEnrageTimeScale(double scale) => _gameFeel.SetEnrageTimeScale(scale);
-
-
 
     /// <summary>时间缩放整体复位（演出倍率归 1、顿帧与 trauma 残留清空）。
     /// 本局终态/场景切换/死亡重开统一走此——只复位演出侧会把顿帧残留留在下一局（开局定格）。</summary>

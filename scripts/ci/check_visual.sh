@@ -15,17 +15,29 @@ set -uo pipefail
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/visual.log}"
 SHOT_DIR="$(mktemp -d)"
+# 用户目录隔离：截图探针会读存档/设置在标题屏与设置页分叉（与冒烟同一条生产链），不隔离就会
+# 读走开发者本机配置、写坏开发者当前存档。Windows 读 APPDATA、Linux 读 XDG_DATA_HOME、
+# macOS 读 HOME——三处都指到临时目录（macOS 不认前两个，user:// 会落真实用户目录）。
+USERDIR="$(mktemp -d)"
 FRAMES=340
-ERR="SCRIPT ERROR|Parse Error|Compile Error|Nonexistent function|Unhandled exception"
+# 引擎错误正则：与 check_smoke.sh 同口径。`ERROR:` 是通用引擎错误前缀，兜住未列举的错误类别
+# （此前只有 SCRIPT ERROR 等五类：截图写出失败、`Invalid polygon data` 这类静默坏点全漏判——
+# 探针只打一条 PushError 就跳过该图，日志有 ERROR 而正则抓不到，门禁照样判绿）。
+ERR="SCRIPT ERROR|Parse Error|Compile Error|Nonexistent function|Unhandled exception|Invalid polygon data|ERROR:"
+# 白名单：退出期资源统计噪声（RefCounted 释放顺序告警，非功能坏点），口径同 check_smoke.sh
+ERR_ALLOW="ERROR: [0-9][0-9]* resources still in use at exit"
 
-cleanup() { rm -rf "$SHOT_DIR"; }
+cleanup() { rm -rf "$SHOT_DIR" "$USERDIR"; }
 trap cleanup EXIT
 
 # Git Bash 下 bash 与 Godot 均为原生 Windows 程序：显式转 Windows 路径（不依赖 MSYS 静默转换）
 SHOT_DIR_ARG="$SHOT_DIR"
+USERDIR_ARG="$USERDIR"
 if command -v cygpath >/dev/null 2>&1; then
   SHOT_DIR_ARG="$(cygpath -w "$SHOT_DIR")"
+  USERDIR_ARG="$(cygpath -w "$USERDIR")"
 fi
+USERDIR_ARG="${USERDIR_ARG//\\//}"       # 探针侧比较用正斜杠（与 check_smoke.sh 同格式）
 
 # 渲染器：Linux 无 DISPLAY 时用 Xvfb + 软件光栅（CI runner 无 GPU）
 RENDER_ENV=()
@@ -40,20 +52,41 @@ if [ "$(uname -s)" = "Linux" ]; then
   RENDER_ENV+=("env" "LIBGL_ALWAYS_SOFTWARE=1")
 fi
 
-# 窗口移出可视区，本机跑时不在用户眼前弹窗
-"${RENDER_ENV[@]}" "$GODOT" --path . --resolution 1920x1080 --position -4000,-4000 \
+# 窗口移出可视区，本机跑时不在用户眼前弹窗。
+# 音频驱动显式取 Dummy：本探针不判音频，而 CI runner 无声卡时 ALSA 初始化失败会打一行
+# `ERROR: Condition "status < 0" is true. Returning: ERR_CANT_OPEN`（引擎随后自己回落到 dummy），
+# 那一行被下面的错误正则抓住即判红——探针本身是零错误跑完的（判据吃到环境噪声）。显式 dummy
+# 从源头消掉这条噪声，而不是把它加进白名单（同一条通用消息也可能来自真正的资源打开失败）。
+# RENDER_ENV 可能为空（有 DISPLAY 的非 Linux 平台）：`"${RENDER_ENV[@]}"` 在 set -u 下遇空数组
+# 会报 unbound variable（bash 3.2，声明支持的 macOS 系统 bash）——用 + 展开兜住空数组。
+if ! "${RENDER_ENV[@]+"${RENDER_ENV[@]}"}" \
+  env "APPDATA=$USERDIR_ARG" "XDG_DATA_HOME=$USERDIR" "HOME=$USERDIR" \
+  "$GODOT" --path . --resolution 1920x1080 --position -4000,-4000 --audio-driver Dummy \
   --fixed-fps 60 --quit-after "$FRAMES" --scene res://scenes/probe_host.tscn \
-  -- --shot-probe --shot-dir="$SHOT_DIR_ARG" > "$LOG" 2>&1
+  -- --shot-probe --shot-dir="$SHOT_DIR_ARG" --expect-user-dir="$USERDIR_ARG" > "$LOG" 2>&1; then
+  echo "::error::截图探针运行失败（Godot 退出码非 0）——崩溃/启动即失败时探针根本不执行"
+  tail -30 "$LOG"
+  exit 1
+fi
+
+# 隔离判据（与探针实现无关）：引擎的 user:// 若没落在临时目录内，这里就看不到它写出的
+# user://logs/godot.log——隔离失效必须显式判红，否则本趟读写的是开发者本机配置与存档。
+if [ -z "$(find "$USERDIR" -type f -name 'godot.log' -print -quit 2>/dev/null)" ]; then
+  echo "::error::截图探针的用户目录隔离未生效：$USERDIR 下没有引擎写出的 user:// 日志" \
+       "（隔离环境变量没被引擎采纳？引擎版本换了日志落点？）"
+  ls -la "$USERDIR" 2>/dev/null | head -5
+  exit 1
+fi
 
 if ! grep -qF "[shot-probe] 截图序列完成" "$LOG"; then
-  echo "::error::截图探针未通过（缺完成标记）——画面空白/页面未切换/帧数不足"
+  echo "::error::截图探针未通过（缺完成标记）——画面空白/页面未切换/捕获张数不足/帧数不足"
   grep -F "[shot-probe]" "$LOG" | head -10
   tail -20 "$LOG"
   exit 1
 fi
-if grep -qE "$ERR" "$LOG"; then
+if grep -E "$ERR" "$LOG" | grep -vE "$ERR_ALLOW" | grep -q .; then
   echo "::error::截图探针日志有引擎错误"
-  grep -B1 -E "$ERR" "$LOG" | head -10
+  grep -E "$ERR" "$LOG" | grep -vE "$ERR_ALLOW" | head -10
   exit 1
 fi
 

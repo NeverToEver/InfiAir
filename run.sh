@@ -44,9 +44,9 @@ if [ -n "$VER" ]; then
     REST="${VER#*.}"
     MINOR="${REST%%.*}"
     if [ "$MAJOR" -lt 4 ] || { [ "$MAJOR" -eq 4 ] && [ "$MINOR" -lt 6 ]; }; then
-        echo "[InfiAir] 警告：检测到 Godot $VER，本项目按 4.6+ 构建，可能无法正常运行。"
+        echo "[InfiAir] 警告：检测到 Godot ${VER}，本项目按 4.6+ 构建，可能无法正常运行。"
     fi
 fi
 
-echo "[InfiAir] 使用引擎：$GODOT（$VER）"
+echo "[InfiAir] 使用引擎：${GODOT}（${VER}）"
 exec "$GODOT" --path . "$@"

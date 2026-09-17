@@ -23,6 +23,11 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
 {
     private const int RingSegments = 32;
 
+    /// <summary>弹体碰撞半径（设计值 × world_scale）：弹心之外还占这么多像素。
+    /// 事件侧的投放点可见域裁剪余量与此同源——两处各写一份会让「可交互边界」与「裁剪边界」分叉
+    /// （裁剪砍掉一枚仍有一半露在界内、玩家打得掉的弹，或留下完全不可交互的屏外弹）。</summary>
+    public const float BodyRadius = 12.0f;
+
     /// <summary>落点圈/倒计时弧线宽（设计值 × world_scale，与弹体同口径）。</summary>
     private const float RingWidth = 12.0f;
     private const float ArcWidth = 16.0f;
@@ -196,7 +201,7 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
             Color = WarheadColor,
         };
         _body.AddChild(_warhead);
-        var shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = 12.0f * ws } };
+        var shape = new CollisionShape2D { Shape = new CircleShape2D { Radius = BodyRadius * ws } };
         AddChild(shape);
         // 命中只在反射态生效（见 OnAreaEntered）：未反射时区域判定为空跑，
         // 保留连接以免反射瞬间才连信号（信号时序不确定）
@@ -386,7 +391,8 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
     public void TakeDamage(int amount) => TakeDamage(amount, 1.0f);
 
     /// <summary>空中拦截：静默引爆——只有小爆炸与拦截分，不产生地面范围伤害（玩家的回报是「拆掉了威胁」）。
-    /// 走 AddKillScore 而非 AddScore：拦截是打断敌方行动，计入连击链（与被击落的编队机同族）。</summary>
+    /// 走 AddKillScore 而非 AddScore：拆弹是打断敌方行动，计入连击链、乘区与难度档（与被击落的编队机同族）。
+    /// 弹反命中路径（OnAreaEntered）同额同族——两条拆弹路径同口径，否则更难的弹反应对反而收益更低。</summary>
     private void Intercept()
     {
         _spent = true;
@@ -440,6 +446,9 @@ public partial class FormationBomb : Area2D, IDamageable, IParryable
         target.TakeDamage(ReflectDamage, 1.0f);
         _spent = true;
         Intercepted = true; // 弹反命中＝成功拆弹，计拦截奖
+        // 拆弹分与被击落路径同额同族（AddKillScore：吃连击与 score_amp）——弹反是更难的应对，
+        // 原先只置 Intercepted 不给分，收益反而低于直接击落（奖励与难度反挂）
+        GameState.Instance.AddKillScore(BombScore);
         GameState.Instance.PlaySfx(SfxId.Explosion, -4.0, 1.3);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.7f);
         ReturnToPool();

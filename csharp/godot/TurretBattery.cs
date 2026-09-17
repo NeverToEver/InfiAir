@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -9,8 +10,9 @@ namespace InfiAir;
 /// 升起期间不可被攻击（monitorable=false 为主机制；monitoring 口径同步关闭）；
 /// 被毁时爆炸 + 基座环熄灭（由事件编排处理）。
 /// HpBar 为 C# SegmentedBar 直调；实现 IDamageable，伤害经 EntityDamage 统一分派。
+/// 实现 IAimTarget：与普通敌机同吃辅助瞄准（遭遇期间它是屏上唯一可打目标）。
 /// </summary>
-public partial class TurretBattery : Area2D, IDamageable
+public partial class TurretBattery : Area2D, IDamageable, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(TurretBattery turret);
@@ -40,6 +42,10 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public int MaxHp { get; set; } = 80;
     public int Hp { get; set; } = 80;
+
+    /// <summary>击毁入账的击杀分（balance.json elite_turret_event.turret_score，事件编排注入）：
+    /// 走 AddKillScore，吃连击/score_amp/难度档倍率——与普通敌机同口。</summary>
+    public int ScoreValue { get; set; } = 150;
     /// <summary>弹药轮换序列（StringName：single/spread3/spread5/laser/weak_homing/sniper）。</summary>
     public Godot.Collections.Array AmmoSequence { get; set; } = new() { new StringName("single") };
     /// <summary>开火间隔范围（每座炮台独立计时）。</summary>
@@ -67,6 +73,11 @@ public partial class TurretBattery : Area2D, IDamageable
     private Sprite2D _sprite = null!; // _Ready 赋值（tscn 固定结构）
     private SegmentedBar _hpBar = null!; // _Ready 赋值（tscn 固定结构）
     private float _muzzleOffset; // 出弹点偏移（40 × world_scale，_ready 覆写）
+    /// <summary>碰撞半径缓存（_Ready 按机体尺寸族写入，26 × world_scale）——辅助框半宽的基数
+    /// （不读节点：扫描是逐帧热路径，节点查询太贵）。</summary>
+    private float _bodyRadius;
+    /// <summary>辅助瞄准标记登记态（true = 已登记 → 屏上画框并吃强追踪）。</summary>
+    private bool _aimMarked;
 
     /// <summary>Setup() 在入树/_Ready() 之前调用，不能用 GetNode。</summary>
     public void Setup(int pHp, Godot.Collections.Array pAmmo, Vector2 pFireInterval, Godot.Collections.Dictionary weakLock)
@@ -90,10 +101,48 @@ public partial class TurretBattery : Area2D, IDamageable
         }
 
         FireInterval = pFireInterval;
-        TurnRate = (float)weakLock.GetValueOrDefault("turn_rate", TurnRate).AsDouble();
-        HomingTurnRate = (float)weakLock.GetValueOrDefault("homing_turn_rate", HomingTurnRate).AsDouble();
-        HomingTime = (float)weakLock.GetValueOrDefault("homing_time", HomingTime).AsDouble();
-        SpreadDeg = (float)weakLock.GetValueOrDefault("spread_deg", SpreadDeg).AsDouble();
+        // 弱锁四键逐键判型 + 域钳（口径单源在 core EncounterConfig）：元素写成字符串/数组时
+        // AsDouble 宽松转换得 0（不抛），turn_rate=0 让炮台不再转向、弹道永远朝下；
+        // 负值经转向钳制区间倒置会变成「瞬间对准玩家」。转向/散布钳 ≥0，时长钳正下限。
+        TurnRate = ReadWeakLock(weakLock, "turn_rate", TurnRate, 0.0f);
+        HomingTurnRate = ReadWeakLock(weakLock, "homing_turn_rate", HomingTurnRate, 0.0f);
+        HomingTime = ReadWeakLock(weakLock, "homing_time", HomingTime, CfgFx.IntervalFloor);
+        SpreadDeg = ReadWeakLock(weakLock, "spread_deg", SpreadDeg, 0.0f);
+    }
+
+    /// <summary>弱锁单键读取：判型失败/非有限/负值回退默认，合法值钳到 <paramref name="floor"/> 之上。</summary>
+    private static float ReadWeakLock(Godot.Collections.Dictionary cfg, string key, float fallback, float floor)
+    {
+        var v = cfg.GetValueOrDefault(key, new Variant());
+        var valid = v.VariantType is Variant.Type.Int or Variant.Type.Float;
+        return EncounterConfig.RangeEndpoint(valid, valid ? (float)v.AsDouble() : 0.0f, fallback, floor);
+    }
+
+    // ---- IAimTarget 契约（辅助瞄准扫描只读量） ----
+
+    /// <summary>可打 = 未被摧毁、不在升起充能期、不在收回离场期（与 TakeDamage 的守卫同口径）。</summary>
+    public bool AimTargetable => Hp > 0 && !_rising && !_ceased;
+
+    /// <summary>标记态与计数同源：登记即标记（<see cref="SetAimMarked"/>）。</summary>
+    public bool AimMarked => _aimMarked;
+
+    /// <summary>世界坐标（炮台挂在航母节点下，取全局坐标）。</summary>
+    public Vector2 AimWorldPosition => GlobalPosition;
+
+    /// <summary>碰撞半径（已含 world_scale）；辅助框半宽 = 本值 + 档位 frame_pad。</summary>
+    public float AimCollisionRadius => _bodyRadius;
+
+    /// <summary>标记登记（幂等）：改标记即改计数——AimFrameLayer 的零标记早退依赖计数准确。
+    /// 升起前/收回后不计（那两段不可被攻击，画框会误导）。</summary>
+    private void SetAimMarked(bool marked)
+    {
+        if (_aimMarked == marked)
+        {
+            return;
+        }
+
+        _aimMarked = marked;
+        AimTargetCount.SetEncounterMarked(marked);
     }
 
     public override void _Ready()
@@ -115,9 +164,10 @@ public partial class TurretBattery : Area2D, IDamageable
         var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _sprite.Scale = Vector2.One * ws;
+        _bodyRadius = 26.0f * ws;
         if (GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D bodyCircle)
         {
-            bodyCircle.Radius = 26.0f * ws;
+            bodyCircle.Radius = _bodyRadius;
         }
 
         _hpBar = GetNode<SegmentedBar>("HpBar");
@@ -128,7 +178,7 @@ public partial class TurretBattery : Area2D, IDamageable
         _muzzleOffset = 40.0f * ws;
         _hpBar.MaxValue = 100.0f;
         _hpBar.Value = 100.0f;
-        _hpBar.FillColor = new Color(1.0f, 0.25f, 0.75f); // 精英品红
+        _hpBar.FillColor = UITheme.EventMagenta; // 精英品红（调色板单源）
         _fireTimer = (float)GD.RandRange(FireInterval.X, FireInterval.Y);
         // 击杀震动强度缓存
         _shakeDie = CfgFx.Float("effects.shake.enemy_die", _shakeDie);
@@ -136,6 +186,9 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public override void _ExitTree()
     {
+        // 标记计数离树兜底（幂等）：事件 Abort/超时直接 QueueFree 的炮台不经 Die，
+        // 漏减会让 AimFrameLayer 永远走「有标记」分支（每帧全表扫描 + 重绘）
+        SetAimMarked(false);
         GameState.TryGetInstance()?.UnbindEnemy(this); // 统一解绑；autoload 可能先于本节点释放
     }
 
@@ -158,12 +211,13 @@ public partial class TurretBattery : Area2D, IDamageable
         tween.TweenProperty(this, "modulate:a", 1.0f, duration * 0.6f);
     }
 
-    /// <summary>充能完毕（由事件编排在倒计时开始时调用）：可被攻击、开始开火。</summary>
+    /// <summary>充能完毕（由事件编排在倒计时开始时调用）：可被攻击、开始开火、纳入辅助瞄准标记。</summary>
     public void Activate()
     {
         _rising = false;
         Monitoring = true;
         Monitorable = true;
+        SetAimMarked(true);
     }
 
     /// <summary>超时撤退：停火并收回盖板（弹药不再产生）。</summary>
@@ -175,6 +229,7 @@ public partial class TurretBattery : Area2D, IDamageable
         }
 
         _ceased = true;
+        SetAimMarked(false); // 收回期不可被攻击：撤框，免得玩家追着一个打不动的目标
         Monitoring = false;
         Monitorable = false; // 同 rise 期——收回动画期间玩家弹应穿过而非被白吃
         var tween = CreateTween();
@@ -202,7 +257,10 @@ public partial class TurretBattery : Area2D, IDamageable
             var maxStep = TurnRate * d;
             var diff = Mathf.Wrap(target - _facing, -Mathf.Pi, Mathf.Pi);
             _facing += Mathf.Clamp(diff, -maxStep, maxStep);
-            _sprite.Rotation = _facing - Mathf.Pi / 2.0f; // 贴图炮口朝上（-Y），旋转到朝向
+            // 贴图炮口朝画布上缘（生成器 turret() 的炮身在基座之上、炮口制退环/能量核在顶端），
+            // turret.tscn 根节点与 Sprite2D 均无补偿 rotation；换算见 core TurretAim。
+            // 原式 _facing - π/2 按「炮口朝下」推导，炮口与弹道反 180°（从基座方向出弹）。
+            _sprite.Rotation = Core.Combat.TurretAim.SpriteRotation(_facing);
         }
 
         _fireTimer -= d;
@@ -254,7 +312,6 @@ public partial class TurretBattery : Area2D, IDamageable
 
             b.HomingTurnRate = HomingTurnRate;
             b.Position = GlobalPosition + dir * _muzzleOffset;
-            b.SetMeta(Bullet.MetaBulletType, AmmoHoming);
         }
         else if (ammo == AmmoSniper)
         {
@@ -292,7 +349,6 @@ public partial class TurretBattery : Area2D, IDamageable
         }
 
         b.Position = GlobalPosition + dir * _muzzleOffset;
-        b.SetMeta(Bullet.MetaBulletType, pType);
         if (pType == AmmoLaser)
         {
             // 细长高亮快速弹（与敌机 laser 弹同表现，polygon 尖端朝 +x 即飞行方向）
@@ -336,6 +392,12 @@ public partial class TurretBattery : Area2D, IDamageable
 
     public void Die()
     {
+        // 遭遇单位与普通敌机同口结算：击杀数（「击杀 N 架」任务与敌机解锁门）+
+        // 击杀分（吃连击/score_amp，随后经 AddScore 乘难度档倍率）。
+        // 原实现两者都不给——屏上唯一可打目标被击毁后，进度门不推进、连分数都没有。
+        SetAimMarked(false);
+        GameState.Instance.AddKillScore(ScoreValue);
+        GameState.Instance.AddKill();
         GameState.Instance.PlaySfx(SfxId.Explosion);
         GameState.Instance.Shake(_shakeDie);
         Explosion.SpawnAt(GetParent(), GlobalPosition, 1.0f);

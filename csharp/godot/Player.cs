@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 using InfiAir.Core.Input;
 
 namespace InfiAir;
@@ -118,8 +119,6 @@ public partial class Player : CharacterBody2D
     private static readonly (float Speed, float Amount, float Alpha) ThrusterCruise = (1.0f, 0.8f, 0.85f);
     private static readonly (float Speed, float Amount, float Alpha) ThrusterIdle = (0.6f, 0.35f, 0.6f);
 
-    private static readonly Color BodyTintBase = new(1.42f, 1.34f, 1.24f);
-
     public float DashDistance { get; private set; } = 200.0f;
     public float DashTime { get; private set; } = 0.25f;
     public float DashCooldownMaxValue { get; private set; } = 4.0f;
@@ -159,7 +158,6 @@ public partial class Player : CharacterBody2D
 
     public float FuelMax { get; private set; } = 100.0f;
     private bool _inputLocked;
-    public bool MovementLocked { get; set; }
     private float _enrageSlow = 1.0f;
 
     /// <summary>开火门：外部系统（入场序列 / 激光光束）临时屏蔽普通子弹发射。
@@ -201,6 +199,8 @@ public partial class Player : CharacterBody2D
     public float AfterimageTimer { get => _dash.AfterimageTimer; set => _dash.AfterimageTimer = value; }
 
     private bool _dead;
+    /// <summary>在母舰保护舱内（EnterPod/ExitPod 维护）：判定关闭走延迟写，回调需自行守卫掉这种窗口。</summary>
+    private bool _inPod;
     private float _fuel = 100.0f;
     private bool _fuelLocked;
 
@@ -276,6 +276,12 @@ public partial class Player : CharacterBody2D
         {
             gs.Connect(GameState.SignalName.JoySettingsChanged, _onJoySettingsChanged);
         }
+
+        // 摇杆灵敏度必须在此刻主动读一次：唯一赋值点是 JoySettingsChanged 回调，而该信号在
+        // GameState（autoload）_Ready → LoadSettings 末尾补发，早于本场景实例化——读档恢复的
+        // 灵敏度送不到（设置页与存档都是 3000，实际按硬编码 1400 跑，玩家只觉「滑杆不管用」）。
+        // 死区本就每帧 live 读（见 AimPoint），灵敏度在此对齐。
+        _aimJoySpeed = (float)gs.JoyAimSpeed;
 
         if (!gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))
         {
@@ -421,12 +427,19 @@ public partial class Player : CharacterBody2D
             CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
             CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
-        // aim_assist.input/falloff 钳 ≥0——负值磁吸力/衰减域反转
-        _magnetInputMin = CfgFx.Float("player.aim_assist.input.magnet_input_min", _magnetInputMin, 0.0f);
-        _magnetInputFull = CfgFx.Float("player.aim_assist.input.magnet_input_full", _magnetInputFull, 0.0f);
-        _falloffPeak = CfgFx.Float("player.aim_assist.falloff.peak", _falloffPeak, 0.0f);
-        _falloffEnd = CfgFx.Float("player.aim_assist.falloff.end", _falloffEnd, 0.0f);
-        _falloffMin = CfgFx.Float("player.aim_assist.falloff.min", _falloffMin, 0.0f);
+        // aim_assist.input/falloff 域钳经 core——负值磁吸力/衰减域反转，与 AimFrameLayer 的
+        // 读取点同口径（那侧才是磁吸算术的消费方，本侧同名参数只喂诊断读口 AimAssistParams）
+        (_magnetInputMin, _magnetInputFull) = Core.Combat.AimAssistParams.MagnetWindow(
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble(),
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble(),
+            _magnetInputMin,
+            _magnetInputFull);
+        _falloffPeak = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble(), _falloffPeak);
+        _falloffEnd = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble(), _falloffEnd);
+        _falloffMin = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), _falloffMin);
         LoadAimAssistParams();
         // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖
         var ws = (float)GameState.Instance.WorldScale;
@@ -530,8 +543,8 @@ public partial class Player : CharacterBody2D
         _crosshair = new AimCrosshair();
         _crosshair.Init(this);
         AddChild(_crosshair);
-        // 可视性增强：机体提亮 + 青色描边辉光
-        _sprite.Modulate = BodyTintBase;
+        // 可视性增强：机体提亮（底色单源在 PlayerVisuals.BodyTintBase，每帧由 UpdateFrame 覆写）
+        _sprite.Modulate = PlayerVisuals.BodyTintBase;
         _glow = new Sprite2D
         {
             Texture = _sprite.Texture,
@@ -654,6 +667,8 @@ public partial class Player : CharacterBody2D
 
     public void SetFineToggle(bool enabled) => _fineToggleOn = enabled;
 
+    /// <summary>辅助瞄准档位参数读数（白盒调参观察面，非判定输入——真正的磁吸/锥形算术在
+    /// AimFrameLayer，两侧共用 core <c>AimAssistParams</c> 的域钳口径，不再各写一份）。</summary>
     public Godot.Collections.Dictionary AimAssistParams() => new()
     {
         ["homing_turn_rate"] = _homingTurnRate,
@@ -670,26 +685,44 @@ public partial class Player : CharacterBody2D
         ["falloff_min"] = _falloffMin,
     };
 
+    /// <summary>当前档位的锥形弱追踪余弦阈值（只读诊断口）：唯一真值在 <c>_coneCos</c>，
+    /// 探针用它做 <c>AimFrameLayer.NearestConeTarget</c> 的入参——探针自己换算 core 函数会与
+    /// Player 的实际档位取值分叉（接线坏了照绿）。见 ROADMAP 零引用成员口径。</summary>
+    public float ConeCos() => _coneCos;
+
+    /// <summary>制导增幅锁定锥的余弦阈值（只读诊断口）：与 <see cref="ConeCos"/> 同族，
+    /// 供探针取「生产实际在用的锥」——探针自带一份键读取与默认值会与生产分叉
+    /// （默认值写错时探针按错误的锥挑偏角，判定照绿但测的不是生产链路）。
+    /// 该值不随天赋是否点亮变化（未点亮时生产不消费它），故无条件装载。</summary>
+    public float HomingLockConeCos() => _homingLockConeCos;
+
+    /// <summary>上一渲染帧进磁吸窗口的输入量（只读诊断口，见字段注释）。
+    /// 零运行期引用，保留理由与 <see cref="_probeMagnetInput"/> 同。</summary>
+    public float MagnetInputLastFrame() => _probeMagnetInput;
+
+    /// <summary>上面那次换算所属的渲染帧号（只读诊断口）：探针据此确认读到的是刚注入那一帧的值。</summary>
+    public ulong MagnetInputFrame() => _probeMagnetInputFrame;
+
     /// <summary>距离衰减曲线（开火弱追踪与 AimFrameLayer 磁吸共用）。</summary>
-    public float AimDistFalloff(float d) => DistFalloffCurve(d, _falloffPeak, _falloffEnd, _falloffMin);
+    public float AimDistFalloff(float d) => AimFalloff.Evaluate(d, _falloffPeak, _falloffEnd, _falloffMin);
 
-    /// <summary>距离衰减分段纯函数（单实现）。</summary>
+    /// <summary>距离衰减分段纯函数（判定在 <see cref="AimFalloff"/>，csharp/core/Combat；
+    /// 回归面在 csharp/tests/InfiAir.Core.Tests/Combat/AimFalloffTests.cs）——保留本静态入口供
+    /// AimFrameLayer 以 <c>Player.DistFalloffCurve</c> 形态调用。</summary>
     public static float DistFalloffCurve(float d, float peak, float end, float minV)
+        => AimFalloff.Evaluate(d, peak, end, minV);
+
+    /// <summary>锁输入（返航过场/母舰召唤与对接等编排窗口）。同时**显式中止**冲刺与弹反：
+    /// 锁定期的物理早退会让两者的时间轴一起冻结（Tick 在早退之后），解锁后第一帧会用旧 DashDir
+    /// 把残余冲刺跑完（最多一个 dash_distance + 残影），弹反若停在 ACTIVE 会重新打开盾判定并闪一次
+    /// 金光（不按键出现整段有效窗口）。盾视觉一并归位——否则盾面停在锁定前的展开形态、整段可见。</summary>
+    public void LockInput()
     {
-        if (d <= peak)
-        {
-            return 1.0f;
-        }
-
-        if (d >= end)
-        {
-            return minV;
-        }
-
-        return Mathf.Lerp(1.0f, minV, (d - peak) / (end - peak));
+        _inputLocked = true;
+        _dash.Cancel();
+        _parry.Cancel();
+        _visuals.UpdateParryVisuals(0.0f, 0.0f, ParryRadius, ParryArcDeg, 0.0f, _simTime);
     }
-
-    public void LockInput() => _inputLocked = true;
 
     public void UnlockInput() => _inputLocked = false;
 
@@ -757,14 +790,17 @@ public partial class Player : CharacterBody2D
         _dashUnlocked = dashStacks > 0;
         _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(AugPhaseDash) - 1f, 0f));
         // ---- 作战增幅扩展（乘算走 EffLevel 浮点层级；整数语义走层数）----
+        // 锁定锥余弦无条件装载（不随天赋点亮与否）：探针的只读口要拿生产真值，
+        // 未点亮时生产不消费它（_homingAugTurnRate=0 → 不走这条取目标路径），故无行为影响
+        var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
+        // 该键语义＝整角（接受域 ±coneDeg/2）；口径与换算单源在 core AimCone
+        _homingLockConeCos = Core.Combat.AimCone.CosFromFullAngleDeg(coneDeg);
         var homingEff = (float)GameState.Instance.TalentEffLevel(AugHoming);
         if (homingEff > 0f)
         {
             _homingAugTurnRate = CfgFx.Float("augments.homing.turn_rate_deg", 150.0f, 0.0f) * homingEff;
             _homingLockTime = CfgFx.Float("augments.homing.lock_time", 8.0f, CfgFx.IntervalFloor);
             _homingLockRange = CfgFx.Float("augments.homing.lock_range", 900.0f, 0.0f);
-            var coneDeg = CfgFx.Float("augments.homing.lock_cone_deg", 44.0f, 0.0f);
-            _homingLockConeCos = Mathf.Cos(Mathf.DegToRad(coneDeg * 0.5f));
         }
         else
         {
@@ -956,13 +992,6 @@ public partial class Player : CharacterBody2D
             inputDir = _fogForcedDir;
         }
 
-        if (MovementLocked)
-        {
-            inputDir = Vector2.Zero;
-            Velocity = Vector2.Zero;
-            Dashing = false;
-        }
-
         _dash.TickCooldown(d);
         _parry.Tick(d);
         if (Input.IsActionJustPressed(ActParry))
@@ -982,7 +1011,6 @@ public partial class Player : CharacterBody2D
 
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
         if (DashUnlocked()
-            && !MovementLocked
             && Input.IsActionJustPressed(ActDash)
             && _dash.CooldownRemaining() <= 0.0f
             && !_dash.IsDashing()
@@ -1007,10 +1035,6 @@ public partial class Player : CharacterBody2D
         }
 
         var wantBoost = (bool)gs.ShiftToggleMode ? _boostToggleOn : Input.IsActionPressed(ActBoost);
-        if (MovementLocked)
-        {
-            wantBoost = false;
-        }
 
         if (_fuelLocked && _fuel >= FuelRestart)
         {
@@ -1125,9 +1149,36 @@ public partial class Player : CharacterBody2D
         return p.Clamp(view.Position + inset, view.End - inset);
     }
 
+    /// <summary>瞄准活跃态：准星显示、光标回写、粘滞/磁吸生效的共同判据（树暂停由调用方判定——
+    /// 暂停期本节点的物理与渲染路径都不推进，AimCrosshair 的 Always 分支自行加树状态）。
+    /// 输入锁定期（母舰召唤/对接约十秒）准星已隐藏：此时若仍回写光标，玩家移动可见光标会被
+    /// 以半速拖回、并被磁吸轻推——准星看不见、系统光标却发黏。</summary>
+    public bool AimActive() => !_dead && !_inputLocked;
+
     /// <summary>当前瞄准点（世界坐标）：外部注入点（AimPointOverride 非 +Inf 哨兵）优先；
-    /// 键鼠/手柄下准星与系统光标逐像素绑定（见内注）。</summary>
-    public Vector2 AimPoint()
+    /// 键鼠/手柄下准星与系统光标逐像素绑定，回写受 <see cref="AimActive"/> 门控（见内注）。</summary>
+    public Vector2 AimPoint() => AimPointInternal(warp: true);
+
+    /// <summary>只读当前瞄准点（不回写系统光标）：纯读取方（AimFrameLayer 的 hover 查询等）用此口——
+    /// 它只关心「准星此刻在哪」，回写光标是推点方的职责。</summary>
+    public Vector2 AimPointNoWarp() => AimPointInternal(warp: false);
+
+    /// <summary>本渲染帧的光标回写目标（世界坐标）与是否已回写：同帧多调用方共享帧首结果，
+    /// 但回写只做一次。</summary>
+    private Vector2 _aimWarpTarget;
+    private float _aimWarpDriftSq;
+    private ulong _aimWarpFrame = ulong.MaxValue;
+    private bool _aimWarpDone;
+
+    /// <summary>上一渲染帧经换算进磁吸窗口的输入量（只读诊断口，零生产引用；见 ROADMAP 零引用
+    /// 成员口径——它是探针观察面）：磁吸窗口的帧长归一坏掉时量会越窗，无头下不崩不报错，
+    /// 只能靠读这个出口值判定。</summary>
+    private float _probeMagnetInput;
+
+    /// <summary>上面那次换算所属的渲染帧号（探针据此判断读到的是本帧还是陈旧值）。</summary>
+    private ulong _probeMagnetInputFrame = ulong.MaxValue;
+
+    private Vector2 AimPointInternal(bool warp)
     {
         if (AimPointOverride != new Vector2(float.PositiveInfinity, float.PositiveInfinity))
         {
@@ -1141,13 +1192,25 @@ public partial class Player : CharacterBody2D
             var raw = GetGlobalMousePosition();
             // 右摇杆虚拟准星（四向独立动作，差值驱动）：读取侧 StickShaper 整形——
             // 径向死区（设置域）+ 指数响应曲线（joy_expo，轻推精瞄/推满甩枪）
+            var processDelta = (float)GetProcessDeltaTime();
             var joyDelta = Vector2.Zero;
             var joy = Input.GetVector(ActAimLeft, ActAimRight, ActAimUp, ActAimDown);
             var joyShaped = StickShaper.Shape(joy.X, joy.Y, (float)GameState.Instance.JoyDeadzone, _aimJoyExpo);
             if (joyShaped.X != 0.0f || joyShaped.Y != 0.0f)
             {
-                joyDelta = new Vector2(joyShaped.X, joyShaped.Y) * _aimJoySpeed * (float)GetProcessDeltaTime();
+                joyDelta = new Vector2(joyShaped.X, joyShaped.Y) * _aimJoySpeed * processDelta;
             }
+
+            // 磁吸输入窗口的帧长归一：窗口（magnet_input_min/full）的口径是「每 1/60s 的位移」，
+            // 而两路的**本帧位移来源不同**——摇杆增量由上面那个**缩放后**的帧长积分而来（乘回同一
+            // 帧长即同时消掉帧率与 Engine.TimeScale），鼠标物理增量是**真实手部位移**（手不随子弹
+            // 时间变慢），只能按真实帧长换算。原先两路共用一个缩放帧长：Boss 狂暴（TS=0.24）里进窗口
+            // 的量被放大 1/TS = 4.17 倍，窗口上界 40 实际等价真实手速 9.6px/帧，磁吸完全失效
+            //（MagnetPull 在 ilen ≥ full 时直接返回零向量）；顿帧（TS=0.06）等价 2.4px/帧。
+            // 帧长与口径的单源在 core AimMagnetInput.FrameScale(路, 缩放帧长, 真实帧长)（可单测）。
+            var realDelta = GameState.Instance.RealDelta(processDelta);
+            var stickMagnetScale = (float)AimMagnetInput.FrameScale(AimInputPath.Stick, processDelta, realDelta);
+            var mouseMagnetScale = (float)AimMagnetInput.FrameScale(AimInputPath.Mouse, processDelta, realDelta);
 
             var factor = 1.0f;
             var magnet = Vector2.Zero;
@@ -1161,10 +1224,17 @@ public partial class Player : CharacterBody2D
                 }
                 else
                 {
-                    // 磁吸输入窗口：摇杆有输入时取摇杆增量（joyDelta 与鼠标增量同量纲 px/帧，
-                    // 1400px/s ÷ 60fps ≈ 23px/帧 落在 magnet_input_min/full 窗口内），否则取鼠标
-                    // 物理增量——两路二选一，避免同帧双输入叠加放大磁吸强度
-                    magnet = aimLayer.MagnetPull(_aimSmooth, joyDelta != Vector2.Zero ? joyDelta : raw - _aimLastRaw);
+                    // 磁吸输入窗口：摇杆有输入时取摇杆增量，否则取鼠标物理增量——两路二选一，
+                    // 避免同帧双输入叠加放大磁吸强度。各按自己那路的帧长换成「每 1/60s 位移」
+                    // 后再进窗口（窗口口径即此单位；见上方换算说明）。
+                    var magnetInput = joyDelta != Vector2.Zero
+                        ? joyDelta * stickMagnetScale
+                        : (raw - _aimLastRaw) * mouseMagnetScale;
+                    // 进窗口的量（只读诊断口，探针断「同一真实手速在不同 Engine.TimeScale 下进窗口的量
+                    // 相等」）：它是换算链的**出口**，探针自己调 core 换算只测 core、接线坏了照绿。
+                    _probeMagnetInput = magnetInput.Length();
+                    _probeMagnetInputFrame = frame;
+                    magnet = aimLayer.MagnetPull(_aimSmooth, magnetInput);
                 }
             }
 
@@ -1176,36 +1246,55 @@ public partial class Player : CharacterBody2D
             var view = GameState.Instance.ViewWorldRect();
             var inset = new Vector2(AimClampInset, AimClampInset);
             desired = desired.Clamp(view.Position + inset, view.End - inset);
-            if ((desired - raw).LengthSquared() > 0.25f)
-            {
-                GetViewport().WarpMouse(GetCanvasTransform() * desired);
-            }
+            _aimWarpFrame = frame;
+            _aimWarpDone = false;
+            _aimWarpDriftSq = (desired - raw).LengthSquared();
+            _aimWarpTarget = desired;
 
             _aimSmooth = desired;
             _aimLastRaw = desired;
             _aimInitialized = true;
         }
 
+        // 光标回写与瞄准活跃态同门控（见 AimActive）：回写是表现副作用，只有准星可见时才做。
+        // 不按调用方区分——纯读取方（AimFrameLayer 的 hover 查询）走 AimPointNoWarp，本帧的推点方
+        // 仍能回写；同帧多次调用只回写一次（帧内目标一致）。
+        if (warp && !_aimWarpDone && _aimWarpFrame == frame && AimActive() && _aimWarpDriftSq > 0.25f)
+        {
+            GetViewport().WarpMouse(GetCanvasTransform() * _aimWarpTarget);
+            _aimWarpDone = true;
+        }
+
         return _aimSmooth;
     }
 
-    /// <summary>读取当前强度档位参数（balance.json player.aim_assist.levels.&lt;level&gt;）。</summary>
+    /// <summary>读取当前强度档位参数（balance.json player.aim_assist.levels.&lt;level&gt;）。
+    /// 域钳经 core <see cref="AimAssistParams"/>（与 AimFrameLayer 同口径：负值属配置损坏，
+    /// 回退默认而非钳 0——0 是「该机制关闭」的合法取值）。</summary>
     private void LoadAimAssistParams()
     {
         var level = (string)(StringName)GameState.Instance.AimAssistLevel;
         var basePath = "player.aim_assist.levels." + level + ".";
-        // 档位参数钳 ≥0——负值致追踪/磁吸反向
-        _homingTurnRate = Mathf.Max((float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble(), 0.0f);
-        _aimStickFactor = Mathf.Max((float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble(), 0.0f);
-        HomingTime = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble(), 0.0f);
+        // 档位参数钳非负——负值致追踪/磁吸反向
+        _homingTurnRate = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "homing_turn_rate", _homingTurnRate).AsDouble(), _homingTurnRate);
+        _aimStickFactor = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "stick_factor", _aimStickFactor).AsDouble(), _aimStickFactor);
+        HomingTime = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.homing_time", HomingTime).AsDouble(), HomingTime);
         // cone_angle_deg 钳 [0,360]——越界角度（负/超 360）致 coneCos 周期折叠，
         // 锥形弱追踪判定失真（360 时 cos=1 → angT 0/0=NaN，NaN 守卫兜底）
         _coneAngleDeg = Mathf.Clamp((float)GameState.Instance.Cfg(basePath + "cone_angle_deg", _coneAngleDeg).AsDouble(), 0.0f, 360.0f);
-        _coneCos = Mathf.Cos(Mathf.DegToRad(_coneAngleDeg));
-        _coneStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), 0.0f);
-        _magnetRange = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), 0.0f);
-        _magnetStrength = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), 0.0f);
-        _magnetMaxSpeed = Mathf.Max((float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), 0.0f);
+        // 档位语义＝半角（接受域 ±cone_angle_deg）；口径与换算单源在 core AimCone
+        _coneCos = Core.Combat.AimCone.CosFromHalfAngleDeg(_coneAngleDeg);
+        _coneStrength = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "cone_strength", _coneStrength).AsDouble(), _coneStrength);
+        _magnetRange = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), _magnetRange);
+        _magnetStrength = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), _magnetStrength);
+        _magnetMaxSpeed = Core.Combat.AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), _magnetMaxSpeed);
         // 摇杆瞄准响应曲线指数：钳 ≥1.0——<1 会变成轻推即满速的反曲线
         _aimJoyExpo = Mathf.Max((float)GameState.Instance.Cfg("player.aim_assist.joy_expo", _aimJoyExpo).AsDouble(), 1.0f);
     }
@@ -1316,7 +1405,8 @@ public partial class Player : CharacterBody2D
         EmitSignal(SignalName.EntryFinished);
     }
 
-    /// <summary>dash_strike 冲刺打击：冲刺期间按节流间隔对触及敌机结算伤害（未购零开销）。</summary>
+    /// <summary>dash_strike 冲刺打击：冲刺期间按节流间隔对触及的可打目标结算伤害（未购零开销）；
+    /// 触及判定算式在 core <see cref="DashStrikeReach"/>。</summary>
     private void TickDashStrike(float d)
     {
         if (_dashStrikeLevel <= 0)
@@ -1331,46 +1421,51 @@ public partial class Player : CharacterBody2D
         }
 
         _dashStrikeTick = _dashStrikeInterval;
-        var radiusSq = _dashStrikeRadius * _dashStrikeRadius;
+        var radius = _dashStrikeRadius;
         var enemies = GameState.Instance.Enemies;
         for (var i = enemies.Count - 1; i >= 0; i--)
         {
-            if (enemies[i] is Enemy e && GodotObject.IsInstanceValid(e)
-                && e.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= radiusSq)
+            // 目标类型 = 契约（IAimTarget）：遭遇单位（炮塔/编队机）与普通敌机同一路径，
+            // Boss 与场上炸弹不实现契约故天然排除（既有例外，不扩大打击面）
+            var node = enemies[i];
+            if (!GodotObject.IsInstanceValid(node) || node is not IAimTarget t || !t.AimTargetable)
             {
-                EntityDamage.Dispatch(e, _dashStrikeDamage * _dashStrikeLevel);
-                Explosion.SpawnAt(GetParent(), e.GlobalPosition, 0.4f);
+                continue;
             }
+
+            var target = t.AimWorldPosition;
+            if (!DashStrikeReach.Hits(target.X - GlobalPosition.X, target.Y - GlobalPosition.Y, radius))
+            {
+                continue;
+            }
+
+            EntityDamage.Dispatch(node, _dashStrikeDamage * _dashStrikeLevel);
+            Explosion.SpawnAt(GetParent(), target, 0.4f);
         }
     }
 
-    /// <summary>homing 制导增幅的落靶搜索：锁定锥 + 射程内最近注册表敌机（开火频次路径，零分配）。</summary>
-    private Enemy? NearestAugHomingTarget(Vector2 aimDir)
+    /// <summary>homing 制导增幅的落靶搜索：锁定锥 + 射程内最近的可打目标（开火频次路径，零分配）。
+    /// 目标类型 = 契约（IAimTarget）：遭遇单位（炮塔/编队机）与普通敌机同一路径；判型口径与
+    /// 弱追踪/框内强追踪同源，算式在 core <see cref="HomingLockSearch"/>。</summary>
+    private IAimTarget? NearestAugHomingTarget(Vector2 aimDir)
     {
-        Enemy? best = null;
-        var bestD = _homingLockRange;
+        IAimTarget? best = null;
+        var search = new HomingLockSearch(
+            GlobalPosition.X, GlobalPosition.Y, aimDir.X, aimDir.Y, _homingLockConeCos, _homingLockRange);
         var enemies = GameState.Instance.Enemies;
         for (var i = 0; i < enemies.Count; i++)
         {
-            if (enemies[i] is not Enemy e || !GodotObject.IsInstanceValid(e))
+            var node = enemies[i];
+            if (!GodotObject.IsInstanceValid(node) || node is not IAimTarget t || !t.AimTargetable)
             {
                 continue;
             }
 
-            var to = e.GlobalPosition - GlobalPosition;
-            var d = to.Length();
-            if (d > bestD || d <= 0.0f)
+            var target = t.AimWorldPosition;
+            if (search.Consider(target.X, target.Y))
             {
-                continue;
+                best = t;
             }
-
-            if (aimDir.Dot(to / d) < _homingLockConeCos)
-            {
-                continue;
-            }
-
-            bestD = d;
-            best = e;
         }
 
         return best;
@@ -1382,8 +1477,9 @@ public partial class Player : CharacterBody2D
         var pierce = _pierceCount;
         var explosive = _explosiveEnabled;
         var gs = GameState.Instance;
-        // 辅助瞄准：准星在某标记敌框内 → 追踪修正；框外锥内 → 弱追踪
-        Enemy? homingTarget = null;
+        // 辅助瞄准：准星在某标记目标框内 → 追踪修正；框外锥内 → 弱追踪。
+        // 目标类型 = 契约（IAimTarget）：普通敌机与遭遇单位（炮塔/编队机）同一路径，Boss 不实现契约
+        IAimTarget? homingTarget = null;
         var homingRate = _homingTurnRate;
         if (gs.AimFrameLayer is AimFrameLayer aimLayer)
         {
@@ -1394,12 +1490,11 @@ public partial class Player : CharacterBody2D
                 homingTarget = aimLayer.NearestConeTarget(GlobalPosition, aimDir, _coneCos);
                 if (homingTarget != null)
                 {
-                    var dot = aimDir.Dot((homingTarget.GlobalPosition - GlobalPosition).Normalized());
-                    var angT = Mathf.Clamp((dot - _coneCos) / (1.0f - _coneCos), 0.0f, 1.0f);
+                    var dot = aimDir.Dot((homingTarget.AimWorldPosition - GlobalPosition).Normalized());
+                    var angT = Core.Combat.AimCone.ConeStrength(dot, _coneCos);
                     homingRate = _homingTurnRate * _coneStrength * angT
-                        * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.GlobalPosition));
-                    // NaN 守卫——cone_angle_deg=360 时 _coneCos=1 使 angT 0/0 得
-                    // NaN，homingRate=NaN 恒不满足 ≤0 守卫（NaN 比较 false），弱追踪修正失控
+                        * AimDistFalloff(GlobalPosition.DistanceTo(homingTarget.AimWorldPosition));
+                    // 纵深防御：锥内强度的 0/0 已由 core 处理（全向锥恒满强度），此处兜非有限配置乘子
                     if (homingRate <= 0.0f || float.IsNaN(homingRate))
                     {
                         homingTarget = null;
@@ -1472,9 +1567,11 @@ public partial class Player : CharacterBody2D
 
             b.Pierce = pierce;
             b.Explosive = explosive;
-            if (homingTarget != null)
+            // 追踪弹落靶仍按 Node2D 持有（Bullet 用它的世界坐标 + 注册表判定）；契约实现方
+            // 都是 Area2D 派生，非 Node2D 的实现拿不到落靶口（契约只保证可瞄准，不保证可追踪）
+            if (homingTarget is Node2D homingNode)
             {
-                b.HomingTarget = homingTarget;
+                b.HomingTarget = homingNode;
                 b.HomingTime = augmentHoming ? _homingLockTime : HomingTime;
                 b.HomingTurnRate = homingRate;
             }
@@ -1482,10 +1579,14 @@ public partial class Player : CharacterBody2D
             b.Position = Position + aimRot * _muzzleOffset;
         }
 
-        // 枪口辉光：以末发弹方向点亮（散射时多方向只有一盏，视觉噪声可控）
+        // 枪口辉光：以末发弹方向点亮（散射时多方向只有一盏，视觉噪声可控）。
+        // **局部坐标**：_muzzleGlow 是 Player 的子节点，位移会再经 Player.Rotation
+        // （= aim.Angle() + π/2，见机头朝向段）变换一次；机头恒为局部 -Y（贴图机头朝上），
+        // 故沿机头的最远点恒为 (0, -_muzzleOffset)。写 aim * _muzzleOffset 会把世界方向
+        // 当局部方向、被父节点旋转二次叠加，斜向瞄准时辉光落到机体侧后方。
         if (_muzzleGlow != null)
         {
-            _muzzleGlow.Position = aim * _muzzleOffset;
+            _muzzleGlow.Position = new Vector2(0.0f, -_muzzleOffset);
             _muzzleGlowA = 1.0f;
         }
 
@@ -1511,8 +1612,8 @@ public partial class Player : CharacterBody2D
         var clearRadiusSq = BulletClearRadius * BulletClearRadius; // 平方距离比较免每弹 sqrt
         for (var i = bullets.Count - 1; i >= 0; i--)
         {
-            var b = (Bullet?)bullets[i];
-            if (b != null && !b.IsPlayerBullet)
+            var b = bullets[i];
+            if (!b.IsPlayerBullet)
             {
                 if (b.GlobalPosition.DistanceSquaredTo(GlobalPosition) <= clearRadiusSq)
                 {
@@ -1525,6 +1626,13 @@ public partial class Player : CharacterBody2D
     /// <summary>擦弹——敌弹进入 GrazeArea（受击盒外环形带）计 1 次分。</summary>
     private void OnGrazeEntered(Area2D area)
     {
+        // 死亡/进舱守卫：两者的 monitoring 关闭都走延迟写（见 DieInternal/EnterPod）——同一物理帧内
+        // 迟到的擦弹信号仍会到达，无守卫会死后加分/播特效，或进舱（机体已隐藏）仍在计分
+        if (_dead || _inPod)
+        {
+            return;
+        }
+
         var b = area.GetScript().AsGodotObject() == _bulletScript ? (Bullet)area : null;
         if (b == null || b.IsPlayerBullet || !b.IsActive())
         {
@@ -1558,6 +1666,13 @@ public partial class Player : CharacterBody2D
     /// 角度过滤能力——&lt;360 时回退为机头前方扇形），O(1) 阵营翻转。</summary>
     private void OnParryShieldEntered(Area2D area)
     {
+        // 死亡/进舱守卫：盾 monitoring 关闭走延迟写（见 DieInternal/EnterPod），同帧迟到信号仍会到达——
+        // Phase 每帧复位，进舱时可能恰停在 ACTIVE，无守卫会死后持续把敌弹反射成玩家弹
+        if (_dead || _inPod)
+        {
+            return;
+        }
+
         if (_parry.Phase != PlayerParry.ParryPhase.ACTIVE)
         {
             return;
@@ -1581,7 +1696,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         // 过滤基准用机头方向（含机身 Rotation）——-π/2 全局上方在
         // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；AngleDifference 已处理 ±π wrap
         var noseAngle = Vector2.Up.Rotated(Rotation).Angle();
@@ -1610,7 +1725,7 @@ public partial class Player : CharacterBody2D
     /// <summary>盾扇区顶点（机头前方 ±arc，朝上）：圆心 + 弧上 count+1 点。</summary>
     private Vector2[] ParrySectorPoints(float radius, int count)
     {
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         var pts = new Vector2[count + 2];
         pts[0] = Vector2.Zero;
         for (var i = 0; i <= count; i++)
@@ -1639,7 +1754,7 @@ public partial class Player : CharacterBody2D
     /// 每段一个四边形（内弧两点 + 外弧两点），逐段子节点一次构建（热路径零分配）。</summary>
     private Godot.Collections.Array ParryRimSegments(float radius, int count)
     {
-        var arc = Mathf.DegToRad(ParryArcDeg) * 0.5f;
+        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         var segs = new Godot.Collections.Array();
         const float GapRatio = 0.22f; // 段间缝隙占段宽比例
         var inner = radius * 0.80f;
@@ -1670,6 +1785,7 @@ public partial class Player : CharacterBody2D
         }
 
         _dead = true;
+        _inPod = false; // 死亡优先于进舱态：出舱路径的 _dead 早退不得把标志留在 true
         AbortEntry(); // 入场期间自毁复位入场状态机
         _enrageSlow = 1.0f; // 死亡/重生路径兜底
         Hide();
@@ -1678,16 +1794,18 @@ public partial class Player : CharacterBody2D
             _hitbox.SetDeferred("monitoring", false);
         }
 
-        // 死亡路径关闭擦弹环与弹反盾判定
+        // 死亡路径关闭擦弹环与弹反盾判定（延迟写：致死主链路整条在 area_exited 信号回调栈内，
+        // 引擎在物理 in/out 回调里拒绝 monitoring 直写并打 ERROR，写后读回仍是 true——
+        // 擦弹环不关会死后继续加分、弹反盾不关会死后继续反射敌弹，同受击盒口径）
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = false;
+            grazeArea.SetDeferred("monitoring", false);
         }
 
         if (_parryShield != null)
         {
-            _parryShield.Monitoring = false;
+            _parryShield.SetDeferred("monitoring", false);
         }
 
         SetPhysicsProcess(false);
@@ -1696,9 +1814,12 @@ public partial class Player : CharacterBody2D
         GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
     }
 
-    /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。</summary>
+    /// <summary>进入母舰保护舱（召唤回收）：隐藏机体 + 关闭受击判定，不置 _dead。
+    /// 三处 monitoring 一律延迟写（同 DieInternal 口径）：延迟写落在 idle 帧末，等价于此处直写，
+    /// 且在物理回调栈内到达时不会被引擎拒绝——三处同口径，不靠调用时机区分。</summary>
     public void EnterPod()
     {
+        _inPod = true;
         Hide();
         if (_hitbox != null)
         {
@@ -1708,16 +1829,17 @@ public partial class Player : CharacterBody2D
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = false;
+            grazeArea.SetDeferred("monitoring", false);
         }
 
         if (_parryShield != null)
         {
-            _parryShield.Monitoring = false;
+            _parryShield.SetDeferred("monitoring", false);
         }
     }
 
-    /// <summary>离开保护舱（释放抛下时调用）：恢复显示与受击判定。</summary>
+    /// <summary>离开保护舱（释放抛下时调用）：恢复显示与受击判定（受击盒/擦弹环延迟写同 EnterPod）。
+    /// 弹反盾不回写——其 monitoring 由 _PhysicsProcess 按 _parry.Phase 每帧同步，此处插一脚会打架。</summary>
     public void ExitPod()
     {
         if (_dead)
@@ -1725,6 +1847,7 @@ public partial class Player : CharacterBody2D
             return;
         }
 
+        _inPod = false;
         Show();
         if (_hitbox != null)
         {
@@ -1734,7 +1857,7 @@ public partial class Player : CharacterBody2D
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null)
         {
-            grazeArea.Monitoring = true;
+            grazeArea.SetDeferred("monitoring", true);
         }
     }
 

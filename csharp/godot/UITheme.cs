@@ -23,6 +23,8 @@ public partial class UITheme : RefCounted
     public static readonly Color AccentGold = new(0xe8c170ff); // 数值金（RP/最高分/新纪录等关键数值）
     public static readonly Color AccentDim = new(1.0f, 0.624f, 0.110f, 0.22f); // 装饰分隔线/页头短线
     public static readonly Color BgDeep = new(0.043f, 0.034f, 0.027f, 0.92f); // 更深面板底（欢迎页/满屏遮罩层）
+    /// <summary>最深面板底（母舰召唤小窗）：比 BgDeep 再暗一档，让长条面板贴屏幕左缘时与背景分明。</summary>
+    public static readonly Color BgDeepest = new(0.038f, 0.032f, 0.026f, 0.92f);
     public static readonly Color Text = new(0xeee7dcff); // 文字主（暖白）
     public static readonly Color TextOnBright = new(0x17110aff); // 高亮暖钢面上的深暖字（hover 钢面近白，浅色字会洗白）
     public static readonly Color TextDim = new(0x9c9184ff); // 文字次（暖灰）
@@ -64,11 +66,10 @@ public partial class UITheme : RefCounted
 
     // 虚影基地皮肤 token（基地控制台暖琥珀全息身份，靠亮度/扫描线区别于主交互色，不另起色相）
     public static readonly Color PhantomPanelBg = new(0.085f, 0.062f, 0.040f, 0.55f); // 虚影面板底（暖）
-    public static readonly Color PhantomBorder = new(new Color(0xffc861ff), 0.65f); // 虚影面板边框（全息琥珀）
-    public static readonly Color PhantomScan = new(new Color(0xffc861ff), 0.06f); // 扫描线/毛玻璃叠加层
+    public static readonly Color PhantomBorder = new(Holo, 0.65f); // 虚影面板边框（全息琥珀）
+    public static readonly Color PhantomScan = new(Holo, 0.06f); // 扫描线/毛玻璃叠加层
 
     // ---------------- 字号阶梯（层级靠字号/颜色/透明度区分） ----------------
-    public const int FontDisplay = 72; // 超大展示（主标题/结算大数字）
     public const int FontTitle = 40; // 页标题
     public const int FontScore = 32; // 大数值（得分等）
     public const int FontHeader = 28; // 卡片名/主按钮
@@ -450,23 +451,6 @@ public partial class UITheme : RefCounted
     public static StyleBoxTexture MakeMetalPanelStyle(Color? tint = null)
         => MakeBtnStyle(tint ?? PanelSteelTint);
 
-    /// <summary>输入框金属化（normal/focus 钢板 + 文字/光标/占位配色）。散落 LineEdit 统一入口。</summary>
-    public static void ApplyMetalLineEdit(LineEdit edit)
-    {
-        var normal = MakeBtnStyle(new Color(0.30f, 0.25f, 0.20f, 0.80f));
-        normal.ContentMarginLeft = 12.0f;
-        normal.ContentMarginRight = 12.0f;
-        var focus = MakeBtnStyle(new Color(0.38f, 0.31f, 0.24f, 0.88f));
-        focus.ContentMarginLeft = 12.0f;
-        focus.ContentMarginRight = 12.0f;
-        edit.AddThemeStyleboxOverride("normal", normal);
-        edit.AddThemeStyleboxOverride("focus", focus);
-        edit.AddThemeColorOverride("font_color", Text);
-        edit.AddThemeColorOverride("font_placeholder_color", new Color(TextDim, 0.7f));
-        edit.AddThemeColorOverride("caret_color", Accent);
-        edit.AddThemeColorOverride("selection_color", new Color(Accent, 0.30f));
-    }
-
     /// <summary>滚动条金属化（深槽 + 钢质拉条）。ScrollContainer 两轴滚动条统一入口。</summary>
     public static void ApplyMetalScrollBar(ScrollBar bar)
     {
@@ -521,8 +505,12 @@ public partial class UITheme : RefCounted
     }
 
     /// <summary>模态退出编排：面板与遮罩同时淡出后隐藏根节点。
-    /// 交互与输入在调用当帧立即断开（鼠标穿透 + 停用输入处理），因此退场动画期间
-    /// 不会截获已交还给下一层的输入——退回/暂停链的焦点交接保持同步，仅有视觉残影渐隐。</summary>
+    /// 交互与输入在调用当帧立即断开（整棵子树鼠标命中摘除 + 停用输入处理），因此退场动画期间
+    /// 不会截获已交还给下一层的输入——退回/暂停链的焦点交接保持同步，仅有视觉残影渐隐。
+    /// 鼠标命中摘除必须递归：Viewport 命中先递归子节点、后判父级 mouse_filter，父级置 Ignore
+    /// 只让父节点自己不返回，子按钮照旧被命中（而 Button 走 GUI 相位，不经被停用的
+    /// _input/_unhandled_input）。退场结束（根已隐藏）时按快照还原，故各 Show*/重开路径
+    /// 只需照旧复位根与遮罩即可。</summary>
     public static void AnimateModalClose(Node root, Control dim, Control panel, Action? onClosed = null)
     {
         if (!GodotObject.IsInstanceValid(root) || !GodotObject.IsInstanceValid(panel))
@@ -531,8 +519,7 @@ public partial class UITheme : RefCounted
             return;
         }
 
-        dim.MouseFilter = Control.MouseFilterEnum.Ignore;
-        panel.MouseFilter = Control.MouseFilterEnum.Ignore;
+        SuppressMouseInput(root);
         root.SetProcessInput(false);
         root.SetProcessUnhandledInput(false);
 
@@ -542,6 +529,7 @@ public partial class UITheme : RefCounted
         dimTw.TweenProperty(dim, "modulate:a", 0.0f, 0.15).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
         tw.Chain().TweenCallback(Callable.From(() =>
         {
+            RestoreMouseInput(root);
             if (GodotObject.IsInstanceValid(root))
             {
                 // 根可能是 CanvasLayer（无 Visible 属性，只有 visible 成员）或 Control——统一走属性名写入
@@ -550,6 +538,62 @@ public partial class UITheme : RefCounted
 
             onClosed?.Invoke();
         }));
+    }
+
+    /// <summary>退场期鼠标命中快照（存在被摘除子树的根节点 meta 上）。</summary>
+    private const string MouseFilterSnapshotMeta = "modal_close_mouse_filter_snapshot";
+
+    /// <summary>递归摘除子树鼠标命中（含根自身），原值按 (节点, 值) 平铺快照挂在根 meta 上。
+    /// Control 没有「上一值」可查，而子树里装饰件多为 Ignore、按钮是 Stop——统一硬编码一个
+    /// 默认值必然改坏另一类，故一律快照后还原。</summary>
+    private static void SuppressMouseInput(Node root)
+    {
+        var snapshot = new Godot.Collections.Array();
+        CollectMouseFilters(root, snapshot);
+        if (snapshot.Count == 0)
+        {
+            // 空摘除＝退场仍可能截获点击（调用方把根节点传成了不含任何 Control 的容器）。
+            // 无头下不崩不报错，只有这条日志能指认，故不静默放过。
+            GD.PushWarning("InfiAir: AnimateModalClose 的根子树里没有任何 Control——退场期鼠标命中摘除是空操作");
+            return;
+        }
+
+        root.SetMeta(MouseFilterSnapshotMeta, snapshot);
+    }
+
+    private static void CollectMouseFilters(Node node, Godot.Collections.Array snapshot)
+    {
+        if (node is Control control)
+        {
+            snapshot.Add(Variant.From(control));
+            snapshot.Add((int)control.MouseFilter);
+            control.MouseFilter = Control.MouseFilterEnum.Ignore;
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            CollectMouseFilters(child, snapshot);
+        }
+    }
+
+    /// <summary>还原退场前摘除的鼠标命中。快照中的节点可能已被重建（基地页/轮盘选项按次重建），
+    /// 失效引用跳过——新节点保留构造函数给的默认值，不会被还原成上一批节点的残值。</summary>
+    private static void RestoreMouseInput(Node root)
+    {
+        if (!GodotObject.IsInstanceValid(root) || !root.HasMeta(MouseFilterSnapshotMeta))
+        {
+            return;
+        }
+
+        var snapshot = root.GetMeta(MouseFilterSnapshotMeta).AsGodotArray();
+        root.RemoveMeta(MouseFilterSnapshotMeta);
+        for (var i = 0; i + 1 < snapshot.Count; i += 2)
+        {
+            if (snapshot[i].AsGodotObject() is Control control && GodotObject.IsInstanceValid(control))
+            {
+                control.MouseFilter = (Control.MouseFilterEnum)snapshot[i + 1].AsInt32();
+            }
+        }
     }
 
     /// <summary>一次性缩放冲击（pivot 居中）：入场/受激/数值变化时的「弹一下」。

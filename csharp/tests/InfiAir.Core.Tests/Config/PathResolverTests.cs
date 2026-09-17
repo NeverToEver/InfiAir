@@ -11,7 +11,8 @@ public sealed class PathResolverTests
     {
         ["player"] = new Dictionary<string, object?>
         {
-            ["max_speed"] = 420.5,
+            ["max_speed"] = 420.9,
+            ["neg_speed"] = -4.9,
             ["level"] = 5L,
             ["title"] = "雾都",
             ["tags"] = new List<object?> { 1L, 2L },
@@ -36,9 +37,13 @@ public sealed class PathResolverTests
     [Fact]
     public void Resolve_IntKind_RoundsDoubleTowardZero()
     {
-        // GDScript int() 语义：浮点向零截断
+        // GDScript int() 语义：浮点向零截断。取值必须能分辨「截断」与「四舍六入五取偶」：
+        // 420.5 在两种语义下都得 420（banker's rounding 的平局规则恰好同值），钉不住实现。
         var v = PathResolver.Resolve(Tree(), "player.max_speed", 0L, ValueKind.Int);
         Assert.Equal(420L, v);
+
+        var negative = PathResolver.Resolve(Tree(), "player.neg_speed", 0L, ValueKind.Int);
+        Assert.Equal(-4L, negative);
     }
 
     [Fact]

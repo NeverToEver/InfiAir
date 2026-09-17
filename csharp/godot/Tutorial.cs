@@ -19,6 +19,11 @@ public partial class Tutorial : Node2D
     public float HomeChargeTime = 1.5f;
     public float DockChargeTime = 3.0f; // 母舰召唤蓄力（mothership.dock_charge_time，对齐正局）
 
+    // 逐帧输入查询的动作名静态持有：免每帧把 C# 字符串转成 StringName 的原生 intern 开销
+    private static readonly StringName ActDock = new("dock");
+    private static readonly StringName ActHomecoming = new("homecoming");
+    private static readonly StringName ActBoost = new("boost");
+
     private static readonly string[] StageTitles =
     {
         "TUT_S1_TITLE",
@@ -41,8 +46,10 @@ public partial class Tutorial : Node2D
     private int _boostCount;
     private int _dashCount;
     private bool _prevDashing;
-    private float _homeCharge;
-    private float _dockCharge;
+    // 两段蓄力（阶段 3 召唤母舰 / 阶段 4 返航）用 core HoldCharge（按住累加 → 达阈值触发一次 → 松手复位）；
+    // 阈值在 _Ready 按配置覆写。阶段切换与门控失效都靠 Reset 归零，不再各自维护累加字段。
+    private readonly InfiAir.Core.Input.HoldCharge _homeCharge = new(1.5f);
+    private readonly InfiAir.Core.Input.HoldCharge _dockCharge = new(3.0f);
     private float _maxHp = 100.0f; // 阶段 2 锁血每物理帧用，_ready 缓存一次（教程内 buffs 不变）
     private float _objectivePoll; // 蓄力百分比文本 0.1s 节流计时（对齐 HUD 仪表约定）
     private BaseConsole? _baseUi; // typed 字段
@@ -70,12 +77,6 @@ public partial class Tutorial : Node2D
         _onPlayerDied = Callable.From(OnPlayerDied);
     }
 
-
-
-
-
-
-
     public override void _Ready()
     {
         GameState.Instance.ResetRun();
@@ -100,9 +101,16 @@ public partial class Tutorial : Node2D
         // 与 HUD（layer=2）分层——教程画面与正局同款辉光/分级
         AddChild(new WorldPostFx());
         BuildHud();
-        HomeChargeTime = (float)GameState.Instance.Cfg("effects.home_charge_time", HomeChargeTime).AsDouble();
-        DockChargeTime = (float)GameState.Instance.Cfg("mothership.dock_charge_time", DockChargeTime).AsDouble();
+        // 蓄力时长是百分比文本与「蓄满即过关」判定的除数（core HoldCharge 的 Progress / Threshold）：
+        // 0/负值让蓄力段开按即过（非有限读数还会写进提示文案），钳制口径与主路径 Main 同源。
+        HomeChargeTime = CfgFx.Float("effects.home_charge_time", HomeChargeTime, CfgFx.IntervalFloor);
+        DockChargeTime = CfgFx.Float("mothership.dock_charge_time", DockChargeTime, CfgFx.IntervalFloor);
+        _homeCharge.Threshold = HomeChargeTime;
+        _dockCharge.Threshold = DockChargeTime;
         EnterStage(0);
+        // 固定标记：教程场景就绪观测点（冒烟门禁据此断言教程入场链路跑通）；
+        // 场景加载/切场景失败时本行不执行，无头也能判出
+        GD.Print("[tutorial] 场景就绪");
     }
 
     public override void _ExitTree()
@@ -235,7 +243,7 @@ public partial class Tutorial : Node2D
             case 3:
                 {
                     // 母舰召唤与停靠（对齐正局：长按 H 蓄力 → 穿梭门 → 母舰穿出 → 对接补给）
-                    _dockCharge = 0.0f;
+                    _dockCharge.Reset();
                     SetObjectiveTr("TUT_S4_OBJ");
                     break;
                 }
@@ -243,7 +251,7 @@ public partial class Tutorial : Node2D
             case 4:
                 {
                     // 返航与基地
-                    _homeCharge = 0.0f;
+                    _homeCharge.Reset();
                     SetObjectiveTr("TUT_S5_OBJ");
                     break;
                 }
@@ -329,11 +337,16 @@ public partial class Tutorial : Node2D
         return n;
     }
 
-    /// <summary>敌机配置取默认表首项（教程只用 straight 基础型）。</summary>
-    private static Godot.Collections.Dictionary EnemyTypeConfig()
+    /// <summary>教程敌机配置（首项，教程只用 straight 基础型）。
+    /// 经 Spawner 的共用 merge 入口，保证教程与正局同源——不得直读 BuildEnemyTypes 默认表。
+    /// 整表构建含 5 张字典、5 次贴图加载与一次 cfg 合并，而刷怪是逐只调用，故取到后缓存
+    /// （机型表在跑动中不变；Enemy 只读该表，不复用会写坏共享配置）。
+    /// 实例字段而非静态：静态持 Godot 对象在退出期先于场景树释放时崩。</summary>
+    private Godot.Collections.Dictionary? _enemyTypeConfig;
+
+    private Godot.Collections.Dictionary EnemyTypeConfig()
     {
-        // Spawner.ENEMY_TYPES 为实例属性——默认表经静态工厂构建（教程只用 straight 基础型）
-        return Spawner.BuildEnemyTypes()[0];
+        return _enemyTypeConfig ??= Spawner.BuildMergedEnemyTypes()[0];
     }
 
     private Enemy SpawnEnemy(Godot.Collections.Dictionary config, StringName strategy)
@@ -479,7 +492,7 @@ public partial class Tutorial : Node2D
             case 1:
                 {
                     // 加速/冲刺输入计数（rising edge）
-                    if (Input.IsActionJustPressed("boost"))
+                    if (Input.IsActionJustPressed(ActBoost))
                     {
                         _boostCount = Mathf.Min(_boostCount + 1, 2);
                         UpdateBoostObjective();
@@ -525,26 +538,24 @@ public partial class Tutorial : Node2D
                     // 长按 H 蓄力召唤母舰（对齐正局 dock_charge_time；母舰已在场不再重复触发）
                     if (_mothership == null && !_advancing)
                     {
-                        if (Input.IsActionPressed("dock"))
+                        switch (_dockCharge.Tick(d, Input.IsActionPressed(ActDock)))
                         {
-                            _dockCharge += d;
-                            _objectivePoll -= d;
-                            if (_objectivePoll <= 0.0f)
-                            {
-                                _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                                SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_dockCharge / DockChargeTime, 0.0f, 1.0f) * 100.0f) });
-                            }
-
-                            if (_dockCharge >= DockChargeTime)
-                            {
+                            case InfiAir.Core.Input.HoldChargePhase.Triggered:
                                 SummonMothership();
-                            }
-                        }
-                        else if (_dockCharge > 0.0f)
-                        {
-                            _dockCharge = 0.0f;
-                            _objectivePoll = 0.0f;
-                            SetObjectiveTr("TUT_S4_OBJ");
+                                break;
+                            case InfiAir.Core.Input.HoldChargePhase.Charging:
+                                _objectivePoll -= d;
+                                if (_objectivePoll <= 0.0f)
+                                {
+                                    _objectivePoll = ObjectivePollInterval; // 百分比文本节流
+                                    SetObjectiveTr("TUT_S4_CHARGE", new Godot.Collections.Array { (int)(_dockCharge.Progress * 100.0f) });
+                                }
+
+                                break;
+                            case InfiAir.Core.Input.HoldChargePhase.Released:
+                                _objectivePoll = 0.0f;
+                                SetObjectiveTr("TUT_S4_OBJ");
+                                break;
                         }
                     }
 
@@ -553,26 +564,24 @@ public partial class Tutorial : Node2D
 
             case 4:
                 {
-                    if (Input.IsActionPressed("homecoming"))
+                    switch (_homeCharge.Tick(d, Input.IsActionPressed(ActHomecoming)))
                     {
-                        _homeCharge += d;
-                        _objectivePoll -= d;
-                        if (_objectivePoll <= 0.0f)
-                        {
-                            _objectivePoll = ObjectivePollInterval; // 百分比文本节流
-                            SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(Mathf.Clamp(_homeCharge / HomeChargeTime, 0.0f, 1.0f) * 100.0f) });
-                        }
-
-                        if (_homeCharge >= HomeChargeTime)
-                        {
+                        case InfiAir.Core.Input.HoldChargePhase.Triggered:
                             OpenBase();
-                        }
-                    }
-                    else if (_homeCharge > 0.0f)
-                    {
-                        _homeCharge = 0.0f;
-                        _objectivePoll = 0.0f;
-                        SetObjectiveTr("TUT_S5_OBJ");
+                            break;
+                        case InfiAir.Core.Input.HoldChargePhase.Charging:
+                            _objectivePoll -= d;
+                            if (_objectivePoll <= 0.0f)
+                            {
+                                _objectivePoll = ObjectivePollInterval; // 百分比文本节流
+                                SetObjectiveTr("TUT_S5_CHARGE", new Godot.Collections.Array { (int)(_homeCharge.Progress * 100.0f) });
+                            }
+
+                            break;
+                        case InfiAir.Core.Input.HoldChargePhase.Released:
+                            _objectivePoll = 0.0f;
+                            SetObjectiveTr("TUT_S5_OBJ");
+                            break;
                     }
 
                     break;

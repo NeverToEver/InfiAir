@@ -41,7 +41,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
 	update-desktop-database "$APPLICATIONS_DIR" || true
 fi
 
-echo "已安装 $APP_NAME："
+echo "已安装 ${APP_NAME}："
 echo "  程序目录  $INSTALL_DIR"
 echo "  命令入口  $BIN_DIR/$APP_ID"
 echo "  桌面入口  $APPLICATIONS_DIR/$APP_ID.desktop"

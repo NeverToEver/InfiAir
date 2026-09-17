@@ -20,7 +20,7 @@ for arg in "$@"; do
             exit 0
             ;;
         --publish) PUBLISH=1 ;;
-        *) echo "[release] 未知参数: $arg（--help 查看用法）" >&2; exit 1 ;;
+        *) echo "[release] 未知参数: ${arg}（--help 查看用法）" >&2; exit 1 ;;
     esac
 done
 
@@ -53,7 +53,7 @@ host=github.com
     fi
     [ -n "$GITHUB_TOKEN" ] || {
         echo "[release] 未取得 GitHub 凭据：设 GITHUB_TOKEN，或在凭据管理器保存 github.com 凭据" >&2; exit 1; }
-    echo "==> --publish 模式：版本 v$VERSION，前置检查通过"
+    echo "==> --publish 模式：版本 v${VERSION}，前置检查通过"
 fi
 # 探测链 .NET 版优先（godot-mono）——含 .cs 工程标准版引擎无法导出
 # 显式传 GODOT 时不回退（尊重调用方指定）
@@ -73,7 +73,7 @@ fi
 # GODOT 兜底链断裂必须给出诊断——回退链末端 command not found 裸报错对用户无指引，
 # 最终探测失败立即给出引擎安装指引（对齐 run.sh 诊断口径）
 if ! command -v "$GODOT" >/dev/null 2>&1; then
-    echo "[release] 未找到 Godot 引擎：$GODOT（需要 4.6+，推荐 .NET 版）" >&2
+    echo "[release] 未找到 Godot 引擎：${GODOT}（需要 4.6+，推荐 .NET 版）" >&2
     echo "         下载：https://godotengine.org/download 或放置到 ~/.local/bin/" >&2
     exit 1
 fi
@@ -130,13 +130,13 @@ export_platform() {
 	if grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep -q "^ERROR"; then
 		grep -vE "^ERROR: [0-9]+ RID allocations? of type .* leaked at exit" "$log" | grep "^ERROR" | sort -u | head -5 >&2
 		rm -f "$log"
-		echo "[release] 导出日志含 ERROR（$preset），中止——产物不可信" >&2
+		echo "[release] 导出日志含 ERROR（${preset}），中止——产物不可信" >&2
 		exit 1
 	fi
 	rm -f "$log"
 	# C# 工程导出必须携带托管运行时目录（coreclr + InfiAir.dll 等）；缺失即空壳包
 	if [ ! -d "$(dirname "$out")/$data_dir" ]; then
-		echo "[release] 导出产物缺少 $data_dir/（$preset）——C# 程序集未随包导出" >&2
+		echo "[release] 导出产物缺少 $data_dir/（${preset}）——C# 程序集未随包导出" >&2
 		exit 1
 	fi
 }

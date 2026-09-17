@@ -30,6 +30,24 @@ public sealed class ProgressionCurvesTests
     }
 
     [Fact]
+    public void Threshold_CycleMultiplier_AmplifiesEachCyclesRungs()
+    {
+        // 口径：内层是对该圈各档「相邻档差」的累加（望远镜求和，结果即该圈末档基础阈值），
+        // 再整体乘该圈倍率 mult(c)=cycle_mult^c；第 c 圈贡献 = 末档阈值 × mult(c)。
+        // 即 total = Σ_{c<cycle} b[7]×m^c + b[step]×m^cycle，最终 × 难度倍率后四舍五入（.5 远离零）。
+        // 8 档表（生产 base）下：index 8 = 第 0 圈全额 b7 + 第 1 圈取第 0 档 = 80000 + 3000×1.35；
+        // 旧实现丢掉档差的 ×mult 放大后这些值全部偏离——本用例把它钉死。
+        var base8 = new long[] { 3000, 8000, 15000, 25000, 40000, 55000, 70000, 80000 };
+        Assert.Equal(84050L, MilestoneCurve.Threshold(8, base8, 1.35, 1.0));
+        Assert.Equal(100250L, MilestoneCurve.Threshold(10, base8, 1.35, 1.0));   // 80000 + 15000×1.35
+        Assert.Equal(188000L, MilestoneCurve.Threshold(15, base8, 1.35, 1.0));   // 80000 + 80000×1.35
+        Assert.Equal(193468L, MilestoneCurve.Threshold(16, base8, 1.35, 1.0));   // 80000×(1+1.35) + 3000×1.35²
+
+        // 难度档倍率作用在求和之后（hard 的 1.5）：84050×1.5 = 126075
+        Assert.Equal(126075L, MilestoneCurve.Threshold(8, base8, 1.35, 1.5));
+    }
+
+    [Fact]
     public void Threshold_IsMonotonicOverLongHorizon()
     {
         long prev = 0;
@@ -156,5 +174,32 @@ public sealed class ProgressionCurvesTests
         Assert.Equal(2.2, DifficultyCurve.Compute(30, 0, 1.5, 0.6, 2), 12);
         Assert.Equal(2.2, DifficultyCurve.Compute(30, -5, 1.5, 0.6, 2), 12);
         Assert.Equal(1.0, DifficultyCurve.Compute(30, double.NaN, 1.5, 0.0, 0), 12);
+    }
+
+    [Fact]
+    public void Compute_TinyTimeStep_StaysPositiveFiniteAndMonotonic()
+    {
+        // 比值越过 long 域：runTime=1e6s / timeStep=1e-14s ≈ 1e20 > long.MaxValue，double→long 直接
+        // 转换回绕成 long.MinValue（实测 D ≈ −229.58 巨负），且 60s 的 D（1.15）反而大于 1e6s 的 D
+        // ——曲线单调性反转。调用方的 Mathf.Max(x, 0.1) 只挡 ≤0。
+        var atMinute = DifficultyCurve.Compute(60, 1e-14, 1.5, 0.0, 0);
+        var atCap = DifficultyCurve.Compute(1e6, 1e-14, 1.5, 0.0, 0);
+        Assert.True(double.IsFinite(atCap), $"微小步长下产出非有限值：{atCap}");
+        Assert.True(atCap > 0.0, $"微小步长下难度巨负：{atCap}");
+        Assert.True(atCap >= atMinute, $"微小步长下曲线回退：{atMinute} → {atCap}");
+
+        // 档数饱和后稳定：runTime 上界 1e6 之上的输入与上界同值（同为越界输入）
+        Assert.Equal(atCap, DifficultyCurve.Compute(1e9, 1e-14, 1.5, 0.0, 0), 12);
+
+        // 饱和阈值必须落在 long 域而不是更小的域：1e6s / 1e-6s = 1e12 档（> int.MaxValue）仍须按
+        // 真档数累进 = 1 + 1e12×1e-6/600×1.5 = 2501。上界误取 int.MaxValue 一类更小常量时，
+        // 该输入被当成越界、档数直接顶到饱和值 long.MaxValue，结果暴涨到 ~2.3e10。
+        var tinyStepWithinLongDomain = DifficultyCurve.Compute(1e6, 1e-6, 1.5, 0.0, 0);
+        Assert.Equal(2501.0, tinyStepWithinLongDomain, 6);
+
+        // 饱和档数取 long 域上界（不是某个更小的常量）：比值越过上界的输入按 long.MaxValue 档累进，
+        // 时间项随饱和值线性，饱和常量取小则时间项偏低。
+        var saturatedStep = DifficultyCurve.Compute(1e6, 1e-13, 1.5, 0.0, 0);
+        Assert.Equal(1.0 + (double)long.MaxValue * 1e-13 / 600.0 * 1.5, saturatedStep, 3);
     }
 }

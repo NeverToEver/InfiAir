@@ -1,30 +1,33 @@
 namespace InfiAir.Core.Storage;
 
 /// <summary>
-/// 本局存档字段的判型与规范化（零 Godot 依赖，可单测）。
+/// 本局存档字段的判型与规范化（零 Godot 依赖，可单测；**同一钳制口径的唯一实现**）。
 ///
 /// 存在理由：这些规则原先写死在 Godot 侧 GameState.RunSave/SaveInt 里——同一件事两处口径，
 /// 且 <c>ReadIntMap</c> 用裸 <c>(int)val.AsDouble()</c> 无钳制（同文件 SaveInt 却钳了
 /// [0, int.MaxValue]）：手改档的超大值经裸转换回绕成负数，统计与里程碑静默错乱；
 /// 旧档字段缺失时的回退语义也没有任何用例钉住。判定下沉后由单测覆盖。
 ///
-/// 语义对齐 Godot 侧既有实现（SaveInt / SaveNum / NormalizeAugments）：
-/// 数值宽容（int/float 互通）、判型不符回退默认值、int 域钳 [0, int.MaxValue]、非有限值回退。
+/// 接线（别让两套语义复活）：Godot 侧 <c>GameState.SaveInt/SaveNum</c> 只把 Variant 载入成
+/// CLR 数值（Int→long / Float→double，其余载入为 null），判型与钳制**全部委托本类**
+/// （<see cref="TryClampInt"/> / <see cref="TryClampNum"/>）——数值宽容（int/float 互通）、
+/// 判型不符回退默认值、int 域钳 [0, int.MaxValue]、非有限值回退，只有这一份。
 /// 输入为 CLR JSON 兼容树（<c>Dictionary&lt;string, object?&gt;</c>，数值为 long/double）。
 /// </summary>
 public static class RunFieldNormalize
 {
-    /// <summary>读存档 int 字段（对齐 SaveInt）：缺键 / 判型不符 / 非有限回退 <paramref name="fallback"/>；
-    /// 有限数值向零截断并钳 [0, int.MaxValue]。</summary>
+    /// <summary>读存档 int 字段（Godot 侧 SaveInt 委托本入口）：缺键 / 判型不符 / 非有限回退
+    /// <paramref name="fallback"/>；有限数值向零截断并钳 [0, int.MaxValue]。</summary>
     public static int ReadInt(IReadOnlyDictionary<string, object?> data, string key, int fallback) =>
         data.TryGetValue(key, out var raw) && TryClampInt(raw, out var value) ? value : fallback;
 
-    /// <summary>读存档数值字段（对齐 SaveNum）：缺键 / 判型不符 / 非有限回退 <paramref name="fallback"/>。
-    /// 非有限值必须回退——NaN 会顺着求和/比较污染血量与难度状态。</summary>
+    /// <summary>读存档数值字段（Godot 侧 SaveNum 委托本入口）：缺键 / 判型不符 / 非有限回退
+    /// <paramref name="fallback"/>。非有限值必须回退——NaN 会顺着求和/比较污染血量与难度状态。</summary>
     public static double ReadNum(IReadOnlyDictionary<string, object?> data, string key, double fallback) =>
         data.TryGetValue(key, out var raw) && TryClampNum(raw, out var value) ? value : fallback;
 
-    /// <summary>数值 → int 域：非数值返回 false；有限值向零截断并钳 [0, int.MaxValue]，非有限返回 false。</summary>
+    /// <summary>数值 → int 域：非数值返回 false；有限值向零截断并钳 [0, int.MaxValue]，非有限返回 false。
+    /// 记录读档的 Variant 非 Int/Float 时载入为 <c>null</c>，即由此判否回退。</summary>
     public static bool TryClampInt(object? raw, out int value)
     {
         switch (raw)
@@ -82,10 +85,15 @@ public static class RunFieldNormalize
     }
 
     /// <summary>
-    /// 增幅表规范化：只保留正层级（0 / 负 / 非数值丢弃），层级钳 [0, int.MaxValue]。
+    /// 增幅表规范化：只保留正层级（0 / 负 / 非数值丢弃），层级钳 [0, levelLimit(id)]。
+    /// <paramref name="levelLimit"/> 由调用方按节点结构上限构造（风险加点节点 +1：那一级是双倍价
+    /// 买的，见 <c>TalentEconomy.RestoreLimit</c>），返回 ≤0 表示未知节点 → 整条丢弃：
+    /// 增幅表键集必须与天赋树同源，否则手改档可注入任意 id 让效果消费端直接生效（白拿增幅）。
+    /// 上限不得只在一侧收紧：augments 与 talent_levels 是同一节点的两套层级，
+    /// 只削一侧会让 IsOvercharged 的节点多花的那一级在乘算消费端失效。
     /// 键在 Godot 侧需重建为 StringName（JSON 往返会退化为 String），本函数只产出字符串键。
     /// </summary>
-    public static Dictionary<string, int> NormalizeAugments(object? raw)
+    public static Dictionary<string, int> NormalizeAugments(object? raw, Func<string, int> levelLimit)
     {
         var result = new Dictionary<string, int>();
         if (raw is not IReadOnlyDictionary<string, object?> map)
@@ -95,10 +103,13 @@ public static class RunFieldNormalize
 
         foreach (var kv in map)
         {
-            if (TryClampInt(kv.Value, out var level) && level > 0)
+            var limit = levelLimit(kv.Key);
+            if (limit <= 0 || !TryClampInt(kv.Value, out var level) || level <= 0)
             {
-                result[kv.Key] = level;
+                continue;
             }
+
+            result[kv.Key] = Math.Min(level, limit);
         }
 
         return result;

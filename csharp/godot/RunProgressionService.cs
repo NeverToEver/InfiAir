@@ -291,10 +291,13 @@ public sealed partial class RunProgressionService : RefCounted
         RunGoal.Kind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
     /// <summary>达成进度 0..1（取两条件中更接近者）。
-    /// 保留公开读口作诊断面；HUD 目前自行取「更接近的一支」以同时显示条件文本，
-    /// 若日后统一走本口须一并核对边界（core RunGoal.Progress 与 HUD 内联的并列判定不完全等价）。</summary>
+    /// 保留公开读口作诊断面；HUD 用 <see cref="GoalCloserKind"/> 选显示哪一支（判定同源在 core）。</summary>
     public double GoalProgress() =>
         RunGoal.Progress(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
+
+    /// <summary>两支里更接近达成的那一支（HUD 常驻目标行选显示哪条用；判定在 core RunGoal.CloserKind）。</summary>
+    public RunGoalKind GoalCloserKind() =>
+        RunGoal.CloserKind(GameState.Instance.BossKills, GameState.Instance.RunTime, _goal);
 
     /// <summary>当前难度命名档位（0 起；HUD 难度标签用）。</summary>
     public int DifficultyTierIndex() => DifficultyTier.IndexFor(DifficultyMultiplier, _tierThresholds);
@@ -404,13 +407,19 @@ public sealed partial class RunProgressionService : RefCounted
         _ddaTimer = 0.0; // DDA 计时必须复位——否则旧局受击降档渗透新局
     }
 
-    /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新
-    /// （DDA 计时不还原剩余时长——读档从新一波开始，降档仅作参考量不持久化语义）。</summary>
+    /// <summary>读档还原（本局存档）：难度乘数/时间档/DDA 计时覆盖；倍率缓存随之刷新。
+    /// 末尾补发 DifficultyChanged——HUD 难度读数只在难度信号/语言变更时刷新（无轮询），
+    /// 漏发则读档后最长停到下一次时间档跨步（30 秒量化）才显示真实难度，与
+    /// DESIGN_BASELINE §2.5「各服务 RestoreRunState 末尾补发既有信号」不符（姊妹服务均已如此）。
+    /// **DDA 剩余时长会一并还原**（键 `dda_timer` 写读成对，见存档对称门禁）——受击喘息是有界量
+    /// （≤`DDA_DURATION`），带过读档边界对读档手感的影响在噪声内；改动此处须同步
+    /// DESIGN_BASELINE §2.5 的字段表（不得只改一侧：键留着不读会掉出写读对称判定）。</summary>
     public void RestoreRunState(double difficultyMultiplier, int difficultyTimeStep, double ddaTimer)
     {
         DifficultyMultiplier = Math.Max(difficultyMultiplier, 1.0);
         _difficultyTimeStep = Math.Max(difficultyTimeStep, 0);
         _ddaTimer = Math.Max(ddaTimer, 0.0);
         RefreshRegenCache();
+        DifficultyChanged?.Invoke(DifficultyMultiplier);
     }
 }

@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -6,10 +7,13 @@ namespace InfiAir;
 /// 辅助瞄准框覆盖层：
 /// 世界坐标单节点，Main._Ready 运行时创建挂 Main 下（Tutorial 同款，登记
 /// GameState.AimFrameLayer）。
-/// 每帧一次 _draw 遍历 GameState.enemies 中带 aim_marked 的 Enemy 统一画四角 bracket 框
+/// 每帧一次 _draw 遍历 GameState.enemies 中带标记的可瞄准目标统一画四角 bracket 框
 /// （单节点零逐敌节点开销）；框半径 = 碰撞半径 + frame_pad（指示器族，frame_pad 不乘
 /// world_scale）。青色强对比 + 低频频闪；准星入框的个体框转金色高亮（即时反馈
-/// 「追踪已生效」）。Boss/炮塔/编队战机非 Enemy 类，is 判定天然排除；精英纳入。
+/// 「追踪已生效」）。
+/// 扫描口径 = <see cref="IAimTarget"/> 契约：普通敌机、精英、遭遇单位（炮塔/编队机）同一路径，
+/// Boss 不实现契约故天然排除（既有例外，不扩大）。仅 <see cref="AimTargetCount.Marked"/> 为零时
+/// 整表跳过（零标记是常态）。
 /// 语义：磁吸/锥形弱追踪/输入反比/距离衰减（Player.dist_falloff_curve 单实现）；
 /// marked_target_at 渲染帧缓存；player_ref/enemies 每渲染帧一次静态缓存（Enemy.cs
 /// CachedPlayer 模式，避免逐帧跨语言动态访问）。
@@ -25,7 +29,9 @@ public partial class AimFrameLayer : Node2D
 
     /// <summary>当前档位辅助框内边距（balance.json player.aim_assist.levels，信号联动刷新）。</summary>
     private float _framePad = 16.0f;
-    /// <summary>准星磁吸档位参数（同 levels 前缀、同信号刷新）。</summary>
+    /// <summary>准星磁吸档位参数（同 levels 前缀、同信号刷新）。负值属配置损坏，读取处按
+    /// core <see cref="AimAssistParams.NonNegativeOr"/> 回退默认——钳成 0 等于磁吸失效/反向
+    /// （护栏加在诊断读口上而不在这里，就是原缺陷的形态）。</summary>
     private float _magnetRange = 100.0f;
     private float _magnetStrength = 6.0f;
     private float _magnetMaxSpeed = 8.0f;
@@ -35,18 +41,19 @@ public partial class AimFrameLayer : Node2D
     private float _falloffPeak = 400.0f;
     private float _falloffEnd = 1400.0f;
     private float _falloffMin = 0.3f;
-    private Enemy? _hover;  // 本帧准星入框的标记敌（高亮显示用）
+    private IAimTarget? _hover;  // 本帧准星入框的标记目标（高亮显示用）
     /// <summary>marked_target_at 渲染帧缓存（player.aim_point 与 aim_frame._process 同帧各调一次，
     /// 命中缓存免重复 O(enemies) 扫描）。</summary>
     private ulong _targetCacheFrame = ulong.MaxValue;
-    private Enemy? _targetCacheResult;
+    private IAimTarget? _targetCacheResult;
 
     private readonly Callable _onAimAssistChanged;
 
-    /// <summary>热路径缓存：enemies 每渲染帧一次取 typed Array<Node>（单实例共享，帧内复用）。
-    /// 不得用静态集合持 Godot 对象引用（悬空访问 + 退出 finalize 触碰风险）。</summary>
+    /// <summary>热路径缓存：enemies 每渲染帧一次取注册表引用（单实例共享，帧内复用；
+    /// 注册表是托管 List，取用零封送）。不得用静态集合持 Godot 对象引用
+    /// （悬空访问 + 退出 finalize 触碰风险）。</summary>
     private ulong _cacheFrame = ulong.MaxValue;
-    private Godot.Collections.Array<Node> _frameEnemies = new();
+    private List<Node2D> _frameEnemies = new();
 
     /// <summary>上帧是否存在标记敌（归零边界补一帧重绘清残框用）。</summary>
     private bool _hadMarked;
@@ -60,8 +67,8 @@ public partial class AimFrameLayer : Node2D
         _onAimAssistChanged = Callable.From<StringName>(OnAimAssistLevelChanged);
     }
 
-    /// <summary>enemies 每渲染帧一次 typed 缓存（帧内复用，避免逐敌 Variant 拆装箱）。</summary>
-    private Godot.Collections.Array<Node> CachedEnemies()
+    /// <summary>enemies 每渲染帧一次取注册表引用（帧内复用，免逐次 GameState 单例校验）。</summary>
+    private List<Node2D> CachedEnemies()
     {
         var frame = Engine.GetProcessFrames();
         if (frame != _cacheFrame)
@@ -86,13 +93,19 @@ public partial class AimFrameLayer : Node2D
         }
 
         LoadLevelParams();
-        _magnetInputMin = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble();
-        _magnetInputFull = (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble();
-        // full 钳到 min 之上——两键相等时 MagnetPull 的 t = 0/0 = NaN 污染准星
-        _magnetInputFull = Mathf.Max(_magnetInputFull, _magnetInputMin + 0.01f);
-        _falloffPeak = (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble();
-        _falloffEnd = (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble();
-        _falloffMin = (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble();
+        // 输入窗口与衰减域一律经 core AimAssistParams 钳（与 Player.LoadAimAssistParams 同口径）：
+        // 负值属配置损坏，回退默认而非钳 0（0 是「机制关闭」的合法取值，与损坏不是一个语义）
+        (_magnetInputMin, _magnetInputFull) = AimAssistParams.MagnetWindow(
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_min", _magnetInputMin).AsDouble(),
+            (float)GameState.Instance.Cfg("player.aim_assist.input.magnet_input_full", _magnetInputFull).AsDouble(),
+            _magnetInputMin,
+            _magnetInputFull);
+        _falloffPeak = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.peak", _falloffPeak).AsDouble(), _falloffPeak);
+        _falloffEnd = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.end", _falloffEnd).AsDouble(), _falloffEnd);
+        _falloffMin = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), _falloffMin);
         if (gs != null)
         {
             gs.Connect(GameState.SignalName.AimAssistChanged, _onAimAssistChanged);
@@ -122,10 +135,15 @@ public partial class AimFrameLayer : Node2D
     private void LoadLevelParams()
     {
         var basePath = "player.aim_assist.levels." + GameState.Instance.AimAssistLevel.ToString() + ".";
-        _framePad = (float)GameState.Instance.Cfg(basePath + "frame_pad", _framePad).AsDouble();
-        _magnetRange = (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble();
-        _magnetStrength = (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble();
-        _magnetMaxSpeed = (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble();
+        // 负值口径见字段注释：损坏回退默认，不是钳 0
+        _framePad = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "frame_pad", _framePad).AsDouble(), _framePad);
+        _magnetRange = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_range", _magnetRange).AsDouble(), _magnetRange);
+        _magnetStrength = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_strength", _magnetStrength).AsDouble(), _magnetStrength);
+        _magnetMaxSpeed = AimAssistParams.NonNegativeOr(
+            (float)GameState.Instance.Cfg(basePath + "magnet_max_speed", _magnetMaxSpeed).AsDouble(), _magnetMaxSpeed);
     }
 
     private void OnAimAssistLevelChanged(StringName level)
@@ -136,9 +154,9 @@ public partial class AimFrameLayer : Node2D
     public override void _Process(double delta)
     {
         _simTime += (float)delta; // 闪相位基准（模拟时间），见字段注释
-        // 无标记敌常态跳过扫描+重绘（否则每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
+        // 无标记目标常态跳过扫描+重绘（否则每渲染帧无条件 MarkedTargetAt + QueueRedraw）；
         // 归零当帧补一次重绘清残框
-        if (Enemy.AimMarkedCount == 0)
+        if (AimTargetCount.Marked == 0)
         {
             _hover = null;
             if (_hadMarked)
@@ -152,43 +170,23 @@ public partial class AimFrameLayer : Node2D
 
         _hadMarked = true;
         var p = CachedPlayer();
-        _hover = p != null ? MarkedTargetAt(p.AimPoint()) : null;
+        // 只读取准点：本处是 hover 查询，不回写系统光标（回写是推点方的事，且瞄准非活跃时
+        // 回写会把可见光标拖住——见 Player.AimActive）
+        _hover = p != null ? MarkedTargetAt(p.AimPointNoWarp()) : null;
         QueueRedraw();
     }
 
-    /// <summary>框半宽：碰撞半径（机体尺寸族，setup 已 ×ws 缓存进 Enemy.AimFrameRadius）+ frame_pad
-    /// ——实机调参阅数读口（框尺寸与标靶视觉对齐的观察面）。</summary>
-    public float FrameHalfSize(Enemy e)
-    {
-        // 碰撞半径缓存放 Enemy 实例字段——setup 后恒定（仅 scale.x 随缩放变化），
-        // 避免 _draw/扫描路径每帧 get_node_or_null("CollisionShape2D")。
-        // meta 值已在 enemy.setup 乘过 world_scale，此处不得再乘 e.scale.x
-        //（scale.x 同样含 ws，再乘即 ws 平方，0.5 钳制恰好掩盖；ws 上调时框尺寸非线性暴涨）
-        // HasMeta/GetMeta 直读实例字段（每敌每扫描 ×3 路）
-        var r = e.AimFrameRadius;
-        if (r < 0.0f)
-        {
-            // 未经 setup 的兼容路径：回退读碰撞形状并回填（meta 缺键回退同款语义）
-            var shapeNode = e.GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
-            r = 0.0f;
-            if (shapeNode != null && shapeNode.Shape is CircleShape2D circle)
-            {
-                r = circle.Radius;
-            }
+    /// <summary>框半宽：目标碰撞半径（机体尺寸族，已含 world_scale）+ frame_pad
+    /// ——实机调参阅数读口（框尺寸与标靶视觉对齐的观察面）。算式在 core AimTargeting。</summary>
+    public float FrameHalfSize(IAimTarget t) => AimTargeting.FrameHalfSize(t.AimCollisionRadius, _framePad);
 
-            e.AimFrameRadius = r;
-        }
-
-        return r + _framePad;
-    }
-
-    /// <summary>世界坐标点命中的标记敌：方形框包含判定，多重叠时取框心最近者；无命中返回 null。
+    /// <summary>世界坐标点命中的标记目标：方形框包含判定，多重叠时取框心最近者；无命中返回 null。
     /// 同渲染帧缓存（aim_point 平滑推点与 _process 高亮各查一次，帧内结果一致；
     /// 按帧共享帧首结果，见字段注释）。</summary>
-    public Enemy? MarkedTargetAt(Vector2 point)
+    public IAimTarget? MarkedTargetAt(Vector2 point)
     {
         // 零标记早退（外部调用方不经 _Process 门控）
-        if (Enemy.AimMarkedCount == 0)
+        if (AimTargetCount.Marked == 0)
         {
             return null;
         }
@@ -199,28 +197,29 @@ public partial class AimFrameLayer : Node2D
             return _targetCacheResult;
         }
 
-        Enemy? best = null;
+        IAimTarget? best = null;
         var bestSq = float.PositiveInfinity;
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {
-            if (arr[i] is not Enemy e || !e.AimMarked)
-            {
-                continue;  // 注册表含 Enemy 与 Boss，Boss 非 Enemy 类——is 判定语义等价排除
-            }
-
-            var half = FrameHalfSize(e);
-            var d = (point - e.GlobalPosition).Abs();
-            if (d.X > half || d.Y > half)
+            // 注册表含 Enemy 与 Boss，扫描按契约判型：Boss 不实现契约（既有例外），
+            // 遭遇单位（炮塔/编队机）与普通敌机同一路径
+            if (arr[i] is not IAimTarget t || !t.AimMarked)
             {
                 continue;
             }
 
-            var dSq = point.DistanceSquaredTo(e.GlobalPosition);
+            var center = t.AimWorldPosition;
+            if (!AimTargeting.InFrame(point.X, point.Y, center.X, center.Y, FrameHalfSize(t)))
+            {
+                continue;
+            }
+
+            var dSq = point.DistanceSquaredTo(center);
             if (dSq < bestSq)
             {
                 bestSq = dSq;
-                best = e;
+                best = t;
             }
         }
 
@@ -229,36 +228,36 @@ public partial class AimFrameLayer : Node2D
         return best;
     }
 
-    /// <summary>准星磁吸修正向量：把准星轻微拉向最近框外标记敌（框内归 stickiness 管辖）。
+    /// <summary>准星磁吸修正向量：把准星轻微拉向最近框外标记目标（框内归 stickiness 管辖）。
     /// 静止/抖动（|delta| &lt; input_min）与高速甩枪（&gt;= input_full）直接返回 ZERO——输入优先，
     /// 静止无磁吸天然满足；强度 = strength × (1 - 框沿距/range) × 输入 smoothstep × 距离衰减，
-    /// 钳到 max_speed 防瞬移。无标记敌返回 ZERO。热路径无 sin/cos、无 cfg。</summary>
+    /// 钳到 max_speed 防瞬移。无标记目标返回 ZERO。热路径无 sin/cos、无 cfg。</summary>
     public Vector2 MagnetPull(Vector2 point, Vector2 inputDelta)
     {
         var ilen = inputDelta.Length();
         // 零标记早退（省整表扫描）
-        if (ilen < _magnetInputMin || ilen >= _magnetInputFull || Enemy.AimMarkedCount == 0)
+        if (ilen < _magnetInputMin || ilen >= _magnetInputFull || AimTargetCount.Marked == 0)
         {
             return Vector2.Zero;
         }
 
-        Enemy? best = null;
+        IAimTarget? best = null;
         var bestD = float.PositiveInfinity;
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {
-            if (arr[i] is not Enemy e || !e.AimMarked)
+            if (arr[i] is not IAimTarget t || !t.AimMarked)
             {
                 continue;
             }
 
-            var half = FrameHalfSize(e);
-            // 矩形框沿距（0 = 框内，归 stickiness 不磁吸）
-            var dx = Mathf.Abs(point.X - e.GlobalPosition.X) - half;
-            var dy = Mathf.Abs(point.Y - e.GlobalPosition.Y) - half;
+            var center = t.AimWorldPosition;
+            var half = FrameHalfSize(t);
+            var dx = Mathf.Abs(point.X - center.X) - half;
+            var dy = Mathf.Abs(point.Y - center.Y) - half;
             if (dx <= 0.0f && dy <= 0.0f)
             {
-                continue;
+                continue;  // 框内（0 = 框内，归 stickiness 不磁吸）
             }
 
             if (dx > _magnetRange || dy > _magnetRange)
@@ -266,16 +265,16 @@ public partial class AimFrameLayer : Node2D
                 continue;  // 轴距粗筛，省 sqrt
             }
 
-            // 框沿距负分量钳 0——单轴出框时另一轴为负，计入欧氏长度会
-            // 系统性偏近（磁吸偏弱、range 边界误判），标准 AABB 距离只取框外分量
-            var d = new Vector2(Mathf.Max(dx, 0.0f), Mathf.Max(dy, 0.0f)).Length();
+            // 框沿距只取框外分量（算式在 core AimTargeting）：单轴出框时另一轴为负，
+            // 计入欧氏长度会系统性偏近（磁吸偏弱、range 边界误判）
+            var d = AimTargeting.FrameEdgeDistance(point.X, point.Y, center.X, center.Y, half);
             if (d >= bestD || d > _magnetRange)
             {
                 continue;
             }
 
             bestD = d;
-            best = e;
+            best = t;
         }
 
         if (best == null)
@@ -283,47 +282,49 @@ public partial class AimFrameLayer : Node2D
             return Vector2.Zero;
         }
 
-        var t = (ilen - _magnetInputMin) / (_magnetInputFull - _magnetInputMin);
-        var inputScale = 1.0f - t * t * (3.0f - 2.0f * t);  // smoothstep：慢速精瞄全辅助，快速甩枪退出
+        var target = best.AimWorldPosition;
+        var inputRatio = (ilen - _magnetInputMin) / (_magnetInputFull - _magnetInputMin);
+        var inputScale = 1.0f - inputRatio * inputRatio * (3.0f - 2.0f * inputRatio);  // smoothstep：慢速精瞄全辅助，快速甩枪退出
         var p = CachedPlayer();
-        var falloff = DistFalloff(best.GlobalPosition.DistanceTo(p != null ? p.GlobalPosition : point));
+        var falloff = DistFalloff(target.DistanceTo(p != null ? p.GlobalPosition : point));
         var mag = _magnetStrength * (1.0f - bestD / _magnetRange) * inputScale * falloff;
-        return (best.GlobalPosition - point).Normalized() * Mathf.Min(mag, _magnetMaxSpeed);
+        return (target - point).Normalized() * Mathf.Min(mag, _magnetMaxSpeed);
     }
 
-    /// <summary>锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近敌机；
+    /// <summary>锥形弱追踪查询：从 origin 沿 aim_dir（单位向量）锥角（cone_cos 余弦值）内的最近目标；
     /// 距离超过 falloff.end 硬截止（远距不误绑）；无命中返回 null。O(enemies) 与 marked_target_at 同级。
-    /// **覆盖全部存活敌机**（不限标记敌）：弱追踪的定位是「轻微修正瞄偏」，给所有普通敌机都生效；
+    /// **覆盖全部存活目标**（不限标记目标）：弱追踪的定位是「轻微修正瞄偏」，给所有可瞄准目标都生效；
     /// 标记只决定框显式与框内强追踪，不是弱追踪的准入门槛（早期按 aim_marked 过滤时，约七成敌机
-    /// 完全拿不到辅助，玩家实感即「弱辅瞄时有时无」）。</summary>
-    public Enemy? NearestConeTarget(Vector2 origin, Vector2 aimDir, float coneCos)
+    /// 完全拿不到辅助，玩家实感即「弱辅瞄时有时无」；遭遇单位同属「屏上可打目标」，同一路径）。</summary>
+    public IAimTarget? NearestConeTarget(Vector2 origin, Vector2 aimDir, float coneCos)
     {
-        Enemy? best = null;
+        IAimTarget? best = null;
         var bestD = float.PositiveInfinity;
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {
-            if (arr[i] is not Enemy e)
+            // 契约判型：Boss 不实现（既有例外），遭遇单位与敌机同一路径
+            if (arr[i] is not IAimTarget t || !t.AimTargetable)
             {
-                continue;  // 注册表含 Boss，Boss 非 Enemy 类——is 判定语义等价排除
+                continue;
             }
 
-            var to = e.GlobalPosition - origin;
+            var target = t.AimWorldPosition;
+            var to = target - origin;
             var d = to.Length();
             if (d > _falloffEnd || d >= bestD)
             {
                 continue;
             }
 
-            // 与原点重合时 to/d 除零得 NaN，NaN < coneCos 恒 false，该敌不得被排除（会被选中）；
-            // coneCos 为 NaN 时同理不排除
-            if (aimDir.Dot(to / d) < coneCos)
+            // 与原点重合（to/0 得 NaN）或锥阈值为 NaN 时不得把目标排除，见 core AimTargeting.InCone
+            if (!AimTargeting.InCone(aimDir.X, aimDir.Y, to.X, to.Y, coneCos))
             {
                 continue;
             }
 
             bestD = d;
-            best = e;
+            best = t;
         }
 
         return best;
@@ -341,13 +342,13 @@ public partial class AimFrameLayer : Node2D
         var arr = CachedEnemies();
         for (var i = 0; i < arr.Count; i++)
         {
-            if (arr[i] is not Enemy e || !e.AimMarked)
+            if (arr[i] is not IAimTarget t || !t.AimMarked)
             {
                 continue;
             }
 
-            var c = (e == _hover ? FrameColorHover : FrameColor) * new Color(1.0f, 1.0f, 1.0f, flicker);
-            DrawBracket(e.GlobalPosition, FrameHalfSize(e), c);
+            var c = (ReferenceEquals(t, _hover) ? FrameColorHover : FrameColor) * new Color(1.0f, 1.0f, 1.0f, flicker);
+            DrawBracket(t.AimWorldPosition, FrameHalfSize(t), c);
         }
     }
 

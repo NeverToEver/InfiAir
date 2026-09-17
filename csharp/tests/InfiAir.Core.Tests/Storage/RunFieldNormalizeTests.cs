@@ -92,10 +92,32 @@ public sealed class RunFieldNormalizeTests
             ["broken"] = "x",
         };
 
-        var augments = RunFieldNormalize.NormalizeAugments(raw);
+        var augments = RunFieldNormalize.NormalizeAugments(raw, _ => 9);
 
         Assert.Equal(2, augments["homing"]);
         Assert.Single(augments);
+    }
+
+    [Fact]
+    public void NormalizeAugments_LevelLimit_DropsUnknownNodesAndCapsKnown()
+    {
+        // augments 是「节点 → 层级」表，此前无键集与层级上限：手改档可注入任意 id 与超大层级，
+        // 效果消费端直接按它生效（白拿增幅）；同时它必须与 talent_levels 用同一上限，
+        // 否则风险加点节点在两侧分叉（talent 侧保留 MaxLevel+1、augments 侧被削掉一级）。
+        var raw = new Dictionary<string, object?>
+        {
+            ["extra_life"] = 11L,  // 风险加点节点：上限 10 + 1
+            ["homing"] = 9L,       // 结构上限 2，未标记风险加点
+            ["ghost"] = 3L,        // 未知 id：查不到上限 → 丢弃
+        };
+
+        var augments = RunFieldNormalize.NormalizeAugments(
+            raw, id => id switch { "extra_life" => 11, "homing" => 2, _ => 0 });
+
+        Assert.Equal(11, augments["extra_life"]);
+        Assert.Equal(2, augments["homing"]);
+        Assert.False(augments.ContainsKey("ghost"));
+        Assert.Equal(2, augments.Count);
     }
 
     [Fact]
@@ -124,7 +146,7 @@ public sealed class RunFieldNormalizeTests
         var levels = RunFieldNormalize.ReadIntMap(legacy["talent_levels"]);
         Assert.Equal(2, levels["extra_life"]);
         Assert.Equal(1, levels["homing"]);
-        Assert.Equal(1, RunFieldNormalize.NormalizeAugments(legacy["augments"])["homing"]);
+        Assert.Equal(1, RunFieldNormalize.NormalizeAugments(legacy["augments"], _ => 9)["homing"]);
 
         // 新字段缺失：回退默认值，不抛、不影响上面已还原的进度
         Assert.Equal(0, RunFieldNormalize.ReadInt(legacy, "difficulty_time_step", 0));
@@ -141,11 +163,39 @@ public sealed class RunFieldNormalizeTests
     }
 
     [Fact]
+    public void TryClampNum_TreatsNonNumericLoadAsInvalidAndRejectsNonFinite()
+    {
+        // 单源接线：Godot 侧 SaveInt/SaveNum 只把 Variant 载入成 CLR 数值（Int→long / Float→double，
+        // 其余载入为 null），判型与钳制全部委托本类的 TryClampInt/TryClampNum——
+        // 所以这两条就是存档标量字段的唯一口径，本用例钉住它的输入端。
+        // null（＝非 Int/Float 的 Variant）必须判否回退默认值，不得钳成 0。
+        Assert.False(RunFieldNormalize.TryClampInt(null, out var fromNull));
+        Assert.Equal(0, fromNull);
+        Assert.False(RunFieldNormalize.TryClampNum(null, out var numFromNull));
+        Assert.Equal(0.0, numFromNull);
+
+        // 有限浮点 → int 域：向零截断（负值先钳 0，超大值钳 int.MaxValue）。
+        Assert.True(RunFieldNormalize.TryClampInt(3.9, out var truncated));
+        Assert.Equal(3, truncated);
+        Assert.Equal(int.MaxValue, RunFieldNormalize.ReadInt(ToTree(1e12), "v", 7));
+
+        // 非有限值一律判否（旧 SaveNum 只判 Variant 类型，NaN 会原样穿透并污染血量/难度）。
+        Assert.False(RunFieldNormalize.TryClampInt(double.PositiveInfinity, out _));
+        Assert.False(RunFieldNormalize.TryClampNum(double.NaN, out _));
+        Assert.False(RunFieldNormalize.TryClampNum(double.NegativeInfinity, out _));
+
+        static Dictionary<string, object?> ToTree(double value) => new() { ["v"] = value };
+    }
+
+    [Fact]
     public void LegacyRunSave_AllNumericFields_MissingNewOnesFallBackWithoutLosingStored()
     {
-        // Godot 侧 ApplyRunDict 读的每个数值字段都经 RunFieldNormalize（接线后不再有裸转换）。
-        // 这条用例逐项对应 ApplyRunDict 的读法：已存字段逐项还原，缺失的新字段走默认值，
-        // 二者互不影响——「旧档可读入且不丢进度」不变式在接线后的完整字段面上成立。
+        // 这条用例逐项对应 ApplyRunDict 读的标量字段：已存字段逐项还原，缺失的新字段走默认值，
+        // 二者互不影响——「旧档可读入且不丢进度」不变式在完整字段面上成立。
+        // 覆盖边界（别把这里读成端到端接线）：ApplyRunDict 那一侧的值经 SaveInt/SaveNum 读，
+        // 它们把 Variant 载入成 CLR 数值后**委托本类 TryClampInt/TryClampNum**——本用例钉住的
+        // 正是该层判型/钳制；Variant → CLR 的载入本身（含类型不符回默认）由
+        // --hostile-save-probe 走生产读档链覆盖（引擎绑定层，xUnit 够不到）。
         var legacy = new Dictionary<string, object?>
         {
             ["score"] = 900L,

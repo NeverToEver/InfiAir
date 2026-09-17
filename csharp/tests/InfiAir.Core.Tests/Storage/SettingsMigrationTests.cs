@@ -92,6 +92,28 @@ public sealed class SettingsMigrationTests
     }
 
     [Fact]
+    public void ResolveResolution_NewFormatDeclaredWithLegacyKey_DoesNotMigrateLegacy()
+    {
+        // 守卫的真正边界：window_size 同时存在且合法，仍不得借旧档迁移路径把非法 resolution
+        // 换成旧档档位——新格式一旦声明（window_mode 存在），旧键已退役，只看新键。
+        var data = new Dictionary<string, object?>
+        {
+            ["window_mode"] = "borderless",
+            ["resolution"] = "bogus",
+            ["window_size"] = "small",
+        };
+        Assert.Equal("1920x1080", Resolve(data));
+
+        // 对照：同数据去掉 window_mode（真旧档）→ 走迁移
+        var legacy = new Dictionary<string, object?>
+        {
+            ["resolution"] = "bogus",
+            ["window_size"] = "small",
+        };
+        Assert.Equal("1280x720", Resolve(legacy));
+    }
+
+    [Fact]
     public void ResolveResolution_NoKeysAtAll_KeepsDefault()
     {
         Assert.Equal("1366x768", Resolve(new Dictionary<string, object?>(), "1366x768"));
@@ -112,5 +134,18 @@ public sealed class SettingsMigrationTests
         Assert.Equal(SaveVersionDecision.Migrate, SettingsMigration.DecideVersion(0, 4));
         // 版本高于当前（降级安装/手改）：保守拒绝，按默认值继续，不猜未来字段语义
         Assert.Equal(SaveVersionDecision.RejectNewer, SettingsMigration.DecideVersion(5, 4));
+    }
+
+    [Fact]
+    public void DecideVersion_AgainstCurrentVersionConstant_NewerIsRejected()
+    {
+        // 生产读入链的判别式（DESIGN_BASELINE §1.15「高于当前按逐字段默认值回退」）：
+        // 按常量判定而非字面量 4——版本号 bump（0x 或 5x）后本用例仍钉住该语义。
+        Assert.Equal(
+            SaveVersionDecision.Accepted,
+            SettingsMigration.DecideVersion(SettingsMigration.CurrentVersion, SettingsMigration.CurrentVersion));
+        Assert.Equal(
+            SaveVersionDecision.RejectNewer,
+            SettingsMigration.DecideVersion(SettingsMigration.CurrentVersion + 1, SettingsMigration.CurrentVersion));
     }
 }

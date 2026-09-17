@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using InfiAir.Core;
+using InfiAir.Core.Combat;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -59,7 +61,10 @@ public partial class Hud : CanvasLayer
     private Boss? _boss;
     private Label _bossCountdown = null!;
     private Label _bossName = null!; // Boss 名牌（型号 + 阶段），血条子节点随其显隐
+
+    private PanelContainer _bossNamePlate = null!; // 名牌底衬（运行期版式护栏要比它的实际盒）
     private ChamferedPanel _bossPlate = null!; // Boss 血条 + 名牌的切角背板（随血条显隐）
+    private BossBarTicks _bossTicks = null!; // 阶段刻度线覆盖层（比例由阶段阈值派生注入）
     /// <summary>Boss.cs 的 C# 枚举 FightPhase { P1, P2, ENRAGE }（P1=0/P2=1 与
     /// GetFightPhaseTransition/Active 一致；ENRAGE=2 由声明顺序确定）——值镜像。</summary>
     private const int FightPhaseP1 = 0;
@@ -68,13 +73,13 @@ public partial class Hud : CanvasLayer
     private int _bossPhase = FightPhaseP1;
     /// <summary>仪表类刷新降频（信号驱动的文本不受影响）。≤0 节流失效。</summary>
     private float _pollInterval = 0.1f;
-    /// <summary>分段血条：段权 [P1 0.3 / P2 0.4 / ENRAGE 0.3]
-    /// （段界 = 阶段阈值 [0.7, 0.3] 的宽占比，与 phase2/enrage_hp_ratio 默认一致、解耦）+ 段色
+    /// <summary>分段血条：段权与段界**由阶段阈值派生**（boss.phase2_hp_ratio / boss.enrage.hp_ratio，
+    /// 在 ShowBossBar 时从活着的 Boss 实例读，见 BossBarSegments），段色按段序给
     /// （P1 琥珀 / P2 橙 / ENRAGE 红，已消耗段暗化、当前段高亮）。
-    /// 段数恒由权重数组决定（不读 hud.boss_bar_segments 配置键——加权分支只迭代
-    /// SegWeights.Count，改该键无任何视觉变化）。</summary>
+    /// 段数恒由权重数组决定，HUD 不再另存一份阈值或段权常量——否则改 balance 后 Boss 按新阈值
+    /// 转阶段而血条段界/刻度仍在旧值，玩家读到的阶段边界是假的。</summary>
     // 静态 Godot 集合在引擎退出后被 .NET finalize 触碰 native → segfault（实测），改实例字段
-    private readonly Godot.Collections.Array BossSegWeights = new() { 0.3f, 0.4f, 0.3f };
+    private readonly Godot.Collections.Array BossSegWeights = new() { 0.0f, 0.0f, 0.0f };
     private readonly Godot.Collections.Array BossSegColors = new()
     {
         UITheme.HudBossHp,
@@ -93,6 +98,22 @@ public partial class Hud : CanvasLayer
     private TextureRect _vignette = null!;
     /// <summary>受击红闪 alpha（tween 衰减）；公开属性供 TweenProperty 字符串路径驱动（原 _hit_flash 脚本属性）。</summary>
     public float HitFlash { get; set; }
+
+    /// <summary>信息横幅当前不透明度（探针读口）：横幅触发后前 1.6s 应恒为 1。
+    /// 停留被并行语义吞掉时此处提前归零——无头下既不崩也不报错，只能靠读口断言。</summary>
+    public float InfoBannerAlpha => _infoLabel.Modulate.A;
+
+    /// <summary>Boss 血条当前 modulate（探针读口）：ReduceFlash 下阶段切换后应为 Colors.White
+    /// （无提亮脉冲），否则为 2.2 倍亮度峰值。</summary>
+    public Color BossBarModulate => _bossBar.Modulate;
+
+    /// <summary>Boss 逃跑倒计时当前 modulate（探针读口，零引用保留）：减少闪光下 alpha 应恒为 1
+    /// （读数保留、明暗翻转停用），否则在 1 与 0.45 之间翻转。见 ROADMAP 零引用成员口径。</summary>
+    public Color BossCountdownModulate => _bossCountdown.Modulate;
+
+    /// <summary>警告横幅当前 alpha（探针读口，零引用保留）：减少闪光下 ShowWarning 全程应恒为 1
+    /// （不再 0.25↔1.0 闪烁），否则在闪烁窗内可读到 0.25。见 ROADMAP 零引用成员口径。</summary>
+    public float WarningBannerAlpha => _bannerPlate.Modulate.A;
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
@@ -146,11 +167,16 @@ public partial class Hud : CanvasLayer
     /// <summary>收起态最多展示的瓦片数（最新 4 个），超出折叠为 +N 溢出格。</summary>
     private const int AugmentDockMaxTiles = 4;
 
-    /// <summary>Boss 逃跑倒计时明暗闪烁半周期（ms）：取模翻转透明度，快于人眼追踪的告警节奏。</summary>
-    private const long CountdownBlinkHalfPeriodMs = 500;
+    /// <summary>Boss 逃跑倒计时明暗闪烁半周期（秒）：取模翻转透明度，快于人眼追踪的告警节奏。
+    /// 减少闪光下不翻转（读数保留）。</summary>
+    private const float CountdownBlinkHalfPeriod = 0.5f;
 
-    /// <summary>燃料低量警戒线（比例）：低于此值液罐转警示色。</summary>
-    private const float FuelWarnRatio = 0.3f;
+    /// <summary>警告横幅明暗步长与循环数：0.25s 一步、4 个来回 ≈2s（与 spawner 预警同步）。</summary>
+    private const float WarningBlinkStep = 0.25f;
+    private const int WarningBlinkLoops = 4;
+
+    /// <summary>燃料低量警戒线（比例）的唯一来源在 <see cref="FuelGauge.WarnRatio"/>：液色警戒
+    /// 与量槽刻度警示区共用一份判据，HUD 不再另存常量（两处各写一份会出半红量槽）。</summary>
 
     /// <summary>冲刺/弹反「已满」判定线（比例）：径向仪表满格即就绪，留 0.5% 余量吸收充能取整误差。</summary>
     private const float DashFullRatio = 0.995f;
@@ -168,12 +194,25 @@ public partial class Hud : CanvasLayer
     /// <summary>新增幅瓦片入场提亮峰值（仅视觉，不改瓦片数据）。</summary>
     private const float AugmentGainBoost = 1.5f;
 
+    /// <summary>信息横幅停留与淡出时长（秒）：「奖励节奏可被感知」靠的正是这段停留。</summary>
+    private const float InfoBannerHoldSeconds = 1.6f;
+    private const float InfoBannerFadeSeconds = 0.4f;
+
     /// <summary>
-    /// Boss 血条阶段刻度线（70%/30%，§4.2）：随血条显隐的覆盖层。
+    /// Boss 血条阶段刻度线（§4.2）：随血条显隐的覆盖层，比例由 <see cref="BossBarSegments.Ticks"/>
+    /// 从阶段阈值派生后注入（段界即阈值；本控件不持有阈值，也不另存刻度常量）。
     /// </summary>
     public partial class BossBarTicks : Control
     {
-        private readonly float[] _ratios = { 0.7f, 0.3f };
+        /// <summary>刻度比例（自血条左端量起）；实例级复用，重绑 Boss 时才改写。</summary>
+        private float[] _ratios = System.Array.Empty<float>();
+
+        /// <summary>登记刻度比例（调用方给自 <see cref="BossBarSegments.Ticks"/> 的数组，本控件不复制）。</summary>
+        public void SetRatios(float[] ratios)
+        {
+            _ratios = ratios;
+            QueueRedraw();
+        }
 
         public override void _Draw()
         {
@@ -197,7 +236,6 @@ public partial class Hud : CanvasLayer
         _dockTag = GetNode<Label>("DockTag");
         BuildInstrumentCluster();
         _pollInterval = Mathf.Max((float)GameState.Instance.Cfg("effects.hud_poll_interval", _pollInterval).AsDouble(), 0.01f); // ≤0 节流失效
-        // hud.boss_bar_segments 配置键不参与——段数恒由权重数组决定（见 ShowBossBar）
         _hitFlashAlpha = (float)GameState.Instance.Cfg("effects.hit_flash.alpha", _hitFlashAlpha).AsDouble();
         _hitFlashTime = (float)GameState.Instance.Cfg("effects.hit_flash.time", _hitFlashTime).AsDouble();
         _lowHpRatio = (float)GameState.Instance.Cfg("effects.low_hp.ratio", _lowHpRatio).AsDouble();
@@ -224,6 +262,15 @@ public partial class Hud : CanvasLayer
         // 仪表盘配色与语义：燃料琥珀（低量转危红）、冲刺琥珀、弹反金；两枚充能槽满格即就绪
         _dashSocket.Configure(AbilitySocket.Glyph.Dash, UITheme.Accent);
         _parrySocket.Configure(AbilitySocket.Glyph.Parry, UITheme.AccentGold);
+        // 无障碍开关初始化：设置档读入是直写字段、不发 ReduceFlashChanged（改键那次才发），
+        // 而三个构件自己的 _reduceFlash 默认 false——不补这一次，settings.json 里
+        // reduce_flash=true 的玩家（正是为降频闪才开它的人）整局仍看到液面起伏/就绪脉冲/坞态灯呼吸，
+        // 直到进设置页再拨一次开关。判据与实时读 GameState.Instance.ReduceFlash 的点同源。
+        var reduceFlashNow = GameState.Instance.ReduceFlash;
+        _fuelTank.SetReduceFlash(reduceFlashNow);
+        _dashSocket.SetReduceFlash(reduceFlashNow);
+        _parrySocket.SetReduceFlash(reduceFlashNow);
+        _dockLamp.SetReduceFlash(reduceFlashNow);
         // HpBar 全息化：底盘更透 + 填充段 ADD 伪泛光
         _hpBar.EmptyColor = new Color(UITheme.SlotDark, 0.25f);
         var hpHolo = new CanvasItemMaterial { BlendMode = CanvasItemMaterial.BlendModeEnum.Add };
@@ -250,19 +297,25 @@ public partial class Hud : CanvasLayer
         BuildBackplates();
         BuildBanner();
         BuildChargeBars();
-        // 名牌行占位：血条整体下移 30px，上方留出一行型号 + 阶段标签
-        _bossBar.OffsetTop += 30.0f;
-        _bossBar.OffsetBottom += 30.0f;
+        // 名牌行占位：血条整体下移，上方留出一行型号 + 阶段标签（下移量＝名牌行带高，单源 core）
+        _bossBar.OffsetTop += HudLayout.BossNameRowHeight;
+        _bossBar.OffsetBottom += HudLayout.BossNameRowHeight;
         // Boss 名牌（型号 + 阶段，血条子节点随其显隐；事件与 Boss 互斥不会同屏）
         // 深色底衬保证叠在 Boss 机体/辉光上时可读
         var namePlate = new PanelContainer
         {
-            Position = new Vector2(-300.0f, -34.0f),
-            CustomMinimumSize = new Vector2(600.0f, 0.0f),
+            Position = new Vector2(HudLayout.BossBarLeft, HudLayout.BossNameRowTopInBar),
+            CustomMinimumSize = new Vector2(HudLayout.BossBarWidth, 0.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         namePlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
-        namePlate.AddThemeStyleboxOverride("panel", UITheme.MakeMetalPanelStyle());
+        // 底衬面板清零纵向内边距：core 的名牌行预留量（BossNameRowHeight）是按字形行盒留的，
+        // 而金属面板样式自带上下各 8px 内边距——不清零则实际盒高比预留量高 16px，底衬会盖住
+        // 血条带上沿 12px（玩家读到的血条高度少一截）。横向内边距保留（底衬要略宽于文字）。
+        var namePlateStyle = UITheme.MakeMetalPanelStyle();
+        namePlateStyle.ContentMarginTop = 0.0f;
+        namePlateStyle.ContentMarginBottom = 0.0f;
+        namePlate.AddThemeStyleboxOverride("panel", namePlateStyle);
         _bossName = new Label
         {
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -273,17 +326,21 @@ public partial class Hud : CanvasLayer
         _bossName.AddThemeColorOverride("font_color", UITheme.Text);
         namePlate.AddChild(_bossName);
         _bossBar.AddChild(namePlate);
-        // Boss 血条阶段刻度线（70%/30%，覆盖在血条上随其显隐）
-        var ticks = new BossBarTicks();
-        ticks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        ticks.MouseFilter = Control.MouseFilterEnum.Ignore;
-        _bossBar.AddChild(ticks);
+        _bossNamePlate = namePlate;
+        // Boss 血条阶段刻度线（覆盖在血条上随其显隐；比例在 ShowBossBar 由阶段阈值派生注入）
+        _bossTicks = new BossBarTicks();
+        _bossTicks.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _bossTicks.MouseFilter = Control.MouseFilterEnum.Ignore;
+        _bossBar.AddChild(_bossTicks);
         // Boss 血条背板：名牌 + 血条整体纳入切角面板（与角落板块同一语系，随血条显隐；
-        // 名牌 abs y 12..42、血条 46..74 → 背板 y 4..92 上下留白）
+        // 名牌行与血条带都落在背板之内）。顶位/高度/名牌行与血条带的顶位单源在 core HudLayout：
+        // 逃跑倒计时的顶位由同模块推出，改背板高必然带动倒计时位（原实现三处各写字面量，
+        // 倒计时压在背板上、血条出背板都只能靠人工发现）
+        var bossPlateBox = HudLayout.BossPlateBox;
         _bossPlate = new ChamferedPanel
         {
-            Position = new Vector2(-320.0f, 4.0f),
-            Size = new Vector2(640.0f, 88.0f),
+            Position = new Vector2(bossPlateBox.OffsetLeft, bossPlateBox.OffsetTop),
+            Size = new Vector2(bossPlateBox.Width, bossPlateBox.Height),
             Brackets = true,
             EdgeRivets = true,
             Visible = false,
@@ -292,11 +349,12 @@ public partial class Hud : CanvasLayer
         _bossPlate.SetAnchorsPreset(Control.LayoutPreset.CenterTop);
         AddChild(_bossPlate);
         MoveChild(_bossPlate, _bossBar.GetIndex()); // 绘制序压在血条之下
-        // Boss 逃跑倒计时（血条下方，剩余 ≤10s 起显示，红色闪烁）
+        // Boss 逃跑倒计时（背板下缘之外，剩余 ≤10s 起显示，红色闪烁）
+        var countdownBox = HudLayout.BossCountdownBox;
         _bossCountdown = new Label
         {
-            Position = new Vector2(-100.0f, 78.0f),
-            CustomMinimumSize = new Vector2(200.0f, 0.0f),
+            Position = new Vector2(countdownBox.OffsetLeft, countdownBox.OffsetTop),
+            CustomMinimumSize = new Vector2(countdownBox.Width, 0.0f),
             HorizontalAlignment = HorizontalAlignment.Center,
             Visible = false,
         };
@@ -441,13 +499,16 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>通道规格：提示翻译键（%d 占位）/ 通道色 / 底部居中槽位（沿用历史堆叠次序防互叠）。</summary>
-    private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, float SlotY)> ChargeBarSpecs = new()
+    /// <summary>通道 → 槽位索引（自下而上）。槽位 y 由 core <c>HudLayout.ChargeSlotY</c> 按节距推出，
+    /// 不再各写一份手写偏移——原实现五个偏移的节距 48/56/44/24，最后两对条盒重叠 7px 与 27px，
+    /// 两条通道同时蓄力时会把一条的进度读成另一条的。</summary>
+    private static readonly Dictionary<ChargeChannel, (string PromptKey, Color Color, int Slot)> ChargeBarSpecs = new()
     {
-        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeAccent, -268.0f),
-        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeAccent, -120.0f),
-        [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, -164.0f),
-        [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, -220.0f),
-        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeAccent, -96.0f),
+        [ChargeChannel.MothershipSummon] = ("MS_CHARGING", UITheme.ChargeAccent, 4),
+        [ChargeChannel.Homecoming] = ("HOME_CHARGE", UITheme.ChargeAccent, 1),
+        [ChargeChannel.GiveUp] = ("GIVE_UP_CHARGE", UITheme.Danger, 2),
+        [ChargeChannel.EarlyLeave] = ("MS_EARLY_LEAVE", UITheme.WarnYellow, 3),
+        [ChargeChannel.TalentPanel] = ("TALENT_CHARGE_FMT", UITheme.ChargeAccent, 0),
     };
 
     private readonly Dictionary<ChargeChannel, HudChargeBar> _chargeBars = new();
@@ -456,14 +517,130 @@ public partial class Hud : CanvasLayer
     {
         foreach (var kv in ChargeBarSpecs)
         {
-            var bar = HudChargeBar.Create((string)Tr(kv.Value.PromptKey), kv.Value.Color, new Vector2(-140.0f, kv.Value.SlotY));
+            var bar = HudChargeBar.Create(
+                (string)Tr(kv.Value.PromptKey),
+                kv.Value.Color,
+                new Vector2(-HudLayout.ChargeBarWidth * 0.5f, HudLayout.ChargeSlotY(kv.Value.Slot)));
             _chargeBars[kv.Key] = bar;
             AddChild(bar);
         }
     }
 
+    /// <summary>蓄力条槽位互压的运行期护栏：两条通道同时蓄力时（例如返航 + 天赋面板）条盒互压
+    /// 会让玩家把一条的进度读成另一条的。槽位算式已在 core 由单测钉住，这里防的是「实际盒高被
+    /// 字号/样式撑过预算」——那种漂移只有运行期量得出来。每帧调用、每次会话只报一次，
+    /// 走 PushError 撞冒烟与截图探针的错误正则。
+    /// 几何只在「可见集变化」时量：单通道蓄力持续上千帧而盒矩形不变，每帧重取一次是白工
+    /// （掩码带上尺寸是否定型，故「可见但本帧尺寸未定」的条会在尺寸落定的那一帧被重新量到）。</summary>
+    private void VerifyChargeBarsDoNotOverlap()
+    {
+        if (_chargeOverlapChecked)
+        {
+            return;
+        }
+
+        // 掩码位序 = ChargeChannel 值；尺寸未定（&lt;= 0）的条不入掩码，等到定型那帧再量
+        var mask = 0;
+        foreach (var kv in _chargeBars)
+        {
+            var bar = kv.Value;
+            if (bar.Visible && bar.Size.Y > 0.0f)
+            {
+                mask |= 1 << (int)kv.Key;
+            }
+        }
+
+        if (mask == _chargeMeasuredMask)
+        {
+            return;
+        }
+
+        _chargeMeasuredMask = mask;
+        var shown = 0;
+        foreach (var kv in _chargeBars)
+        {
+            if ((mask & (1 << (int)kv.Key)) != 0)
+            {
+                _chargeOverlapBuf[shown] = (kv.Key, kv.Value.GetGlobalRect());
+                shown += 1;
+            }
+        }
+
+        if (shown < 2)
+        {
+            return; // 单条在场不可能互压；等到真的两条同屏再判
+        }
+
+        _chargeOverlapChecked = true;
+        for (var i = 0; i < shown; i++)
+        {
+            for (var j = i + 1; j < shown; j++)
+            {
+                if (_chargeOverlapBuf[i].Area.Intersects(_chargeOverlapBuf[j].Area))
+                {
+                    GD.PushError($"[hud] 蓄力条槽位互压：{_chargeOverlapBuf[i].Channel} 与 {_chargeOverlapBuf[j].Channel} "
+                        + $"（槽位节距 {HudLayout.ChargeSlotPitch}，盒高预算 {HudLayout.ChargeBarHeight}）——"
+                        + "两条通道同时蓄力时会把一条的进度读成另一条的");
+                }
+            }
+        }
+    }
+
+    /// <summary>互压量测缓冲（栈上放不下且每帧调用，故按通道数预分配复用，零逐帧分配）。</summary>
+    private readonly (ChargeChannel Channel, Rect2 Area)[] _chargeOverlapBuf =
+        new (ChargeChannel, Rect2)[ChargeBarSpecs.Count];
+
+    /// <summary>上次量过几何的可见集掩码（初值 0 = 尚无任何条参与布局，故首个非空掩码必被量到）。</summary>
+    private int _chargeMeasuredMask;
+
+    private bool _chargeOverlapChecked;
+
+    /// <summary>Boss 头部版式的运行期护栏：名牌底衬（金属面板）的实际盒高若超过 core 的预留量
+    /// （BossNameRowHeight），它的底色会盖住血条带上沿——血条可读高度少一截且零报错。core 单测
+    /// 钉的是常量关系，实际盒高由字形行盒与面板内边距决定，只有运行期量得出来。</summary>
+    private void VerifyBossHeaderLayout()
+    {
+        if (_bossHeaderChecked || !_bossBar.Visible || _bossNamePlate.Size.Y <= 0.0f)
+        {
+            return;
+        }
+
+        _bossHeaderChecked = true;
+        var plateRect = _bossNamePlate.GetGlobalRect();
+        var barRect = _bossBar.GetGlobalRect();
+        if (plateRect.Intersects(barRect))
+        {
+            GD.PushError($"[hud] Boss 名牌底衬压住血条带（名牌底 {plateRect.End.Y:F0} > 血条顶 {barRect.Position.Y:F0}）"
+                + $"——名牌行预留量 {HudLayout.BossNameRowHeight} 小于名牌实际盒高，血条可读高度被削掉一截");
+        }
+    }
+
+    private bool _bossHeaderChecked;
+
     /// <summary>统一蓄力进度口（全部长按功能唯一入口）：ratio &lt; 0 隐藏该通道。</summary>
-    public void SetCharge(ChargeChannel channel, float ratio) => _chargeBars[channel].SetRatio(ratio);
+    public void SetCharge(ChargeChannel channel, float ratio)
+    {
+        _chargeBars[channel].SetRatio(ratio);
+        // 蓄力状态每帧由 Main 写入：挂在这里才能在「两条同时可见」的当帧量到真实盒
+        VerifyChargeBarsDoNotOverlap();
+    }
+
+    /// <summary>当前仍在显示的蓄力通道（探针读口，零引用保留）：终局路径（死亡 → 树暂停）的
+    /// 判据是「结算页上不该残留任何蓄力条」，而只有 HUD 知道哪条通道还在显示；逐通道读私有
+    /// 进度需要 5 次往返，这里一次给全。下一 wave 的死亡蓄力趟据此断言，见 ROADMAP 零引用口径。</summary>
+    public List<ChargeChannel> VisibleChargeChannels()
+    {
+        var visible = new List<ChargeChannel>();
+        foreach (var kv in _chargeBars)
+        {
+            if (kv.Value.Visible)
+            {
+                visible.Add(kv.Key);
+            }
+        }
+
+        return visible;
+    }
 
     /// <summary>集成仪表盘装配（左下）：单一紧凑面板，两排——上排生命（主读数）＋坞态指示灯，
     /// 下排燃料量槽＋两枚充能槽＋弹仓格。所有方形构件共用 UITheme.ChamferPoints 的切角语汇，
@@ -473,34 +650,34 @@ public partial class Hud : CanvasLayer
     {
         // 下排：燃料量槽（窄高，液位即读数）
         _fuelTank = new FuelTank();
-        PlaceBottomLeft(_fuelTank, 24.0f, -104.0f, 58.0f, -52.0f);
+        PlaceBottomLeft(_fuelTank, HudLayout.FuelTankBox);
         AddChild(_fuelTank);
 
         // 下排：冲刺 / 弹反充能槽（同一构件、只换字形与身份色）
         _dashSocket = new AbilitySocket();
         _dashSocket.Configure(AbilitySocket.Glyph.Dash, UITheme.Accent);
-        PlaceBottomLeft(_dashSocket, 66.0f, -104.0f, 114.0f, -52.0f);
+        PlaceBottomLeft(_dashSocket, HudLayout.SocketBox(0));
         AddChild(_dashSocket);
 
         _parrySocket = new AbilitySocket();
         _parrySocket.Configure(AbilitySocket.Glyph.Parry, UITheme.AccentGold);
-        PlaceBottomLeft(_parrySocket, 122.0f, -104.0f, 170.0f, -52.0f);
+        PlaceBottomLeft(_parrySocket, HudLayout.SocketBox(1));
         AddChild(_parrySocket);
 
-        AddGaugeCaption(UI_FUEL_KEY, 24.0f, 58.0f, -34.0f);
-        AddGaugeCaption(UI_DASH_KEY, 66.0f, 114.0f, -34.0f);
-        AddGaugeCaption(UI_PARRY_KEY, 122.0f, 170.0f, -34.0f);
+        AddGaugeCaption(UI_FUEL_KEY, HudLayout.CaptionBox(HudLayout.FuelTankBox));
+        AddGaugeCaption(UI_DASH_KEY, HudLayout.CaptionBox(HudLayout.SocketBox(0)));
+        AddGaugeCaption(UI_PARRY_KEY, HudLayout.CaptionBox(HudLayout.SocketBox(1)));
 
         // 下排：弹仓格（母舰驻留时才显；与充能槽同一行）
         _magStrip = new CartridgeStrip { Visible = false };
-        PlaceBottomLeft(_magStrip, 184.0f, -90.0f, 284.0f, -76.0f);
+        PlaceBottomLeft(_magStrip, HudLayout.MagStripBox);
         AddChild(_magStrip);
 
         // 下排右：坞态指示灯 + 状态文本（与充能槽同一行）
         _dockLamp = new AnnunciatorLamp();
-        PlaceBottomLeft(_dockLamp, 300.0f, -98.0f, 316.0f, -82.0f);
+        PlaceBottomLeft(_dockLamp, HudLayout.DockLampBox);
         AddChild(_dockLamp);
-        PlaceBottomLeft(_dockTag, 322.0f, -104.0f, 444.0f, -76.0f);
+        PlaceBottomLeft(_dockTag, HudLayout.DockTagBox);
     }
 
     private static readonly StringName UI_FUEL_KEY = new("UI_FUEL");
@@ -510,8 +687,8 @@ public partial class Hud : CanvasLayer
     private static readonly StringName UI_PARRY_KEY = new("UI_PARRY");
 
     /// <summary>仪表小标题（复用既有文案键，随语言切换刷新）：置于各仪表正下方，字小色淡不压读数。
-    /// 纵向位置由调用方给（不同仪表底边不同），宽度与仪表对齐。</summary>
-    private void AddGaugeCaption(StringName key, float left, float right, float bottom)
+    /// 盒由调用方给（core 从该仪表的盒推出，宽度与仪表对齐），本层只做装配。</summary>
+    private void AddGaugeCaption(StringName key, HudLayout.AnchoredBox box)
     {
         var caption = new Label
         {
@@ -519,7 +696,7 @@ public partial class Hud : CanvasLayer
             HorizontalAlignment = HorizontalAlignment.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        PlaceBottomLeft(caption, left, bottom - 16.0f, right, bottom);
+        PlaceBottomLeft(caption, box);
         caption.AddThemeFontOverride("font", Font);
         caption.AddThemeFontSizeOverride("font_size", UITheme.FontSmall);
         caption.AddThemeColorOverride("font_color", UITheme.TextDim);
@@ -530,14 +707,20 @@ public partial class Hud : CanvasLayer
     /// <summary>仪表小标题（控件 + 键）：语言切换时按键重写文案。</summary>
     private readonly List<(Label Label, StringName Key)> _gaugeCaptions = new();
 
-    /// <summary>按左下锚点摆放（坐标语义与 tscn 的 offset_* 一致，便于与场景节点并置）。</summary>
-    private static void PlaceBottomLeft(Control control, float left, float top, float right, float bottom)
+    /// <summary>按左下锚摆放（锚 + 四条 offset 一并写；坐标语义与 tscn 的 offset_* 一致）。</summary>
+    private static void PlaceBottomLeft(Control control, HudLayout.AnchoredBox box)
     {
         control.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
-        control.OffsetLeft = left;
-        control.OffsetTop = top;
-        control.OffsetRight = right;
-        control.OffsetBottom = bottom;
+        ApplyOffsets(control, box);
+    }
+
+    /// <summary>只写 offset（锚沿用场景给的：这些节点的底左锚在 tscn 里定好，重设锚会改掉场景的作者意图）。</summary>
+    private static void ApplyOffsets(Control control, HudLayout.AnchoredBox box)
+    {
+        control.OffsetLeft = box.OffsetLeft;
+        control.OffsetTop = box.OffsetTop;
+        control.OffsetRight = box.OffsetRight;
+        control.OffsetBottom = box.OffsetBottom;
     }
 
     /// <summary>L（augment_panel）切换增幅 滚动栏；暂停态下 HUD 不处理输入（process 继承）。</summary>
@@ -634,6 +817,7 @@ public partial class Hud : CanvasLayer
         _simTime += d;
         UpdateVignette(d);
         UpdateFuelPulse(d); // 低燃料警戒亮度泵动（空闲时无逐帧写）
+        VerifyBossHeaderLayout(); // Boss 血条显形后判一次（见该方法的护栏理由）
         _pollTimer -= d;
         if (_pollTimer > 0.0f)
         {
@@ -650,7 +834,7 @@ public partial class Hud : CanvasLayer
                 _bossCountdown.Visible = true;
                 _bossCountdown.Text = GdFormat.Format("%d", Mathf.CeilToInt(remaining));
                 var cm = _bossCountdown.Modulate;
-                cm.A = (long)(_simTime * 1000.0f) / CountdownBlinkHalfPeriodMs % 2 == 0 ? 1.0f : 0.45f;
+                cm.A = CountdownAlpha();
                 _bossCountdown.Modulate = cm;
             }
             else
@@ -676,8 +860,8 @@ public partial class Hud : CanvasLayer
         // 液罐自身的液位追赶/晃动/气泡全在其 _Process 内，HUD 侧只推目标值（不逐帧碰它）
         _fuelTank.SetRatio(fuel);
 
-        // 警戒态未翻转跳过液色写入（阈值与低燃料脉冲共用同一态缓存）
-        var fuelWarn = fuel < FuelWarnRatio ? 1 : 0;
+        // 警戒态未翻转跳过液色写入（阈值与低燃料脉冲共用同一态缓存；阈值单一来源 FuelGauge）
+        var fuelWarn = FuelGauge.IsLow(fuel) ? 1 : 0;
         if (fuelWarn != _lastFuelWarn)
         {
             _lastFuelWarn = fuelWarn;
@@ -717,6 +901,18 @@ public partial class Hud : CanvasLayer
             UpdateDockLamp(_main.DockStateValue);
             UpdateMagazineBar(_main);
         }
+    }
+
+    /// <summary>Boss 逃跑倒计时的闪烁 alpha：0.5s 明暗翻转；减少闪光下恒定全亮——
+    /// 读数本身是必要信息（保留），明暗翻转属频闪（停用）。相位基准是 _simTime（模拟时间）。</summary>
+    private float CountdownAlpha()
+    {
+        if (GameState.Instance.ReduceFlash)
+        {
+            return 1.0f;
+        }
+
+        return (long)(_simTime / CountdownBlinkHalfPeriod) % 2 == 0 ? 1.0f : 0.45f;
     }
 
     private void UpdateMagazineBar(Main main)
@@ -779,11 +975,9 @@ public partial class Hud : CanvasLayer
         AddChild(killsTag);
         var statusPlate = new ChamferedPanel
         {
-            Position = new Vector2(10.0f, -150.0f),
-            Size = new Vector2(446.0f, 136.0f),
             EdgeRivets = true,
         };
-        statusPlate.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        PlaceBottomLeft(statusPlate, HudLayout.InstrumentPanelBox);
         AddChild(statusPlate);
         MoveChild(statusPlate, 0);
         var livesTag = MakeCornerTag((string)Tr("UI_LIVES_TAG"));
@@ -792,39 +986,30 @@ public partial class Hud : CanvasLayer
         AddChild(livesTag);
         // 上排＝生命（主读数：分段横条 + 数值，占满整行宽度；最常扫视故最大最亮），
         // 下排＝仪表带（燃料/充能/弹仓/坞态）。上下两排，避免与坞态文本压字。
-        _hpBar.OffsetTop = -144.0f;
-        _hpBar.OffsetBottom = -116.0f;
-        _hpBar.OffsetRight = 300.0f;
-        _livesLabel.OffsetLeft = 312.0f;
-        _livesLabel.OffsetTop = -146.0f;
-        _livesLabel.OffsetRight = 436.0f;
-        _livesLabel.OffsetBottom = -112.0f;
+        ApplyOffsets(_hpBar, HudLayout.HpBarBox);
+        ApplyOffsets(_livesLabel, HudLayout.LivesLabelBox);
         // 上下排之间的横向分隔线（分区结构感）
         var statusDivider = new ColorRect
         {
             Color = UITheme.AccentDim,
-            Position = new Vector2(24.0f, -112.0f),
-            Size = new Vector2(418.0f, 1.0f),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
-        statusDivider.SetAnchorsPreset(Control.LayoutPreset.BottomLeft);
+        PlaceBottomLeft(statusDivider, HudLayout.InstrumentDividerBox);
         AddChild(statusDivider);
         // 右上难度背板：与分数块同语系（原浮空文字难以在亮背景上阅读）
         // 背板宽度须容纳难度标签三段文案（「难度 x2.50 · 第四档 · 危险 · 中」）；
         // 原 230 宽在加入档名后被文字压过（实测中文约 296px / 英文约 362px）
+        var diffBox = HudLayout.DifficultyPlateBox;
         var diffPlate = new ChamferedPanel
         {
-            Position = new Vector2(-400.0f, 24.0f),
-            Size = new Vector2(390.0f, 44.0f),
+            Position = new Vector2(diffBox.OffsetLeft, diffBox.OffsetTop),
+            Size = new Vector2(diffBox.Width, diffBox.Height),
             EdgeRivets = true,
         };
         diffPlate.SetAnchorsPreset(Control.LayoutPreset.TopRight);
         AddChild(diffPlate);
         MoveChild(diffPlate, 0);
-        _difficultyLabel.OffsetLeft = -388.0f;
-        _difficultyLabel.OffsetTop = 24.0f;
-        _difficultyLabel.OffsetRight = -22.0f;
-        _difficultyLabel.OffsetBottom = 68.0f;
+        ApplyOffsets(_difficultyLabel, HudLayout.DifficultyLabelBox);
         _difficultyLabel.VerticalAlignment = VerticalAlignment.Center;
         var diffTag = MakeCornerTag((string)Tr("UI_DIFF_TAG"));
         diffTag.SetAnchorsPreset(Control.LayoutPreset.TopRight);
@@ -873,10 +1058,12 @@ public partial class Hud : CanvasLayer
 
     private void BuildBanner()
     {
+        // 警告横幅与信息横幅同宽同列、信息横幅紧接其下（两盒由 core 推出，避免改一处即叠字）
+        var warningBox = HudLayout.WarningBannerBox;
         _bannerPlate = new ChamferedPanel
         {
-            Position = new Vector2(-300.0f, 140.0f),
-            Size = new Vector2(600.0f, 80.0f),
+            Position = new Vector2(warningBox.OffsetLeft, warningBox.OffsetTop),
+            Size = new Vector2(warningBox.Width, warningBox.Height),
             Brackets = true,
             BgColor = UITheme.BannerDangerBg,
             BorderColor = new Color(UITheme.Danger, 0.6f),
@@ -887,8 +1074,8 @@ public partial class Hud : CanvasLayer
         AddChild(_bannerPlate);
         _bannerLabel = new Label
         {
-            Position = new Vector2(-300.0f, 140.0f),
-            CustomMinimumSize = new Vector2(600.0f, 80.0f),
+            Position = new Vector2(warningBox.OffsetLeft, warningBox.OffsetTop),
+            CustomMinimumSize = new Vector2(warningBox.Width, warningBox.Height),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Visible = false,
@@ -934,13 +1121,22 @@ public partial class Hud : CanvasLayer
         lm.A = 1.0f;
         _bannerLabel.Modulate = lm;
         // 闪烁对（0.25→1.0）循环 4 次 ≈2s（与 spawner 预警同步）；set_loops 作用于整链，
-        // 淡出必须移出循环——把淡出+hide 也包进循环时，首轮末尾 hide 即永久隐藏
+        // 淡出必须移出循环——把淡出+hide 也包进循环时，首轮末尾 hide 即永久隐藏。
+        // 减少闪光：明暗闪烁停用（恒定 alpha 静置同一 2s 时间轴），横幅本身照常出现与淡出
         var blink = CreateTween();
-        blink.TweenProperty(_bannerPlate, "modulate:a", 0.25f, 0.25);
-        blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 0.25f, 0.25);
-        blink.TweenProperty(_bannerPlate, "modulate:a", 1.0f, 0.25);
-        blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 1.0f, 0.25);
-        blink.SetLoops(4);
+        if (GameState.Instance.ReduceFlash)
+        {
+            blink.TweenInterval(WarningBlinkStep * 2.0f * WarningBlinkLoops);
+        }
+        else
+        {
+            blink.TweenProperty(_bannerPlate, "modulate:a", 0.25f, WarningBlinkStep);
+            blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 0.25f, WarningBlinkStep);
+            blink.TweenProperty(_bannerPlate, "modulate:a", 1.0f, WarningBlinkStep);
+            blink.Parallel().TweenProperty(_bannerLabel, "modulate:a", 1.0f, WarningBlinkStep);
+            blink.SetLoops(WarningBlinkLoops);
+        }
+
         _warningTween = blink;
         blink.Finished += () =>
         {
@@ -954,11 +1150,22 @@ public partial class Hud : CanvasLayer
         };
     }
 
-    /// <summary>绑定 Boss 血条（spawner 经 boss_spawned 信号调用）：登记分段参数并连接 Boss 信号。</summary>
+    /// <summary>绑定 Boss 血条（spawner 经 boss_spawned 信号调用）：从该 Boss 的阶段阈值派生
+    /// 段权/段界与刻度线，再连接 Boss 信号。阈值只从活着的 Boss 实例读（其单源是 balance
+    /// boss.phase2_hp_ratio / boss.enrage.hp_ratio），HUD 不再另存一份。</summary>
     public void ShowBossBar(Boss boss)
     {
         _bossBar.FillColor = UITheme.Accent; // 重置上一只 Boss 狂暴留下的红色
-        // 分段血条——段权/段色按权重数组登记（段数 = 权重数，恒为 3）
+        // 分段血条：段权由阶段阈值派生（段界＝转阶段点），段数 = 段权数 = 3；
+        // 刻度线取同一份派生的段界，两者不可能分叉。取值本身是防御性的域钳（Boss 侧已保证 p2>e）。
+        var weights = BossBarSegments.Weights(boss.Phase2HpRatio, boss.EnrageHpRatio);
+        var ticks = BossBarSegments.Ticks(boss.Phase2HpRatio, boss.EnrageHpRatio);
+        for (var i = 0; i < BossSegWeights.Count; i++)
+        {
+            BossSegWeights[i] = weights[i];
+        }
+
+        _bossTicks.SetRatios(ticks);
         _bossBar.Segments = BossSegWeights.Count;
         _bossBar.SegWeights = BossSegWeights;
         _bossBar.SegColors = BossSegColors;
@@ -1116,8 +1323,6 @@ public partial class Hud : CanvasLayer
             (string)GameState.Instance.DifficultyLabel());
     }
 
-
-
     private void OnBossHealthChanged(float current, float maximum)
     {
         var ratio = Mathf.Clamp(current / maximum, 0.0f, 1.0f);
@@ -1149,11 +1354,18 @@ public partial class Hud : CanvasLayer
         RefreshBossName();
     }
 
-    /// <summary>阶段切换瞬间血条短闪（§4.2）。</summary>
+    /// <summary>阶段切换瞬间血条短闪（§4.2）。ReduceFlash 下只刷新名牌——整条 600px 血条被抬到
+    /// 2.2 倍亮度再回落正是该开关要挡的光敏脉冲（同血条的掉段闪已在 SegmentedBar 内门控）。</summary>
     private void OnBossPhaseChanged(int phase)
     {
         _bossPhase = phase;
         RefreshBossName();
+        if (GameState.Instance.ReduceFlash)
+        {
+            _bossBar.Modulate = Colors.White; // 峰值 1.0 即等同无闪（并清掉上一次可能残留的提亮）
+            return;
+        }
+
         _bossBar.Modulate = new Color(2.2f, 2.2f, 2.2f);
         var tween = CreateTween();
         tween.TweenProperty(_bossBar, "modulate", Colors.White, 0.3);
@@ -1386,14 +1598,15 @@ public partial class Hud : CanvasLayer
     /// 溢出警告 ≤safe+safe/3 橙 / 以上红），与衰减起点同源；呼吸脉冲受 ReduceFlash 约束。</summary>
     private void BuildCacheIndicator()
     {
+        var chipBox = HudLayout.CacheChipBox;
         _cacheChip = new ChamferedPanel
         {
-            CustomMinimumSize = new Vector2(172.0f, 56.0f),
+            CustomMinimumSize = new Vector2(chipBox.Width, chipBox.Height),
             Brackets = true,
             Padding = 0.0f,
         };
         _cacheChip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheChip.Position = new Vector2(-192.0f, 118.0f);
+        _cacheChip.Position = new Vector2(chipBox.OffsetLeft, chipBox.OffsetTop);
         AddChild(_cacheChip);
 
         var box = new HBoxContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -1416,19 +1629,19 @@ public partial class Hud : CanvasLayer
         box.AddChild(keyHint);
 
         // 「可升级」提示（点数够点亮任一节点时可见；芯片下方一行小字，比只变色更难错过）。
-        // 停靠 y=212：让开悬停提示那一行（178），两者可同屏不重叠。
+        // 停靠位让开悬停提示那一行（两者可同屏不重叠）——各行顶位单源 core HudLayout。
         _cacheReadyHint = UITheme.MakeLabel((string)Tr("TALENT_READY_HINT"), UITheme.FontSmall, UITheme.AccentGold, HorizontalAlignment.Right);
         _cacheReadyHint.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheReadyHint.Position = new Vector2(-192.0f, 212.0f);
-        _cacheReadyHint.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _cacheReadyHint.Position = new Vector2(HudLayout.CacheHintBox.OffsetLeft, HudLayout.CacheHintBox.OffsetTop);
+        _cacheReadyHint.CustomMinimumSize = new Vector2(HudLayout.CacheColumnWidth, 0.0f);
         _cacheReadyHint.Visible = false;
         _cacheReadyHint.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_cacheReadyHint);
 
         _cacheTooltip = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.Text, HorizontalAlignment.Right);
         _cacheTooltip.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        _cacheTooltip.Position = new Vector2(-360.0f, 178.0f);
-        _cacheTooltip.CustomMinimumSize = new Vector2(340.0f, 0.0f);
+        _cacheTooltip.Position = new Vector2(HudLayout.CacheTooltipBox.OffsetLeft, HudLayout.CacheTooltipBox.OffsetTop);
+        _cacheTooltip.CustomMinimumSize = new Vector2(HudLayout.CacheTooltipBox.Width, 0.0f);
         _cacheTooltip.Visible = false;
         _cacheTooltip.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_cacheTooltip);
@@ -1437,10 +1650,11 @@ public partial class Hud : CanvasLayer
         // 必死曲线由此从纯挫败变成有终点的挑战（Boss 击杀数或存活时长，任一满足即达成）。
         _goalLabel = UITheme.MakeLabel("", UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Right);
         _goalLabel.SetAnchorsPreset(Control.LayoutPreset.TopRight);
-        // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉
+        // 向左生长：文案（「目标 Boss 3/10 · 里程碑 45%」等）长于最小宽时会向右溢出被视口切掉，
+        // 故落位写的是列右缘（与芯片/提示同一列右缘，单源 core）
         _goalLabel.GrowHorizontal = Control.GrowDirection.Begin;
-        _goalLabel.Position = new Vector2(-20.0f, 236.0f);
-        _goalLabel.CustomMinimumSize = new Vector2(172.0f, 0.0f);
+        _goalLabel.Position = new Vector2(HudLayout.CacheGoalBox.OffsetRight, HudLayout.CacheGoalBox.OffsetTop);
+        _goalLabel.CustomMinimumSize = new Vector2(HudLayout.CacheColumnWidth, 0.0f);
         _goalLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
         AddChild(_goalLabel);
         // 初刷延后到信息横幅构建之后（ShowInfoBanner 依赖 _infoLabel；达成态下同帧调用会空引用）
@@ -1537,7 +1751,9 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>目标进度刷新：未达成显示「离达成还有多少」，达成后显示已达成并（一次性）横幅提示。
-    /// 刷新时机＝分数变化（Boss 击杀会加分）与本局时钟轮询（存活型目标需按时间推进）。</summary>
+    /// 刷新时机＝分数变化（Boss 击杀会加分）与本局时钟轮询（存活型目标需按时间推进）；
+    /// 两个分支都只在文案变化时重写——达成态尤其不能每帧重写（擦弹逐枚得分都会带一次
+    /// Tr + GdFormat 分配 + AddThemeColorOverride 的主题失效与重排）。</summary>
     private void RefreshGoalLabel()
     {
         if (_goalLabel == null)
@@ -1552,14 +1768,16 @@ public partial class Hud : CanvasLayer
         var milestoneText = GdFormat.Format((string)Tr("MILESTONE_PROGRESS"), milestonePct);
         if (gs.GoalAchieved())
         {
-            if (!_goalWasAchieved)
+            var achievedText = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
+                (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
+            if (_goalWasAchieved && achievedText == _goalText)
             {
-                _goalWasAchieved = true;
-                _goalText = string.Empty; // 强制文本分支重写（达成态与未达成态各自只写一次）
+                return; // 文案与配色都已写定：0.1s 轮询 × 每次得分（擦弹逐枚）双路驱动下不再重写
             }
 
-            _goalLabel.Text = GdFormat.Format((string)Tr("GOAL_PROGRESS"),
-                (string)Tr("GO_BOSS_ACHIEVED") + "  ·  " + milestoneText);
+            _goalText = achievedText;
+            _goalWasAchieved = true;
+            _goalLabel.Text = achievedText;
             _goalLabel.AddThemeColorOverride("font_color", UITheme.AccentGold);
             if (!_goalBannerShown)
             {
@@ -1570,14 +1788,13 @@ public partial class Hud : CanvasLayer
             return;
         }
 
-        // 展示「更接近达成」的那个条件。判定与 core 同源（RunGoal.Progress 取两支更接近者），
-        // 避免 HUD 内联重算与 core 分叉（原实现自己写了一遍并列比较，两处任改其一即静默不一致）。
+        // 展示「更接近达成」的那个条件。判定走 core RunGoal.CloserKind（经 GameState 门面）——
+        // 原实现自己写了一遍并列比较，与 core 的口径只是「碰巧一致」：单支未配置时内联会把 −1
+        // 当比例参与比较，core 则直接返回已配置的那一支。改由 core 判定后两处不可能再分叉。
         var killTarget = gs.GoalBossKills();
         var surviveTarget = gs.GoalSurviveSeconds();
-        var killProgress = killTarget > 0 ? gs.BossKills / (double)killTarget : -1.0;
-        var surviveProgress = surviveTarget > 0 ? gs.RunTime / surviveTarget : -1.0;
         string detail;
-        if (killProgress >= surviveProgress && killTarget > 0)
+        if (gs.GoalCloserKind() != InfiAir.Core.Progression.RunGoalKind.Survive)
         {
             detail = GdFormat.Format((string)Tr("GOAL_BOSS_KILLS"), gs.BossKills, killTarget);
         }
@@ -1883,10 +2100,11 @@ public partial class Hud : CanvasLayer
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>
     private void BuildInfoBanner()
     {
+        var infoBox = HudLayout.InfoBannerBox;
         _infoPlate = new ChamferedPanel
         {
-            Position = new Vector2(-300.0f, 232.0f),
-            Size = new Vector2(600.0f, 64.0f),
+            Position = new Vector2(infoBox.OffsetLeft, infoBox.OffsetTop),
+            Size = new Vector2(infoBox.Width, infoBox.Height),
             Brackets = true,
             BgColor = UITheme.BtnPrimaryBg,
             BorderColor = new Color(UITheme.Accent, 0.6f),
@@ -1897,8 +2115,8 @@ public partial class Hud : CanvasLayer
         AddChild(_infoPlate);
         _infoLabel = new Label
         {
-            Position = new Vector2(-300.0f, 232.0f),
-            CustomMinimumSize = new Vector2(600.0f, 64.0f),
+            Position = new Vector2(infoBox.OffsetLeft, infoBox.OffsetTop),
+            CustomMinimumSize = new Vector2(infoBox.Width, infoBox.Height),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Visible = false,
@@ -1910,7 +2128,10 @@ public partial class Hud : CanvasLayer
         AddChild(_infoLabel);
     }
 
-    /// <summary>信息横幅：显示 ~1.6s 后淡出（位于警告横幅下方，不与其重叠）。</summary>
+    /// <summary>信息横幅：显示 ~1.6s 后淡出（位于警告横幅下方，不与其重叠）。
+    /// 顺序语义：先停留 TweenInterval，再第一条属性补间，第二条以 Parallel() 与之并行，
+    /// 最后 Chain() 收尾 Hide——SetParallel(true) 是「把后续补间与前一步并行」，
+    /// 直接跟在 TweenInterval 后会从 t=0 就开始淡出、停留被吞掉（奖励节奏是这条横幅的唯一载体）。</summary>
     public void ShowInfoBanner(string text)
     {
         _infoLabel.Text = text;
@@ -1928,10 +2149,9 @@ public partial class Hud : CanvasLayer
         }
 
         _infoTween = CreateTween();
-        _infoTween.TweenInterval(1.6);
-        _infoTween.SetParallel(true);
-        _infoTween.TweenProperty(_infoPlate, "modulate:a", 0.0f, 0.4);
-        _infoTween.TweenProperty(_infoLabel, "modulate:a", 0.0f, 0.4);
+        _infoTween.TweenInterval(InfoBannerHoldSeconds);
+        _infoTween.TweenProperty(_infoPlate, "modulate:a", 0.0f, InfoBannerFadeSeconds);
+        _infoTween.Parallel().TweenProperty(_infoLabel, "modulate:a", 0.0f, InfoBannerFadeSeconds);
         _infoTween.Chain().TweenCallback(Callable.From(_infoPlate.Hide));
         _infoTween.TweenCallback(Callable.From(_infoLabel.Hide));
     }
@@ -1944,8 +2164,4 @@ public partial class Hud : CanvasLayer
             (int)GameState.Instance.Cfg("talent.grant.points_per_milestone", 2).AsInt64()));
     }
 
-    // ---------------- snake_case 兼容桥（meta_jitter 由 MetaHealthFX 经 CallGroup("hud", "meta_jitter", ...) 动态派发——
-    // CallGroup 走方法名字符串，保留原名避免调用点失效） ----------------
-
-    public void meta_jitter(float px) => MetaJitter(px);
 }

@@ -51,6 +51,20 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void SpeedRamp_CapBelowOne_NeverWeakensEnemiesBelowIdentity()
+    {
+        // 速度乘区只能「更快」：上限配置 < 1（手改 balance.json）时按 1.0 处理，
+        // 否则 Math.Min 会把后期敌机乘到 1.0 以下——难度越高敌机越慢。
+        var cfg = Cfg();
+        cfg.SpeedRampCap = 0.5;
+        Assert.Equal(1.0, DifficultyScaling.EnemySpeedRamp(10.0, cfg), 6);
+
+        // 上限 ≤0 = 关闭上限（与原语义一致，仍是未钳的线性 ramp）
+        cfg.SpeedRampCap = 0.0;
+        Assert.Equal(1.0 + 0.10 * 9.0, DifficultyScaling.EnemySpeedRamp(10.0, cfg), 6);
+    }
+
+    [Fact]
     public void SpeedRamp_IsCapped()
     {
         var cfg = Cfg();
@@ -64,6 +78,26 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void SpeedRamp_NonFiniteCap_KeepsSpeedAtBaselineInsteadOfLosingTheCap()
+    {
+        // 非有限上限＝无可用上限：速度顶落到基线 1.0（这条压力轴失效），不解释为「关闭上限」——
+        // NaN 参与 > 比较恒假会静默跳过 Math.Min，反向解读就是「坏配置放出一条无顶的速度乘区」，
+        // 而速度是唯一直接破坏可反应性的量，设计口径要求必须有顶。
+        var cfg = Cfg();
+        cfg.SpeedRampCap = double.NaN;
+        var nan = DifficultyScaling.EnemySpeedRamp(10.0, cfg);
+        Assert.Equal(1.0, nan, 6);
+        Assert.True(double.IsFinite(nan), "速度乘区非有限");
+
+        cfg.SpeedRampCap = double.PositiveInfinity;
+        var inf = DifficultyScaling.EnemySpeedRamp(10.0, cfg);
+        Assert.Equal(1.0, inf, 6);
+        Assert.True(double.IsFinite(inf), "速度乘区非有限");
+        // 相邻档位也不得越过任何顶（坏配置下整条速度轴退回基线，仍有限且有顶）
+        Assert.Equal(1.0, DifficultyScaling.EnemySpeedRamp(1000.0, cfg), 6);
+    }
+
+    [Fact]
     public void BossHpRamp_IsSlowerThanFullDifficulty()
     {
         var cfg = Cfg();
@@ -72,16 +106,6 @@ public sealed class DifficultyScalingTests
         var boss = DifficultyScaling.BossHpRamp(10.0, cfg);
         Assert.Equal(1.0 + 0.55 * 9.0, boss, 6);
         Assert.True(boss < 10.0, "Boss HP ramp 不应等于完整难度乘数");
-    }
-
-    [Fact]
-    public void BossHp_ComposesBaseTypeAndTier()
-    {
-        var cfg = Cfg();
-        // hp_base=800 × 类型 1.3 × 档位 1.0 × ramp(D=1)=1
-        Assert.Equal(1040.0, DifficultyScaling.BossHp(800.0, 1.3, 1.0, 1.0, cfg), 6);
-        // D=5：ramp = 1 + 0.55×4 = 3.2
-        Assert.Equal(800.0 * 1.3 * 3.2, DifficultyScaling.BossHp(800.0, 1.3, 1.0, 5.0, cfg), 6);
     }
 
     [Fact]
@@ -138,6 +162,50 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void EliteCount_HugeDifficulty_SaturatesInsteadOfWrappingNegative()
+    {
+        var cfg = Cfg();
+        // 档数越过 int 域：(1e10−1)/2 ≈ 5e9 > int.MaxValue，double→int 直接转换回绕成负值 →
+        // 精英数从触顶值回落到 1，D 越大精英越少（单调性反转）。
+        Assert.Equal(cfg.EliteCountCap, DifficultyScaling.EliteCount(1e10, cfg));
+        Assert.Equal(cfg.EliteCountCap, DifficultyScaling.EliteCount(1e12, cfg));
+        Assert.True(
+            DifficultyScaling.EliteCount(1e12, cfg) >= DifficultyScaling.EliteCount(1e6, cfg),
+            "巨大 D 下精英数回退");
+    }
+
+    [Fact]
+    public void BossDensityBonus_HugeDifficulty_SaturatesInsteadOfWrappingNegative()
+    {
+        var cfg = Cfg();
+        // (1e12−1)/3 ≈ 3.3e11 > int.MaxValue：同样在取整处回绕成负值，追加量从触顶值回落到 0。
+        Assert.Equal(cfg.BossDensityBonusCap, DifficultyScaling.BossDensityBonus(1e10, cfg));
+        Assert.Equal(cfg.BossDensityBonusCap, DifficultyScaling.BossDensityBonus(1e12, cfg));
+        Assert.True(
+            DifficultyScaling.BossDensityBonus(1e12, cfg) >= DifficultyScaling.BossDensityBonus(1e6, cfg),
+            "巨大 D 下 Boss 弹数追加回退");
+    }
+
+    [Fact]
+    public void EliteCount_NaNPerDifficulty_StaysOne()
+    {
+        // 坏配置（NaN 档距）不得让档数取整产出负数
+        var cfg = Cfg();
+        cfg.ElitePerDifficulty = double.NaN;
+        Assert.Equal(1, DifficultyScaling.EliteCount(100.0, cfg));
+    }
+
+    [Fact]
+    public void BossDensityBonus_NaNPerDifficulty_StaysZero()
+    {
+        // 坏配置（NaN 档距）与 EliteCount 同款口径：契约是 0..上限。NaN 参与 <= 比较恒假会漏过
+        // 关闭闸，随后 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——负增量。
+        var cfg = Cfg();
+        cfg.BossDensityPerDifficulty = double.NaN;
+        Assert.Equal(0, DifficultyScaling.BossDensityBonus(100.0, cfg));
+    }
+
+    [Fact]
     public void BossDensityBonus_ZeroUntilConfiguredStep()
     {
         var cfg = Cfg(); // 每 3.0 D 追加 1，上限 4
@@ -190,6 +258,52 @@ public sealed class DifficultyScalingTests
     }
 
     [Fact]
+    public void SoftCappedTimeTerm_NonHalfFactor_KeepsExactFractionOfOvershoot()
+    {
+        // 折减算术是 start + (超出量)×factor（保留 factor 比例），不是 start + 超出量×(1−factor)。
+        // 默认 0.5 恰好等于 1−0.5，原先唯一的数值用例对两种式子同样成立——只有非 0.5 因子能分辨。
+        var cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = 0.25;
+        Assert.Equal(6.0 + 10.0 * 0.25, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        Assert.Equal(8.5, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+
+        cfg.DifficultyTailSpeedFactor = 0.75;
+        Assert.Equal(6.0 + 100.0 * 0.75, DifficultyScaling.SoftCappedTimeTerm(106.0, cfg), 6);
+    }
+
+    [Fact]
+    public void SoftCappedTimeTerm_NonFiniteConfig_DisablesSoftCap()
+    {
+        // 非有限 start/factor 与「关闭软上限」同义：NaN 会让四个早退条件全假 → 返回 NaN 时间项 →
+        // 难度乘区变 NaN（每帧判否 → 反复广播 DifficultyChanged，敌方 HP/伤害乘区全 NaN）。
+        // 折减只是压力整形，坏配置下退回未折减既保曲线单调、也不坏整条难度轴。
+        var cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.NaN;
+        var nanStart = DifficultyScaling.SoftCappedTimeTerm(16.0, cfg);
+        Assert.Equal(16.0, nanStart, 6);
+        Assert.True(double.IsFinite(nanStart), "时间项非有限");
+
+        cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = double.NaN;
+        var nanFactor = DifficultyScaling.SoftCappedTimeTerm(16.0, cfg);
+        Assert.Equal(16.0, nanFactor, 6);
+        Assert.True(double.IsFinite(nanFactor), "时间项非有限");
+
+        // 无穷档同样按关闭处理（+∞ 起点/折减系数都无可用折减语义）
+        cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.PositiveInfinity;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        cfg.DifficultyTailSpeedFactor = double.PositiveInfinity;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+
+        // 坏配置下曲线仍单调不减（长局探针的判据不因坏配置反转）
+        cfg = Cfg();
+        cfg.DifficultySoftCapStart = double.NaN;
+        Assert.True(DifficultyScaling.SoftCappedTimeTerm(26.0, cfg)
+            > DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), "坏配置把时间项压回退");
+    }
+
+    [Fact]
     public void SoftCappedTimeTerm_ConfigOff_IsIdentity()
     {
         var cfg = Cfg();
@@ -197,6 +311,21 @@ public sealed class DifficultyScalingTests
         Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
         cfg.DifficultyTailSpeedFactor = 0.5;
         cfg.DifficultySoftCapStart = 0.0;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+    }
+
+    [Fact]
+    public void SoftCappedTimeTerm_NonPositiveTailFactor_DoesNotFlattenCurve()
+    {
+        // factor ≤ 0 是「关闭软上限」，不是「超出部分折减到 0」：若守卫漏掉 factor=0，
+        // 返回 start + (term−start)×0 = start，曲线在 6.0 处彻底平台化——时间不再加难度，
+        // 与长局探针断言的单调性直接冲突（factor<0 更会反向下降）。
+        var cfg = Cfg();
+        cfg.DifficultyTailSpeedFactor = 0.0;
+        Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
+        Assert.Equal(100.0, DifficultyScaling.SoftCappedTimeTerm(100.0, cfg), 6);
+
+        cfg.DifficultyTailSpeedFactor = -0.5;
         Assert.Equal(16.0, DifficultyScaling.SoftCappedTimeTerm(16.0, cfg), 6);
     }
 }

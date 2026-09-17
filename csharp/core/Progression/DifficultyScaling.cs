@@ -68,20 +68,24 @@ public static class DifficultyScaling
     public static double EnemyDamageRamp(double difficulty, DifficultyScalingConfig cfg) =>
         DifficultyRamp.Linear(difficulty, cfg.DamageRampFactor);
 
-    /// <summary>杂兵/精英速度乘区（带上限）。</summary>
+    /// <summary>杂兵/精英速度乘区（带上限）。非有限上限（NaN/±∞）按下安全语义处理：退回基线 1.0
+    /// （速度不随难度上涨），**不按「关闭速度顶」解释**——速度是唯一直接破坏可反应性的量，设计
+    /// 口径要求必须有顶；NaN 参与 &gt; 比较恒假会静默跳过 Math.Min，正是「坏配置取消硬顶」的形态。
+    /// 与既有的「上限 ≤0 按 1.0 处理」同口径（本量不设「关闭」分支）。</summary>
     public static double EnemySpeedRamp(double difficulty, DifficultyScalingConfig cfg)
     {
         var ramp = DifficultyRamp.Linear(difficulty, cfg.SpeedRampFactor);
+        if (!double.IsFinite(cfg.SpeedRampCap))
+        {
+            return 1.0;
+        }
+
         return cfg.SpeedRampCap > 0.0 ? Math.Min(ramp, Math.Max(cfg.SpeedRampCap, 1.0)) : ramp;
     }
 
     /// <summary>Boss HP 乘区（斜率独立于杂兵；原实现等价 factor=1.0）。</summary>
     public static double BossHpRamp(double difficulty, DifficultyScalingConfig cfg) =>
         DifficultyRamp.Linear(difficulty, cfg.BossHpRampFactor);
-
-    /// <summary>Boss HP 绝对值：hp_base × 类型倍率 × 难度档倍率 × Boss ramp。</summary>
-    public static double BossHp(double hpBase, double typeMult, double tierMult, double difficulty, DifficultyScalingConfig cfg) =>
-        hpBase * typeMult * tierMult * BossHpRamp(difficulty, cfg);
 
     /// <summary>波次间隔：基础间隔 ÷ 难度项，钳下限（基础间隔 ≤0 时返回下限）。</summary>
     public static double WaveInterval(double baseInterval, double difficulty, DifficultyScalingConfig cfg)
@@ -115,24 +119,29 @@ public static class DifficultyScaling
     /// 配置关闭（≤0）或上限 &lt;1 时恒为 1——至少一只，否则精英波会空转。</summary>
     public static int EliteCount(double difficulty, DifficultyScalingConfig cfg)
     {
-        if (cfg.ElitePerDifficulty <= 0.0 || cfg.EliteCountCap <= 1 || !double.IsFinite(difficulty))
+        // 非有限档距（NaN/±∞）与关闭同义：NaN 参与 <= 比较恒假会漏过下面的闸，
+        // 使 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——精英数变负。
+        if (!double.IsFinite(cfg.ElitePerDifficulty) || cfg.ElitePerDifficulty <= 0.0
+            || cfg.EliteCountCap <= 1 || !double.IsFinite(difficulty))
         {
             return 1;
         }
 
-        var extra = (int)Math.Floor((difficulty - 1.0) / cfg.ElitePerDifficulty);
-        if (extra < 0)
-        {
-            extra = 0;
-        }
-
+        // 取整前先落回 int 域：巨大 D（如 1e10）下 double→int 直接转换回绕成负值，
+        // 精英数会从触顶值回落到 1——D 越大精英越少（单调性反转）。上限本就钳在
+        // EliteCountCap（≤ int.MaxValue），超出的档数精确值无关紧要。
+        var extra = (int)Math.Floor(Math.Clamp((difficulty - 1.0) / cfg.ElitePerDifficulty, 0.0, int.MaxValue - 1.0));
         return Math.Min(1 + extra, cfg.EliteCountCap);
     }
 
     /// <summary>Boss 攻击弹数随 D 的追加量（0..上限）。取整向下，配置关闭或 D ≤ 1 时为 0。</summary>
     public static int BossDensityBonus(double difficulty, DifficultyScalingConfig cfg)
     {
-        if (cfg.BossDensityPerDifficulty <= 0.0 || cfg.BossDensityBonusCap <= 0 || !double.IsFinite(difficulty))
+        // 非有限档距与关闭同义（同 EliteCount 的口径）：NaN 参与 <= 比较恒假会漏过下面的闸，
+        // 使 (difficulty−1)/NaN = NaN 经 Math.Floor 取整得 int.MinValue——追加量变负，
+        // 违约「0..上限」的契约，下一个调用点就会把负增量灌进弹数。
+        if (!double.IsFinite(cfg.BossDensityPerDifficulty) || cfg.BossDensityPerDifficulty <= 0.0
+            || cfg.BossDensityBonusCap <= 0 || !double.IsFinite(difficulty))
         {
             return 0;
         }
@@ -142,12 +151,8 @@ public static class DifficultyScaling
             return 0;
         }
 
-        var extra = (int)Math.Floor((difficulty - 1.0) / cfg.BossDensityPerDifficulty);
-        if (extra < 0)
-        {
-            extra = 0;
-        }
-
+        // 同上：取整前先落回 int 域，防巨大 D 下回绕成负值把追加量打回 0。
+        var extra = (int)Math.Floor(Math.Clamp((difficulty - 1.0) / cfg.BossDensityPerDifficulty, 0.0, int.MaxValue - 1.0));
         return Math.Min(extra, cfg.BossDensityBonusCap);
     }
 
@@ -155,6 +160,10 @@ public static class DifficultyScaling
     /// 难度乘数的时间项软上限：时间项超过 softCapStart 之后按 tailSpeedFactor 折减其超出部分。
     /// 只折时间项（Boss 击杀项不动）——它才是「挂机也会涨」的那条，也是必死时点方差的主要来源。
     /// 配置关闭（start ≤0 或 factor ≥1 或 factor ≤0）时原样返回。
+    /// 非有限 start/factor 按下安全语义处理：**关闭软上限**，原样返回——NaN 会让四个早退条件
+    /// 全假、返回 NaN 时间项，难度乘区随之变 NaN（每帧 IsEqualApprox 判否 → 反复广播
+    /// DifficultyChanged，敌方 HP/伤害乘区全 NaN）。折减只是压力整形，坏配置下退回「未折减」
+    /// 既保住曲线单调不减，也不把整条难度轴弄坏（与 ≤0/≥1 的「关闭」同口径）。
     /// </summary>
     public static double SoftCappedTimeTerm(double timeTerm, DifficultyScalingConfig cfg)
     {
@@ -165,7 +174,8 @@ public static class DifficultyScaling
 
         var start = cfg.DifficultySoftCapStart;
         var factor = cfg.DifficultyTailSpeedFactor;
-        if (start <= 0.0 || factor <= 0.0 || factor >= 1.0 || timeTerm <= start)
+        if (!double.IsFinite(start) || !double.IsFinite(factor)
+            || start <= 0.0 || factor <= 0.0 || factor >= 1.0 || timeTerm <= start)
         {
             return timeTerm;
         }

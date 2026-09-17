@@ -17,8 +17,9 @@ namespace InfiAir;
 /// 读档粒度：还原本局进度，战场从新一波开始（敌机/弹幕/波次计时/连击窗口/DDA 剩余不持久化）。
 /// 复用 SaveManager/SaveStore（原子写 / 损坏隔离 / JSON）；与 settings.json 分区互不干扰。
 /// 档案自带 version，版本不符按无存档处理（不隔离、仅忽略），保证开机不被旧档卡住。
-/// 还原顺序固定：talent（先恢复 extra_life 层级）→ combat（重算 MaxHealth 才有正确上限）
-/// → score → progress → missions；每个服务末尾自行补发信号驱动 HUD/Player 刷新。
+/// 还原顺序固定：talent（先恢复 extra_life 层级）→ combat（重算 MaxHealth 才有正确上限，
+/// 末尾补发一次 HealthChanged——字段直写不发服务事件）→ score → progress → missions；
+/// 每个服务末尾自行补发信号驱动 HUD/Player 刷新。
 /// </summary>
 public partial class GameState : Node
 {
@@ -163,7 +164,7 @@ public partial class GameState : Node
         _talent.RestoreRunState(
             ReadIntMap(d.GetValueOrDefault("talent_levels", new Godot.Collections.Dictionary())),
             ReadStringList(d.GetValueOrDefault("talent_overcharged", new Godot.Collections.Array())),
-            d.GetValueOrDefault("talent_route", "").AsString(),
+            ReadSaveString(d.GetValueOrDefault("talent_route", ""), ""),
             SaveInt(d.GetValueOrDefault("talent_reset_tokens", 0), 0),
             SaveInt(d.GetValueOrDefault("talent_bonus_overcharge_slots", 0), 0),
             ReadDoubleList(d.GetValueOrDefault("talent_cache_values", new Godot.Collections.Array())));
@@ -173,8 +174,14 @@ public partial class GameState : Node
         // 以 StringName 查字典会全部落空（增幅效果静默失效）。
         Augments = NormalizeAugments(d.GetValueOrDefault("augments", new Godot.Collections.Dictionary()));
         Health = Mathf.Clamp(SaveNum(d.GetValueOrDefault("health", MaxHealth()), MaxHealth()), 1.0, MaxHealth());
+        // 读档后补发健康信号：健康信号唯一发射口是 CombatStateService 事件，此处直写字段不发事件，
+        // 不补发则 HUD 停在 ResetRun 的复位血量（分母经 talent 步的 AugmentsChanged 已对、分子错）。
+        // 必须落在 combat 步之后：extra_life 层级已还原，此时 MaxHealth 才是正确上限。
+        EmitSignal(SignalName.HealthChanged, (float)Health);
 
-        // 3) score
+        // 3) score。RunTime 先还原：本步与后续各服务的 RestoreRunState 都会补发信号驱动 HUD 重建，
+        // 订阅方（HUD 目标行/长局读数）读 RunTime——放在信号之后还原会让它们读到复位值 0。
+        RunTime = Math.Max(SaveNum(d.GetValueOrDefault("run_time", 0.0), 0.0), 0.0);
         _score.RestoreRunState(
             SaveInt(d.GetValueOrDefault("score", 0), 0),
             SaveInt(d.GetValueOrDefault("kills", 0), 0),
@@ -183,7 +190,6 @@ public partial class GameState : Node
             SaveInt(d.GetValueOrDefault("milestone_count", 0), 0));
 
         // 4) progress
-        RunTime = Math.Max(SaveNum(d.GetValueOrDefault("run_time", 0.0), 0.0), 0.0);
         _runProg.RestoreRunState(
             SaveNum(d.GetValueOrDefault("difficulty_multiplier", 1.0), 1.0),
             SaveInt(d.GetValueOrDefault("difficulty_time_step", 0), 0),
@@ -193,18 +199,37 @@ public partial class GameState : Node
         _missions.RestoreRunState(
             SaveInt(d.GetValueOrDefault("rp", 0), 0),
             SaveInt(d.GetValueOrDefault("refresh_points", 0), 0),
-            d.GetValueOrDefault("missions", new Godot.Collections.Dictionary()).AsGodotDictionary().Duplicate(),
+            ReadSaveDictionary(d.GetValueOrDefault("missions", new Godot.Collections.Dictionary())),
             ReadIntMap(d.GetValueOrDefault("last_kind_value", new Godot.Collections.Dictionary())));
     }
 
-    // ---------------- 存档字段判型读取（手改/损坏字段一律回退，不抛） ----------------
+    // ---------------- 存档字段判型读取（手改/损坏字段一律回退） ----------------
     // 判型与钳制口径单源在 RunFieldNormalize（core）：手改超大值（裸 (int) 转换会回绕成负数）
     // 与旧档缺键的回退语义由 core 单测钉住，本层只做 Variant → CLR 载入与 StringName 键重建。
+    // 铁律：本文件的每个 Variant 读取都必须先判 VariantType。Godot 4.6 的 As* 是**宽松转换、
+    // 不抛异常**（实测：AsBool("no") 得 true、AsInt64("lots") 得 0、AsString(7) 得 "7"），
+    // 所以裸取的代价不是崩溃而是**静默读错值**——坏得更安静，无头冒烟与单测都抓不到。
+    // 判型由 --hostile-save-probe 走生产读档链钉住（引擎绑定层，xUnit 够不到）。
+
+    /// <summary>存档字符串字段读（talent_route）：仅接受 String/StringName，其余回退
+    /// （数字/数组会被宽松转换成 "7" 这类假字符串，路线查表落空后行为不可预期）。</summary>
+    private static string ReadSaveString(Variant v, string fallback) =>
+        v.VariantType is Variant.Type.String or Variant.Type.StringName ? v.AsString() : fallback;
+
+    /// <summary>存档字典字段读（missions）：仅接受 Dictionary，其余回退空表
+    /// （宽松转换把数字/字符串变成空字典，任务表会静默清空）。</summary>
+    private static Godot.Collections.Dictionary ReadSaveDictionary(Variant v) =>
+        v.VariantType == Variant.Type.Dictionary
+            ? v.AsGodotDictionary().Duplicate()
+            : new Godot.Collections.Dictionary();
 
     /// <summary>增幅表键归一化（StringName 键）：JSON 往返把键退化为 String，逐项重建为 StringName；
-    /// 层级判定（只保留正层级 + 钳 [0, int.MaxValue]）委托 <see cref="RunFieldNormalize.NormalizeAugments"/>。
+    /// 键集与层级上限经 <see cref="RunFieldNormalize.NormalizeAugments"/> 收口——上限取自
+    /// <see cref="_talent"/>（结构上限，风险加点节点 +1），与 talent_levels 同一式子：
+    /// 只在 augments 侧收紧会把 IsOvercharged 节点多花的那一级削掉（同一节点两套层级，
+    /// 乘算消费端少一级效果）；未知 id 与超上限层级都是手改档注入的增幅效果，整条丢弃。
     /// 不重建 StringName 的话 AugmentLevel 以 StringName 查字典会全部落空（增幅效果静默失效）。</summary>
-    private static Godot.Collections.Dictionary NormalizeAugments(Variant v)
+    private Godot.Collections.Dictionary NormalizeAugments(Variant v)
     {
         var result = new Godot.Collections.Dictionary();
         if (!VariantBridge.TryToClr(v, out var clr, out _))
@@ -212,13 +237,16 @@ public partial class GameState : Node
             return result;
         }
 
-        foreach (var kv in RunFieldNormalize.NormalizeAugments(clr))
+        foreach (var kv in RunFieldNormalize.NormalizeAugments(clr, AugmentLevelLimit))
         {
             result[new StringName(kv.Key)] = kv.Value;
         }
 
         return result;
     }
+
+    /// <summary>增幅表读档层级上限（0 = 未知节点，丢弃）。</summary>
+    private int AugmentLevelLimit(string id) => _talent.RestoreLimitFor(new StringName(id));
 
     /// <summary>int 子表读取（talent_levels / last_kind_value）：逐项判型 + 钳 [0, int.MaxValue]，
     /// 非数值整条跳过；判型口径单源在 <see cref="RunFieldNormalize.ReadIntMap"/>。</summary>

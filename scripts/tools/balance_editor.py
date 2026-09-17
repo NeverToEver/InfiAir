@@ -2,7 +2,8 @@
 """InfiAir 数值管理器（balance editor）
 
 本机可视化编辑 data/balance.json：分区树形展示全部可调数值，标黄未保存改动，
-保存前服务端递归校验结构/类型与现文件一致，临时文件 + os.replace 原子落盘，
+保存前服务端递归校验结构与类型和现文件一致（键集双向相等——编辑器加不了也删不了键），
+临时文件 + os.replace 原子落盘，
 并自动备份（balance.json.bak）。
 
 用法：
@@ -75,7 +76,7 @@ PAGE = """<!DOCTYPE html>
 <script>
 let original = null;   // 服务器文件快照
 let current = null;    // 编辑中的副本
-const rows = [];       // {path, parse, input, row}
+const rows = [];       // 行记录：路径 / 解析器 / 输入框 / 行元素
 let errorCount = 0;    // 处于解析错误状态的行数（>0 禁止保存）
 
 const statusEl = document.getElementById('status');
@@ -213,8 +214,27 @@ load();
 """
 
 
+def _render_save(payload: object, path: Path) -> str:
+    """序列化待落盘内容，行尾沿用现文件（与运行平台无关）。
+
+    Path.write_text 走 newline=None：写入时 `\\n` 按 os.linesep 展开（Windows CRLF / Linux LF），
+    于是同一份全 CRLF 的 balance.json 在 Linux 上保存一次就整文件翻成 LF，diff 全红淹没真实改值。
+    改为「先取现文件行尾、自行把 json.dumps 的 LF 全量展开、再以 newline="" 写入」——文件既是
+    单源，行尾也随它走。只换末尾那一个换行不够：正文的 LF 仍会被原样写出，文件变成混合行尾。
+    """
+    newline = "\r\n" if b"\r\n" in path.read_bytes() else "\n"
+    body = json.dumps(payload, indent="\t", ensure_ascii=False)
+    return body.replace("\n", newline) + newline if newline != "\n" else body + "\n"
+
+
 def _check_shape(new: object, old: object, path: str = "") -> list[str]:
-    """递归校验结构与标量类型和现文件一致（数组只要求元素类型一致，长度可变）。"""
+    """递归校验结构与标量类型和现文件一致（键集双向相等；数组只要求元素类型一致，长度可变）。
+
+    键集必须**双向**相等：编辑器的行集完全由现文件的键生成，加不了键也删不了键，
+    故合法保存不可能引入新键——只判「旧键都在」时，手工构造的 POST 能往 balance.json
+    塞界面上看不见的键（界面看不到，改起来只能全文件搜，且没人知道它该不该有）。
+    数组长度仍可变：UI 把数字数组编成一行逗号表，本就支持增删元素，只按首元素判元素类型。
+    """
     errs: list[str] = []
     where = path or "<root>"
     if isinstance(old, dict):
@@ -223,14 +243,22 @@ def _check_shape(new: object, old: object, path: str = "") -> list[str]:
         for k in old:
             if k not in new:
                 errs.append(f"{where}.{k}: 缺失")
-            else:
+        for k in new:
+            if k not in old:
+                errs.append(f"{where}.{k}: 现文件无此键（编辑器加不了新键，拒绝写入未知键）")
+        for k in old:
+            if k in new:
                 errs.extend(_check_shape(new[k], old[k], f"{where}.{k}"))
     elif isinstance(old, list):
         if not isinstance(new, list):
             return [f"{where}: 应为数组"]
-        if old and new:
-            for i, item in enumerate(new):
-                errs.extend(_check_shape(item, old[0], f"{where}[{i}]"))
+        if not old:
+            return errs  # 现文件该数组为空：无模板可判
+        for i, item in enumerate(new):
+            # 元素按位比对（超出长度的新元素拿首元素当模板）：对象数组在 UI 里按位置改值，
+            # 元素形状本就允许逐位不同（boss 某阶段的 waves / duration 交替），
+            # 一律拿 old[0] 当模板会对着原样文件报缺键——保存被整体拒掉，编辑器等于不可用。
+            errs.extend(_check_shape(item, old[i] if i < len(old) else old[0], f"{where}[{i}]"))
     elif isinstance(old, bool):  # bool 是 int 子类，必须先判
         if not isinstance(new, bool):
             errs.append(f"{where}: 应为布尔")
@@ -287,7 +315,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             shutil.copy2(BALANCE, BALANCE.with_suffix(".json.bak"))
             tmp = BALANCE.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(payload, indent="\t", ensure_ascii=False) + "\n", encoding="utf-8")
+            # newline="" 关闭换行翻译，行尾由 _render_save 显式给出（见其说明）
+            with open(tmp, "w", encoding="utf-8", newline="") as handle:
+                handle.write(_render_save(payload, BALANCE))
             os.replace(tmp, BALANCE)
         except OSError as e:
             # 写盘侧 OSError 必须兜底为 400 响应——磁盘满/只读/权限不足时若裸抛

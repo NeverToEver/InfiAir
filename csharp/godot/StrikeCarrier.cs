@@ -113,7 +113,7 @@ public partial class StrikeCarrier : Node2D
         if (index >= 0 && index < _rings.Count)
         {
             _rings[index].Visible = true;
-            _rings[index].DefaultColor = new Color(1.0f, 0.25f, 0.75f, 1.0f); // 精英品红
+            _rings[index].DefaultColor = UITheme.EventMagenta; // 精英品红（调色板单源）
         }
     }
 

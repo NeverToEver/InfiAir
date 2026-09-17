@@ -32,7 +32,12 @@ public static class DifficultyCurve
             return 1.0 + perBossKill * bossKills;
         }
 
-        long step = (long)Math.Floor(runTime / timeStepSeconds);
+        // 档数饱和：比值越过 long 域（微小 timeStep × 长 runTime，如 1e-14 与 1e6s ≈ 1e20）
+        // 时 double→long 直接转换回绕成 long.MinValue，难度乘数巨负、曲线单调性反转；
+        // 且回绕点之后档数不再随 runTime 增长，无论如何都已远超时间项的任何实际意义。
+        const double MaxStep = (double)long.MaxValue;
+        var steps = runTime / timeStepSeconds;
+        var step = steps >= MaxStep ? long.MaxValue : (long)Math.Floor(steps);
         return 1.0 + perBossKill * bossKills + step * timeStepSeconds / 600.0 * perTenMinutes;
     }
 }

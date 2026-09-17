@@ -1,0 +1,73 @@
+using InfiAir.Core.Combat;
+using Xunit;
+
+namespace InfiAir.Core.Tests.Combat;
+
+/// <summary>辅助瞄准目标的几何判定：框半宽、框包含、框沿距、锥角。这些算式原先内联在
+/// AimFrameLayer 的每帧扫描里，坏了只表现为「辅瞄偏弱/偏强」，无任何运行信号。</summary>
+public sealed class AimTargetingTests
+{
+    [Fact]
+    public void FrameHalfSize_AddsPadToCollisionRadius()
+    {
+        // 碰撞半径 26 × ws + pad 24（high 档高对比框），两边同族口径
+        Assert.Equal(50.0f, AimTargeting.FrameHalfSize(26.0f, 24.0f));
+        Assert.Equal(24.0f, AimTargeting.FrameHalfSize(0.0f, 24.0f));
+
+        // 负值（配置损坏）不放大也不缩小到负：半宽为负会让框判定恒不通过
+        Assert.Equal(24.0f, AimTargeting.FrameHalfSize(-5.0f, 24.0f));
+        Assert.Equal(26.0f, AimTargeting.FrameHalfSize(26.0f, -5.0f));
+    }
+
+    [Fact]
+    public void InFrame_BoundaryCounts()
+    {
+        Assert.True(AimTargeting.InFrame(0.0f, 0.0f, 0.0f, 0.0f, 10.0f));
+        Assert.True(AimTargeting.InFrame(10.0f, -10.0f, 0.0f, 0.0f, 10.0f));
+        Assert.False(AimTargeting.InFrame(10.01f, 0.0f, 0.0f, 0.0f, 10.0f));
+        Assert.False(AimTargeting.InFrame(9.0f, 11.0f, 0.0f, 0.0f, 10.0f));
+    }
+
+    [Fact]
+    public void FrameEdgeDistance_UsesOnlyOutsideComponent()
+    {
+        // 单轴出框（x 出 5，y 在框内 → y 的分量为负）：只计框外分量，长度 = 5
+        Assert.Equal(5.0f, AimTargeting.FrameEdgeDistance(15.0f, 0.0f, 0.0f, 0.0f, 10.0f));
+
+        // 双轴出框（3-4-5）
+        Assert.Equal(5.0f, AimTargeting.FrameEdgeDistance(13.0f, 14.0f, 0.0f, 0.0f, 10.0f));
+
+        // 框内为 0（框内归粘滞，不磁吸）
+        Assert.Equal(0.0f, AimTargeting.FrameEdgeDistance(1.0f, 2.0f, 0.0f, 0.0f, 10.0f));
+
+        // 判别式：坏实现把负分量计入（sqrt((15-10)² + (0-10)²) = 11.18），磁吸会误判在 range 之外
+        var insideComponentIncluded = (float)System.Math.Sqrt(25.0 + 100.0);
+        Assert.True(insideComponentIncluded > 10.0f);
+        Assert.True(AimTargeting.FrameEdgeDistance(15.0f, 0.0f, 0.0f, 0.0f, 10.0f) < 10.0f);
+    }
+
+    [Fact]
+    public void InCone_ThresholdIsInclusiveAndUnitDirection()
+    {
+        // 8° 锥（medium）：0° 在内、7° 在内、9° 在外
+        var threshold = AimCone.CosFromHalfAngleDeg(8.0f);
+        Assert.True(AimTargeting.InCone(0.0f, -1.0f, 0.0f, -100.0f, threshold));
+        Assert.True(AimTargeting.InCone(0.0f, -1.0f, 100.0f * Sin(7.0f), -100.0f * Cos(7.0f), threshold));
+        Assert.False(AimTargeting.InCone(0.0f, -1.0f, 100.0f * Sin(9.0f), -100.0f * Cos(9.0f), threshold));
+
+        // 恰在边界：点积相等 → 在内（判定用「不排除」的取反形式）
+        Assert.True(AimTargeting.InCone(0.0f, -1.0f, 100.0f * Sin(8.0f), -100.0f * Cos(8.0f), threshold));
+    }
+
+    [Fact]
+    public void InCone_NanThresholdDoesNotExclude()
+    {
+        // 锥阈值/目标方向为 NaN 时不得把目标排除（既有语义，见 AimCone 的 360° 边界）
+        Assert.True(AimTargeting.InCone(0.0f, -1.0f, 10.0f, -10.0f, float.NaN));
+        Assert.True(AimTargeting.InCone(0.0f, -1.0f, 0.0f, 0.0f, 0.99f));
+    }
+
+    private static float Sin(float deg) => (float)System.Math.Sin(deg * System.Math.PI / 180.0);
+
+    private static float Cos(float deg) => (float)System.Math.Cos(deg * System.Math.PI / 180.0);
+}

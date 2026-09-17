@@ -89,6 +89,39 @@ public static class RunGoal
 
         return Math.Clamp(best, 0.0, 1.0);
     }
+
+    /// <summary>
+    /// 两个条件里「更接近达成」的那一个（HUD 常驻进度显示哪条用）。
+    /// 未配置的条件不参与；只有一项配置即返回该项；都未配置返回 None。
+    /// 并列时取 Boss 击杀——与 <see cref="Kind"/> 的固定优先级同向，避免同一对输入在两处
+    /// 判定上对并列点给出不同分支（HUD 曾自行内联一遍并列比较，与 <see cref="Progress"/>
+    /// 的取最大口径不完全等价：单支未配置时内联会把 −1 当比例参与比较）。
+    /// </summary>
+    public static RunGoalKind CloserKind(int bossKills, double runTime, RunGoalConfig cfg)
+    {
+        var killTarget = cfg.BossKillsTarget;
+        var surviveTarget = cfg.SurviveSeconds;
+        var killConfigured = killTarget > 0;
+        var surviveConfigured = surviveTarget > 0.0 && double.IsFinite(surviveTarget);
+        if (!killConfigured && !surviveConfigured)
+        {
+            return RunGoalKind.None;
+        }
+
+        if (!surviveConfigured)
+        {
+            return RunGoalKind.BossKills;
+        }
+
+        if (!killConfigured)
+        {
+            return RunGoalKind.Survive;
+        }
+
+        var killRatio = Math.Max(bossKills, 0) / (double)killTarget;
+        var t = double.IsFinite(runTime) && runTime > 0.0 ? runTime : 0.0;
+        return killRatio >= t / surviveTarget ? RunGoalKind.BossKills : RunGoalKind.Survive;
+    }
 }
 
 /// <summary>

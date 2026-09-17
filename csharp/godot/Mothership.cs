@@ -140,7 +140,8 @@ public partial class Mothership : Area2D
     private float _magCellTimer;
     private bool _magWarned;
     private float _warnEjectTimer;
-    private float _earlyTimer;
+    // 提前离舰蓄力（core HoldCharge：按住累加 → 达阈值触发一次 → 松手复位）；阈值 _Ready 按配置覆写
+    private readonly InfiAir.Core.Input.HoldCharge _earlyLeaveCharge = new(2.0f);
     private Hud? _hudCache; // HUD 延迟缓存（驻留期每帧刷新进度条用）
     private float _cooldownFactor = 1.0f;
     private float _prefill;
@@ -251,9 +252,9 @@ public partial class Mothership : Area2D
         MagCellTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.mag_cell_time", MagCellTime).AsDouble(), CfgFx.IntervalFloor);
         MagWarnCells = (int)GameState.Instance.Cfg("mothership.mag_warn_cells", MagWarnCells).AsInt64();
         WarnEjectDelay = (float)GameState.Instance.Cfg("mothership.warn_eject_delay", WarnEjectDelay).AsDouble();
-        // early_hold_time 钳下限——0 时 HUD 蓄力进度 _earlyTimer/早期离舰
-        // 除零得 inf，且 _earlyTimer >= 0 恒真致长按 H 第一帧即触发离舰
+        // early_hold_time 钳下限——0 时蓄力进度比例除零（得到 inf），且「已达阈值」恒真致长按 H 第一帧即触发离舰
         EarlyHoldTime = Mathf.Max((float)GameState.Instance.Cfg("mothership.early_hold_time", EarlyHoldTime).AsDouble(), 0.01f);
+        _earlyLeaveCharge.Threshold = EarlyHoldTime;
         EarlyMaxDiscount = (float)GameState.Instance.Cfg("mothership.early_max_discount", EarlyMaxDiscount).AsDouble();
         EarlyPrefillMax = (float)GameState.Instance.Cfg("mothership.early_prefill_max", EarlyPrefillMax).AsDouble();
         EarlyPrefillRatio = (float)GameState.Instance.Cfg("mothership.early_prefill_ratio", EarlyPrefillRatio).AsDouble();
@@ -449,6 +450,10 @@ public partial class Mothership : Area2D
 
     public int GetMagCells() => _magCells;
 
+    // 以下四个 Set* 是坞态机计时/弹匣的**白盒写口**，与上方 GetState/GetMagCells/MagWarned/
+    // WarnEjectTimer 成对。保留理由（AGENTS §10 零引用成员口径）：它们是实机调参时的坞态观察面，
+    // 可在不改生产时长常量的前提下把坞态推入任意相位复核演出与读数。**仅供诊断**——
+    // 生产路径只经 EnterState/Tick 推进，外部调用会造成计时与状态不自洽。
     public void SetStateTimer(float seconds) => _stateTimer = seconds;
 
     public bool MagWarned() => _magWarned;
@@ -462,6 +467,20 @@ public partial class Mothership : Area2D
     public void SetMagCells(int count) => _magCells = count;
 
     public void SetWarnEjectTimer(float seconds) => _warnEjectTimer = seconds;
+
+    /// <summary>提前离舰蓄力通道的清理口（生产路径：Main.ClearAllCharge 的终局清理）。
+    /// 进度字段与 HUD 进度条一并复位——它的推进在本类 _PhysicsProcess 里，而死亡/返航的终局
+    /// 会暂停或卸载本节点，漏清则进度条以最后比例常驻结算页（结算页 dim 只压暗、不清除）。
+    /// 与 Main.StopSummonCharge 同族：只清这一条通道，不碰并行蓄力的其它通道。</summary>
+    public void CancelEarlyLeaveCharge()
+    {
+        _earlyLeaveCharge.Reset();
+        var hud = Hud();
+        if (hud != null)
+        {
+            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
+        }
+    }
 
     /// <summary>升级档位——里程碑数 ≥ 阈值即升档（0 或 1）。</summary>
     public int Tier() => (int)GameState.Instance.MilestoneCount() >= _upgradeThreshold ? 1 : 0;
@@ -636,30 +655,21 @@ public partial class Mothership : Area2D
                 }
 
                 // 提前离舰：长按 H 2s（蓄力进度条经 HUD 显示，松手清零隐藏）
-                if (Input.IsActionPressed(ActDock))
+                var earlyPhase = _earlyLeaveCharge.Tick(d, Input.IsActionPressed(ActDock));
+                var stayHud = Hud();
+                if (stayHud != null)
                 {
-                    _earlyTimer += d;
-                    var hud = Hud();
-                    if (hud != null)
+                    if (earlyPhase == InfiAir.Core.Input.HoldChargePhase.Charging)
                     {
-                        hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, (float)(_earlyTimer / EarlyHoldTime));
+                        stayHud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, _earlyLeaveCharge.Progress);
+                    }
+                    else if (earlyPhase == InfiAir.Core.Input.HoldChargePhase.Released)
+                    {
+                        stayHud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
                     }
                 }
-                else
-                {
-                    if (_earlyTimer > 0.0f)
-                    {
-                        var hud = Hud();
-                        if (hud != null)
-                        {
-                            hud.SetCharge(InfiAir.Hud.ChargeChannel.EarlyLeave, -1.0f);
-                        }
-                    }
 
-                    _earlyTimer = 0.0f;
-                }
-
-                if (_earlyTimer >= EarlyHoldTime)
+                if (earlyPhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
                 {
                     EarlyDepart();
                 }
@@ -712,7 +722,7 @@ public partial class Mothership : Area2D
         // 经 ISlowable 契约分派，失效实例跳过；新增减速响应单位实现接口即可被覆盖。
         foreach (var item in GameState.Instance.Enemies)
         {
-            if (item == null || !GodotObject.IsInstanceValid(item) || item is not ISlowable slowable)
+            if (!GodotObject.IsInstanceValid(item) || item is not ISlowable slowable)
             {
                 continue;
             }
@@ -811,15 +821,15 @@ public partial class Mothership : Area2D
     {
         _targetsBuf.Clear();
         // 统一实体管理器批量 API 语义等价直迭代：
-        // 失效实例跳过 + Node2D 判型 + Enemy 离场 / Boss 逃跑过滤
+        // 失效实例跳过 + Enemy 离场 / Boss 逃跑过滤（注册表元素契约即 Node2D）
         foreach (var item in GameState.Instance.Enemies)
         {
-            if (item == null || !GodotObject.IsInstanceValid(item) || item is not Node2D node || !IsLiveTarget(node))
+            if (!GodotObject.IsInstanceValid(item) || !IsLiveTarget(item))
             {
                 continue;
             }
 
-            _targetsBuf.Add(node);
+            _targetsBuf.Add(item);
         }
 
         return _targetsBuf;
@@ -1027,6 +1037,7 @@ public partial class Mothership : Area2D
     /// ratio 必须 Clamp（MagCells 已钳 ≥1，双保险防超范围渗入 _prefill）。</summary>
     private void EarlyDepart()
     {
+        _earlyLeaveCharge.Reset(); // 触发即清理（与 Main 三条通道同族）：本条不再持有进度
         var ratio = Mathf.Clamp((float)_magCells / MagCells, 0.0f, 1.0f);
         _prefill = Mathf.Min(EarlyPrefillMax, EarlyPrefillRatio * ratio);
         var hud = Hud();

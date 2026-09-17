@@ -64,6 +64,24 @@ public sealed class TaskPoolTests
     }
 
     [Fact]
+    public void Draw_DifferentSeeds_ProduceDifferentShuffleOrders()
+    {
+        // 洗牌本身此前无判据：删掉 Refill 里的 Fisher–Yates 循环（顺序恒为插入序）后，
+        // 去重/排除/名额收口/同种子可复现四条全部照旧成立——池退化成固定顺序也无人报警，
+        // 「每批从全池洗牌」的规格（§1.3 9 任务池抽 3 槽）静默失效。
+        // 两个池同定义、不同种子抽满池：恒等序实现下两批必然逐项相同；正确洗牌撞全排列的概率 1/9!。
+        var ids = new[] { "a", "b", "c", "d", "e", "f", "g", "h", "i" };
+        var first = new TaskPool(Defs(ids), seed: 11).Draw(9, new HashSet<string>());
+        var second = new TaskPool(Defs(ids), seed: 2025).Draw(9, new HashSet<string>());
+
+        Assert.Equal(9, first.Count);
+        Assert.Equal(9, first.Select(d => d.Id).Distinct().Count()); // 抽满即全排列，顺序才有比较价值
+        Assert.NotEqual(
+            string.Join(",", first.Select(d => d.Id)),
+            string.Join(",", second.Select(d => d.Id)));
+    }
+
+    [Fact]
     public void Draw_QuotaClampedToUsableIds_AfterExclusions()
     {
         // 排除导致批次提前耗尽：名额按去重后的可用 id 收口，不截断也不挂死

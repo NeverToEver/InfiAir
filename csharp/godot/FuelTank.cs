@@ -38,8 +38,9 @@ public partial class FuelTank : Control
     private const float Chamfer = 7.0f;
     private const float Pad = 3.0f;
 
-    /// <summary>低量警戒线（比例）：液位低于此值转警戒色，刻度区同步标红。</summary>
-    private const float WarnRatio = 0.3f;
+    /// <summary>低量警戒比例的唯一来源是 <see cref="FuelGauge.WarnRatio"/>（HUD 的液色警戒与
+    /// 本控件的刻度警示区共用一份判据）；量槽不自查液位，警戒态由调用方经 <see cref="SetWarn"/>
+    /// 下发，刻度着色只读该态与档位比例——两处各存一份 0.3 会出「刻度先红而液色不红」的半红量槽。</summary>
 
     /// <summary>侧缘刻度数：每 25% 一格，给液位提供量程参照（不写数字）。</summary>
     private const int Ticks = 5;
@@ -82,7 +83,7 @@ public partial class FuelTank : Control
         SetProcess(true);
     }
 
-    /// <summary>低量警戒：液色与刻度区转危险色。</summary>
+    /// <summary>低量警戒：液色与刻度区转危险色（警戒态与液色同源，判据见 FuelGauge）。</summary>
     public void SetWarn(bool warn)
     {
         if (warn == _warn)
@@ -94,7 +95,9 @@ public partial class FuelTank : Control
         QueueRedraw();
     }
 
-    /// <summary>无障碍：冻结液面起伏（转平面），不再泵动。</summary>
+    /// <summary>无障碍：冻结液面起伏（转平面），不再泵动。
+    /// 关闭时必须重启逐帧——_Process 在无波幅可推时会 SetProcess(false)（静止的满油槽正是此态），
+    /// 只 QueueRedraw 会让液面此后再不起伏（_wavePhase 停推），整局停在平面。</summary>
     public void SetReduceFlash(bool reduce)
     {
         if (reduce == _reduceFlash)
@@ -103,6 +106,7 @@ public partial class FuelTank : Control
         }
 
         _reduceFlash = reduce;
+        SetProcess(true);
         QueueRedraw();
     }
 
@@ -227,11 +231,11 @@ public partial class FuelTank : Control
         {
             var f = (float)i / Ticks;
             var y = inner.Position.Y + inner.Size.Y * f;
-            var warnTick = (1.0f - f) < WarnRatio;
-            var col = warnTick && _warn
+            var lowZone = FuelGauge.IsLow(1.0f - f); // 档位是否落在低量区（几何，恒定）
+            var col = FuelGauge.IsWarnTick(1.0f - f, _warn) // 警戒态下低量档位标红（与液色同判据）
                 ? new Color(UITheme.Danger, 0.9f)
-                : new Color(UITheme.TickWhite, warnTick ? 0.5f : 0.32f);
-            var len = warnTick ? inner.Size.X * 0.42f : inner.Size.X * 0.26f;
+                : new Color(UITheme.TickWhite, lowZone ? 0.5f : 0.32f);
+            var len = lowZone ? inner.Size.X * 0.42f : inner.Size.X * 0.26f;
             DrawLine(new Vector2(inner.Position.X, y), new Vector2(inner.Position.X + len, y), col, 1.0f, true);
         }
     }

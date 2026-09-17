@@ -10,8 +10,9 @@ namespace InfiAir;
 /// 慢速力场/母舰减速带；辅助瞄准标记；受击闪白；尾焰软光点。
 /// 语义保持：cfg 热路径缓存、DDA 拉长开火间隔、可见区域经 FrameCache 每物理帧共享。
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达，新增单位无需改分派器。
+/// 实现 IAimTarget：辅助瞄准扫描按契约判型（与遭遇单位同路径）。
 /// </summary>
-public partial class Enemy : Area2D, IDamageable, ISlowable
+public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
@@ -65,8 +66,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
     private Sprite2D? _glowLayer;
     // 阵营分档懒加载一次（effects.ship_energy.*；静态标量/结构体，非 Godot 对象）
     private static bool _glowCfgLoaded;
-    private static Color _glowTintEnemy = new(0.78f, 0.50f, 0.90f); // 紫晶
-    private static Color _glowTintElite = new(1.0f, 0.39f, 0.75f);  // 淡品红
+    // 回退值取 balance.json effects.ship_energy.tint_enemy / tint_elite 的定稿色（hex 与 json 逐位一致），
+    // 防「键缺失/写错 → 落到与设计值有色差的旧常量」；正常路径由下方 CfgColor 覆盖
+    private static Color _glowTintEnemy = new(0xc77fe6ff); // 紫晶
+    private static Color _glowTintElite = new(0xff64bfff); // 淡品红
     private static float _glowIntEnemy = 0.30f;
     private static float _glowIntElite = 0.40f;
 
@@ -97,12 +100,46 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
     }
 
-    /// <summary>在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。</summary>
+    /// <summary>在屏辅助标记敌计数（AimMarked setter 成对维护；AimFrameLayer 零标记门控）。
+    /// 遭遇单位的标记另计（AimTargetCount），本计数只含普通敌机，语义不变。</summary>
     public static int AimMarkedCount { get; private set; }
 
     /// <summary>辅助框半径缓存（setup 写入，已含 world_scale；替代 aim_frame_radius meta 的
-    /// HasMeta/GetMeta——AimFrameLayer.FrameHalfSize 直读）。&lt;0 = 未初始化（兼容路径回退读形状）。</summary>
+    /// HasMeta/GetMeta——经 <see cref="AimCollisionRadius"/> 直读）。&lt;0 = 未初始化（兼容路径回退读形状）。</summary>
     public float AimFrameRadius { get; internal set; } = -1.0f;
+
+    // ---- IAimTarget 契约（辅助瞄准扫描只读量；判定算式在 AimFrameLayer 与 core AimTargeting） ----
+
+    /// <summary>恒 true：注册表成员资格已表达「存活且在册」（Die → Deactivate → Unregister 同路径
+    /// 移除），再叠一道存活判据会改普通敌机的既有辅瞄语义（同帧已死未注销的敌机原本仍是弱追踪目标）。
+    /// 遭遇单位的可打判定另在各自实现里（升起/收回期不可打）。</summary>
+    public bool AimTargetable => true;
+
+    /// <summary>世界坐标（框心与锥角/距离判定基准）。</summary>
+    public Vector2 AimWorldPosition => GlobalPosition;
+
+    /// <summary>碰撞半径（已含 world_scale）：辅助框半宽 = 本值 + 档位 frame_pad（pad 单源在 AimFrameLayer）。
+    /// 未经 setup 的兼容路径回退读碰撞形状并回填——原在 AimFrameLayer.FrameHalfSize 内，收归数据属主。</summary>
+    public float AimCollisionRadius
+    {
+        get
+        {
+            var r = AimFrameRadius;
+            if (r < 0.0f)
+            {
+                var shapeNode = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
+                r = 0.0f;
+                if (shapeNode != null && shapeNode.Shape is CircleShape2D circle)
+                {
+                    r = circle.Radius;
+                }
+
+                AimFrameRadius = r;
+            }
+
+            return r;
+        }
+    }
 
     private bool _aimMarked;
 
@@ -244,8 +281,14 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
                 gs.UnbindEnemy(this);
             }
 
-            // 增幅 信号断开（池化 reparent 复用由 Reactivate 对称重连）
-            _slowCache.Disconnect(gs);
+            // 增幅 信号断开：只对真离树（外部 queue_free）执行。池化 reparent 也会触发本回调
+            // （_repooling 置位），若在此断开，Spawn 期间 Reactivate 的 Connect 会被随后的回挂
+            // 反手断掉——连断顺序倒置，缓存整个活跃期处于未连接态（中途加点 slow_field 对场上
+            // 敌机无效，且无任何报错）。池化路径的连/断成对由 Reactivate/EnemyPool 回挂处保证。
+            if (!_repooling)
+            {
+                _slowCache.Disconnect(gs);
+            }
         }
 
         // 池内 reparent 也会经过此回调（_repooling 置位），不算离开池
@@ -257,8 +300,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     /// <summary>setup：config 驱动数值/外观（_ready 之前调用，不用 @onready）。</summary>
     /// <summary>从敌机配置的弹种池随机取一种；缺键/空池/坏值回退 single。
-    /// 不分配默认 Array——原 GetValueOrDefault 的默认实参每 spawn 求值一次（空间换时间）。</summary>
-    private StringName PickConfiguredBulletType(Godot.Collections.Dictionary config)
+    /// 不分配默认 Array——原 GetValueOrDefault 的默认实参每 spawn 求值一次（空间换时间）。
+    /// 抽签与实际入场分离：spread 同屏上限在 Setup 的收敛点判定（见 ResolveSpreadCapInternal）。</summary>
+    private static StringName PickConfiguredBulletType(Godot.Collections.Dictionary config)
     {
         var raw = config.GetValueOrDefault("bullet_types", new Variant());
         if (raw.VariantType == Variant.Type.Array)
@@ -273,6 +317,76 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         return BulletTypeSingle; // 空弹种池/坏值回退单发
     }
 
+    /// <summary>弹种名 → core 判定域（映射只此一处，避免名字字符串散落）。</summary>
+    private static Core.Combat.EnemyBulletKind ToKind(StringName type)
+    {
+        if (type == BulletTypeSpread)
+        {
+            return Core.Combat.EnemyBulletKind.Spread;
+        }
+
+        if (type == BulletTypeLaser)
+        {
+            return Core.Combat.EnemyBulletKind.Laser;
+        }
+
+        return type == BulletTypeSingle ? Core.Combat.EnemyBulletKind.Single : Core.Combat.EnemyBulletKind.Other;
+    }
+
+    private static StringName FromKind(Core.Combat.EnemyBulletKind kind)
+    {
+        return kind switch
+        {
+            Core.Combat.EnemyBulletKind.Spread => BulletTypeSpread,
+            Core.Combat.EnemyBulletKind.Laser => BulletTypeLaser,
+            // Other 只可能来自未登记的弹种名；收敛判定不降级非 spread，落到单发（同空弹种池回退）
+            _ => BulletTypeSingle,
+        };
+    }
+
+    /// <summary>当前在册（在屏活跃）spread 弹种敌机数（离场中的不计）。
+    /// 遍历注册表（只含活跃敌机）而非 "enemy" 组——池化敌机回收时不 remove_from_group，
+    /// 组遍历会把池中闲置实例计入、虚抬 spread 上限。直迭代托管注册表：谓词走原生 Callable 时
+    /// 每元素一次闭包派发 + Variant 编组，同一波逐只生成时是 O(波长 × 在册数) 的白工。</summary>
+    private static int CountActiveSpreadEnemies()
+    {
+        var count = 0;
+        foreach (var node in GameState.Instance.Enemies)
+        {
+            if (node is Enemy enemy && enemy.BulletType == BulletTypeSpread && !enemy.IsExiting())
+            {
+                count += 1;
+            }
+        }
+
+        return count;
+    }
+
+    /// <summary>spread 同屏上限在**实际入场处**收敛（判定在 core SpreadCapPolicy）：敌机延后进场
+    /// （先抽签、0.6s 后再 Spawn），同一波敌机的抽签发生在同一帧、在册数彼此不变，只在抽签处判会让
+    /// 整波全部抽中 spread、上限形同虚设。本方法写 BulletType，是所有入场路径
+    /// （波次预告超时 / Boss-3 召唤 / 分裂子机）的共同收口。池化复用与同帧逐只生成时，
+    /// 前一任的弹种标记会随本机先注册（Reactivate）而被计入——故先落 single 再判定，
+    /// 使「逐只递减配额」的语义与 core 单测一致。</summary>
+    private void ApplyBulletTypeInternal(Godot.Collections.Dictionary config, StringName pBulletType)
+    {
+        var picked = pBulletType != NoBulletType ? pBulletType : PickConfiguredBulletType(config);
+        if (picked != BulletTypeSpread)
+        {
+            BulletType = picked;
+            return;
+        }
+
+        BulletType = BulletTypeSingle;
+        var resolved = Core.Combat.SpreadCapPolicy.Resolve(
+            ToKind(picked),
+            CountActiveSpreadEnemies(),
+            GameState.Instance.SpreadEnemyCap(),
+            (bool)config.GetValueOrDefault("elite", false));
+        BulletType = resolved == Core.Combat.EnemyBulletKind.Spread ? picked : FromKind(resolved);
+    }
+
+    /// <summary>setup：config 驱动数值/外观（_ready 之前调用，不用 @onready）。</summary>
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty, StringName pBulletType)
     {
         Strategy = pStrategy;
@@ -297,9 +411,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         // 斜率/地板在 core DifficultyScaling；pDifficulty 保持调用方快照语义。
         FireInterval = (float)Core.Progression.DifficultyScaling.FireInterval(
             config.GetValueOrDefault("fire_interval", 2.2).AsDouble(), pDifficulty, GameState.Instance.Scaling());
-        BulletType = pBulletType != NoBulletType
-            ? pBulletType
-            : PickConfiguredBulletType(config);
+        ApplyBulletTypeInternal(config, pBulletType);
         var speedRange = (Vector2)config["speed"];
         Speed = (float)GD.RandRange(speedRange.X, speedRange.Y)
             // speed_ramp 必须走 Load 时缓存的 ramp API，不得每 spawn 直查 Cfg 全链路
@@ -312,9 +424,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         sprite.Texture = (Texture2D)config["texture"];
         // mark_ratio 同款——走 Load 时缓存 API，免每 spawn Cfg 全链路
         AimMarked = GD.Randf() < (float)GameState.Instance.AimMarkRatio();
-        var sc = (float)config.GetValueOrDefault("scale", 0.85).AsDouble();
+        // 二级回退（机型表本身缺键时才走）：取 balance.json enemies.types[0] 定稿值，
+        // 与 Spawner 脚本默认同源，防「表损坏 → 落到与设计值无关的旧常量」
+        var sc = (float)config.GetValueOrDefault("scale", 0.80).AsDouble();
         sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
-        var hitR = (float)config.GetValueOrDefault("radius", 30.0).AsDouble() * (float)GameState.Instance.WorldScale;
+        var hitR = (float)config.GetValueOrDefault("radius", 41.0).AsDouble() * (float)GameState.Instance.WorldScale;
         if (shapeNode.Shape is CircleShape2D circle)
         {
             circle.Radius = hitR;
@@ -402,7 +516,21 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
 
     public void SetRepooling(bool value) => _repooling = value;
 
+    /// <summary>池化回挂后重连增幅 缓存（幂等）。Spawn 期的 Reactivate 已连一次，但若后续发生
+    /// reparent，_exit_tree 的断开（repooling 门控）与 Connect 的先后顺序必须由回挂处收口——
+    /// 与同处的 RegisterEnemy 补偿同一理由，回挂后缓存必须处于已连接态。</summary>
+    public void ReconnectAugmentCache()
+    {
+        _slowCache.Connect(GameState.Instance);
+        _slowCache.Refresh();
+    }
+
     public bool IsExiting() => _exiting;
+
+    /// <summary>只读探针口：slow_field 缓存是否处于已连接态。池化复用的 reparent 会触发
+    /// `_ExitTree`，连/断错序时该敌机整个活跃期不再随 AugmentsChanged 刷新（「买了力场没感觉」，
+    /// 零报错）——故这条不变量需要可判定，由探针在池复用回挂后断言。</summary>
+    public bool IsAugmentCacheConnected() => _slowCache.IsConnectedTo(GameState.Instance);
 
     /// <summary>池化复用：全状态重置（spawner 经 EnemyPool 调用；直接实例化走 _ready 初始化）。</summary>
     public void Reactivate(
@@ -853,7 +981,6 @@ public partial class Enemy : Area2D, IDamageable, ISlowable
         }
 
         b.Position = Position; // 敌方子弹出生在敌机位置（typed；Player 开火同款）
-        b.SetMeta(Bullet.MetaBulletType, pType);
         if (pType == BulletTypeLaser)
         {
             // 细长高亮快速弹（Sprite2D 缓存引用）

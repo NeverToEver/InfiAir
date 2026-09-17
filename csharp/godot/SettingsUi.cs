@@ -419,7 +419,6 @@ public partial class SettingsUi : RadialMenuLayer
         _capturingAction = new StringName();
     }
 
-
     public void Back()
     {
         OnBackPressed();
@@ -430,8 +429,6 @@ public partial class SettingsUi : RadialMenuLayer
     {
         return _capturingAction;
     }
-
-
 
     // ---------------- 破坏性操作确认 ----------------
 
@@ -957,14 +954,13 @@ public partial class SettingsUi : RadialMenuLayer
         return (slider, valueLabel);
     }
 
-
     private Button[] MakeModeRow(Container parent, string labelText, ButtonGroup group)
     {
         var row = new HBoxContainer();
         row.AddThemeConstantOverride("separation", 16);
         parent.AddChild(row);
         var label = UITheme.MakeLabel(labelText, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
-        label.CustomMinimumSize = new Vector2(240.0f, 0.0f);
+        label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
         var hold = UITheme.MakeToggleButton(Tr("SET_HOLD"), group);
         var toggle = UITheme.MakeToggleButton(Tr("SET_TOGGLE"), group);
@@ -1402,12 +1398,17 @@ public partial class SettingsUi : RadialMenuLayer
         var current = _lastPage;
 
         // 重建内容区文本（重建代价低，保证全部文案换语言）
-        // Free() 同步删除——QueueFree 帧末才删，同帧 add_child 新旧页并存闪一帧
-        //（Hud.cs:1194 同场景先例）
+        // 旧页先隐藏（立即退出容器布局，不留新旧页并存的错位/闪帧）再 QueueFree（帧末释放）：
+        // 本方法由语言按钮的 pressed 回调链（SetLocale → LocaleChanged）进入，同步 Free() 会释放
+        // **正在派发信号的发射者祖先**，引擎报「freed while a signal is being emitted from it」；
+        // 重建本身同步完成——点击语义（当帧换语言、当帧落新页与焦点）不变，也无需防重入标志
+        // （同一帧内连点语言按钮＝按当前状态再重建一次，结果恒等）。
         var content = FirstPageParent();
         foreach (var p in _pages.Values)
         {
-            (p.AsGodotObject() as Control)!.Free();
+            var oldPage = (Control)p.AsGodotObject()!;
+            oldPage.Visible = false;
+            oldPage.QueueFree();
         }
 
         _activePage = null;
@@ -1505,6 +1506,10 @@ public partial class SettingsUi : RadialMenuLayer
         // 退场当帧即断开输入处理与鼠标命中（AnimateModalClose），opener 恢复与焦点交还在回调内同步收尾
         UITheme.AnimateModalClose(this, _dim, _plate, () =>
         {
+            // 确认弹窗不能跨页留存：退场锁死鼠标前的窗口内被重新打开（或退场序与弹窗退场序交叠）时，
+            // 本层随即整体隐藏，而 _confirmDim.Visible 与 _confirmAction 会留到下次开页——那时会带着
+            // 上一次的确认弹窗出现，确认按钮可直接执行上一次的破坏性动作。
+            ResetConfirmModal();
             if (_opener != null && GodotObject.IsInstanceValid(_opener))
             {
                 _opener.Visible = true;
@@ -1519,5 +1524,18 @@ public partial class SettingsUi : RadialMenuLayer
             _opener = null;
             EmitSignal(SignalName.BackPressed);
         });
+    }
+
+    /// <summary>清掉确认弹窗的可见态与待执行动作（含退场 tween 尚未落地的情形——弹窗退场快
+    /// 而本层稍慢，交叠时不能靠弹窗自己的回调收尾）。节点未构建或已重建时只清动作。</summary>
+    private void ResetConfirmModal()
+    {
+        _confirmAction = null;
+        _confirmFocusReturn = null;
+        if (_confirmDim != null)
+        {
+            _confirmDim.Visible = false;
+            _confirmDim.MouseFilter = Control.MouseFilterEnum.Ignore;
+        }
     }
 }

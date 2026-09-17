@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Missions;
 
 namespace InfiAir;
 
@@ -49,8 +50,7 @@ public sealed partial class MissionsService : RefCounted
     /// 直接灌进低门槛新任务瞬领 RP（刷新经济泄漏）。</summary>
     private readonly Dictionary<StringName, int> _lastKindValue = new();
 
-    /// <summary>任务领取奖励 RP（对齐原作 RequisitionConstants）。</summary>
-    private const int RpMissionRewardValue = 3;
+    /// <summary>任务领取奖励 RP（取值单源在 balance.json rp.mission_claim，经 GameState 侧缓存读取）。</summary>
 
     /// <summary>RP 变化（AddRp/SpendRp，2 处触发点）；GameState 订阅后转发为 RpChanged 信号
     /// （ResetRun 直接赋值路径由 GameState 侧直发同名信号，不重复）。</summary>
@@ -120,7 +120,9 @@ public sealed partial class MissionsService : RefCounted
     public void ResetMissions() => InitMissions();
 
     /// <summary>读档还原（本局存档）：RP/刷新点/任务条目/绝对计数基线整体覆盖。
-    /// 任务池洗牌游标不还原（刷新序列从新洗牌开始，与「读档从新一波开始」一致）；
+    /// 任务池洗牌游标不还原（刷新序列从新洗牌开始，与「读档从新一波开始」一致）。
+    /// 条目过滤与 goal 取值单源在 <see cref="MissionRestore.Normalize"/>：白名单外的 id 整条丢弃
+    /// （查池得 goal=0 会让 IsMissionDone 恒真、可反复领 RP），goal 一律取池内定稿值。
     /// 末尾重建 kind 索引 + 补发 RpChanged/RefreshPointsChanged 驱动 HUD。</summary>
     public void RestoreRunState(
         int rp,
@@ -132,23 +134,39 @@ public sealed partial class MissionsService : RefCounted
         RefreshPoints = Math.Max(refreshPoints, 0);
         // JSON 往返把 StringName 键退化为 String——必须重建成 StringName 键，
         // 否则 SetMissionProgress 以 StringName 查 ContainsKey 会全部落空（任务进度静默停摆）。
+        // 子条目逐字段判型：As* 是宽松转换（AsBool("no") 得 true、AsInt64("lots") 得 0），
+        // 裸取不会报错，只会把「claimed: "no"」静默读成已领取——玩家领不到该任务奖励，
+        // 界面无任何信号。类型不符一律回默认。
         Missions = new Godot.Collections.Dictionary();
         if (missions != null)
         {
             foreach (var key in missions.Keys)
             {
-                if (missions[key].VariantType != Variant.Type.Dictionary)
+                if (key.VariantType is not (Variant.Type.String or Variant.Type.StringName)
+                    || missions[key].VariantType != Variant.Type.Dictionary)
                 {
                     continue;
                 }
 
+                var id = key.AsStringName();
                 var src = missions[key].AsGodotDictionary();
-                Missions[new StringName(key.AsString())] = new Godot.Collections.Dictionary
+                // 白名单：池外 id（手改档注入）整条丢弃，保持已有的合法态
+                var entry = MissionRestore.Normalize(
+                    MissionGoal(id),
+                    ReadEntryInt(src.GetValueOrDefault("progress", 0), 0),
+                    ReadEntryInt(src.GetValueOrDefault("baseline", 0), 0),
+                    ReadEntryBool(src.GetValueOrDefault("claimed", false), false));
+                if (entry is null)
                 {
-                    ["progress"] = Math.Max((int)src.GetValueOrDefault("progress", 0).AsInt64(), 0),
-                    ["claimed"] = src.GetValueOrDefault("claimed", false).AsBool(),
-                    ["goal"] = Math.Max((int)src.GetValueOrDefault("goal", 1).AsInt64(), 1),
-                    ["baseline"] = Math.Max((int)src.GetValueOrDefault("baseline", 0).AsInt64(), 0),
+                    continue;
+                }
+
+                Missions[id] = new Godot.Collections.Dictionary
+                {
+                    ["progress"] = entry.Value.Progress,
+                    ["claimed"] = entry.Value.Claimed,
+                    ["goal"] = entry.Value.Goal,
+                    ["baseline"] = entry.Value.Baseline,
                 };
             }
         }
@@ -166,6 +184,18 @@ public sealed partial class MissionsService : RefCounted
         RpChanged?.Invoke(Rp);
         RefreshPointsChanged?.Invoke(RefreshPoints);
     }
+
+    /// <summary>任务条目 int 字段读档判型：仅接受 Int/Float，其余回退 <paramref name="fallback"/>；
+    /// 数值再钳 [0, int.MaxValue]（手改超大值裸 (int) 转换会回绕成负数，进度静默错乱）。</summary>
+    private static int ReadEntryInt(Variant v, int fallback) =>
+        v.VariantType is Variant.Type.Int or Variant.Type.Float
+            ? (int)Math.Clamp(v.AsInt64(), 0L, int.MaxValue)
+            : fallback;
+
+    /// <summary>任务条目布尔字段读档判型：仅接受 Bool，其余回退 <paramref name="fallback"/>
+    /// （字符串 "false" 不得当成真值——同 SaveBool 判型口径）。</summary>
+    private static bool ReadEntryBool(Variant v, bool fallback) =>
+        v.VariantType == Variant.Type.Bool ? v.AsBool() : fallback;
 
     /// <summary>绝对计数基线快照（读档写出用）。</summary>
     public Dictionary<string, int> LastKindValueSnapshot()
@@ -270,7 +300,7 @@ public sealed partial class MissionsService : RefCounted
         }
 
         Missions[id].AsGodotDictionary()["claimed"] = true;
-        AddRp(RpMissionRewardValue);
+        AddRp(GameState.Instance.RP_MISSION_CLAIM);
         return true;
     }
 
@@ -283,26 +313,44 @@ public sealed partial class MissionsService : RefCounted
         RefreshPointsChanged?.Invoke(RefreshPoints);
     }
 
-    /// <summary>刷新资格校验（点数不足禁止刷新；UI 据此禁用按钮并提示）</summary>
-    public bool CanRefreshMissions() => RefreshPoints >= GameState.Instance.REFRESH_COST;
+    /// <summary>刷新资格校验（点数不足或没有空位时禁止刷新；UI 据此禁用按钮并提示）。
+    /// 判定单源在 <see cref="MissionRefresh.CanRefresh"/>：保留条目（已完成未领取）占满槽位时
+    /// 刷新扣费却抽不出任何新任务——只判点数会放行一次「点数减少、面板零变化」的空刷新。</summary>
+    public bool CanRefreshMissions() => MissionRefresh.CanRefresh(
+        RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, KeptMissionCount());
+
+    /// <summary>刷新受阻原因（"" = 可刷新；见 <see cref="MissionRefresh.RefreshBlockReason"/>）——
+    /// 基地面板据此把置灰原因显示出来（无空位 / 点数不足选不同文案）。</summary>
+    public string RefreshBlockReason() => MissionRefresh.RefreshBlockReason(
+        RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, KeptMissionCount());
+
+    /// <summary>保留条目数（已完成未领取；刷新时原样留场，防吞待领奖励）。</summary>
+    private int KeptMissionCount()
+    {
+        var count = 0;
+        foreach (var idV in Missions.Keys)
+        {
+            var id = idV.AsStringName();
+            if (IsMissionDone(id) && !IsMissionClaimed(id))
+            {
+                count += 1;
+            }
+        }
+
+        return count;
+    }
 
     /// <summary>刷新任务：消耗 RefreshPoints 重抽任务（槽位数 MISSION_SLOTS）。
     /// 已完成未领取的任务保留（防止刷新吞掉待领奖励），其余槽位从任务池无放回重抽
-    /// （排除在场 id，避免与保留槽位重号）。余额不足返回 false 且不扣减。</summary>
+    /// （排除在场 id，避免与保留槽位重号）。点数不足 / 无空位返回 false 且不扣减
+    /// （无空位时抽不出任何任务，扣费等于净损失）。</summary>
     public bool RefreshMissions()
     {
-        if (!CanRefreshMissions())
-        {
-            return false;
-        }
-
         if (_taskPool == null || !GodotObject.IsInstanceValid(_taskPool))
         {
             InitMissions(); // 防御：池未初始化（异常时序）时重建
         }
 
-        RefreshPoints -= GameState.Instance.REFRESH_COST;
-        RefreshPointsChanged?.Invoke(RefreshPoints);
         // 收集保留条目（已完成未领取）与在场 id（重抽排除全部在场 id：
         // 既防抽回刚换下的任务，也防与保留任务重号覆盖其进度）
         var kept = new Godot.Collections.Dictionary();
@@ -317,6 +365,17 @@ public sealed partial class MissionsService : RefCounted
 
             exclude.Add(id);
         }
+
+        // 扣费前判「点数够 且 有空位」（判定单源 MissionRefresh.CanRefresh）：保留条目占满槽位时
+        // 抽取结果必为空，扣费等于净损失——玩家看到按钮可用、听到成功音效、点数减少、面板零变化
+        if (!MissionRefresh.CanRefresh(
+            RefreshPoints, GameState.Instance.REFRESH_COST, GameState.Instance.MISSION_SLOTS, kept.Count))
+        {
+            return false;
+        }
+
+        RefreshPoints -= GameState.Instance.REFRESH_COST;
+        RefreshPointsChanged?.Invoke(RefreshPoints);
 
         var drawn = _taskPool!.Draw(GameState.Instance.MISSION_SLOTS - kept.Count, exclude);
         Missions.Clear();

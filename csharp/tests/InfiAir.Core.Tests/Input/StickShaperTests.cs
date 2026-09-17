@@ -94,4 +94,22 @@ public sealed class StickShaperTests
         Assert.Equal(0.5f / 0.98f, x, 3);
         Assert.Equal(0.0f, y);
     }
+
+    [Fact]
+    public void Shape_DeadzoneAtClampBoundary_DoesNotDivideByZero()
+    {
+        // 死区钳制的真正边界值：dz 触到 Outer−0.01 时 (Outer − dz) = 0.01 仍为正，
+        // 满推行程必须到 1.0；钳制写成 Outer 会让分母为 0 → t=inf/NaN 灌进机体位置。
+        var atBoundary = StickShaper.Shape(StickShaper.OuterDeadzone, 0.0f, StickShaper.OuterDeadzone - 0.01f, 1.0f);
+
+        // 再大一点的死区被钳回边界值，行为与边界一致（不是「吞掉全部输入」）
+        var aboveBoundary = StickShaper.Shape(StickShaper.OuterDeadzone, 0.0f, StickShaper.OuterDeadzone, 1.0f);
+
+        Assert.True(float.IsFinite(atBoundary.X) && float.IsFinite(atBoundary.Y));
+        Assert.Equal(1.0f, atBoundary.X, 3);
+        Assert.Equal(1.0f, aboveBoundary.X, 3);
+
+        // 恰好等于有效死区（0.97）的长度：dz 生效、t=0，不得放行成输出
+        Assert.Equal((0.0f, 0.0f), StickShaper.Shape(0.97f, 0.0f, 0.97f, 1.0f));
+    }
 }

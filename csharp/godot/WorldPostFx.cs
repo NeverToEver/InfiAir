@@ -198,6 +198,11 @@ public partial class WorldPostFx : CanvasLayer
 
     public bool Enabled() => _enabled;
 
+    /// <summary>重击泛光脉冲当前值（只读诊断口，零生产引用；见 ROADMAP 零引用成员口径——
+    /// 它是探针观察面）：震屏信号按**原始强度**取阈，与「屏幕震动强度」滑杆（只折算 trauma）
+    /// 互不连坐；信号若改发折算值，滑杆 ≤33% 时这份泛光会被一并关掉，无头下不崩不报错。</summary>
+    public float HitPulse() => _hitPulse;
+
     private void ApplyEnabled()
     {
         if (_rect != null)

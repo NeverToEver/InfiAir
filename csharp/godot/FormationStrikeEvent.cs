@@ -145,7 +145,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
     /// 台词框 3.5s 停留，进度台词叠起来只会互相顶掉）。</summary>
     private int _lineStage;
 
-    /// <summary>战术提示播报时刻（_elapsed 口径；float.MaxValue = 已播/未排程）。</summary>
+    /// <summary>进度台词开播时刻（_elapsed 口径）与占场时长——战术提示据此让位
+    /// （顺序约束单源在 core FormationComms）。</summary>
+    private float _lineStartedAt;
+
+    private float _lineOnScreenTime = FormationComms.LineOnScreenTime(0);
+
+    /// <summary>战术提示播报时刻（_elapsed 口径；float.MaxValue = 已播/未排程）。
+    /// 排程时若进度台词已在场上，取该句结束时刻（core FormationComms.NextIntelAt）——
+    /// 否则先到的战损/拆弹台词只闪零点几秒就被提示顶掉，顺序与声明相反。</summary>
     private float _intelAt = float.MaxValue;
 
     /// <summary>在场炸弹（事件结束/打断时随编队一并清理，与 FreeCrafts 同口径）。</summary>
@@ -324,7 +332,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 {
                     _anchor += Vector2.Right.Rotated(_heading) * RunSpeed * d;
                     ProcessDropWarnings();
-                    ProcessDrops();
+                    ProcessDrops(view);
                     PruneBombs();
                     // 出界余量按投弹表剩余最大时长折算：固定 ±120 会在 hard 5 机
                     // 投弹段截断末机炸弹（余量动态 = 末弹时刻 × 速度）
@@ -376,6 +384,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _settled = false;
         _allClear = false;
         _lineStage = 0;
+        _lineStartedAt = 0.0f;
+        _lineOnScreenTime = FormationComms.LineOnScreenTime(0);
         _intelAt = float.MaxValue;
         _hudPoll = 0.0f;
     }
@@ -409,6 +419,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             var index = i; // 闭包捕获副本：C# for 循环变量为单变量，直接捕获会全部指向末索引
             var craft = new FormationCraft();
             craft.Setup(hp);
+            craft.ScoreValue = CraftScore; // 击坠分随生成注入（与 EliteTurretEvent 注入 turret.ScoreValue 同口径）
             craft.Position = _anchor + _offsets[i];
             craft.Rotation = _heading + (Mathf.Pi / 2.0f);
             craft.Died += (c) => OnCraftDied(c, index);
@@ -436,7 +447,11 @@ public partial class FormationStrikeEvent : EncounterEventBase
     }
 
     /// <summary>投弹后 4s（警告台词播完）补一条战术提示，且不早于轰炸段开始：
-    /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。</summary>
+    /// 提示的落点是「炸弹可以怎么处理」，早于第一波投弹播等于空谈。
+    /// 进度台词先占槽位时顺延到该句结束（排程见 BeginRun），到点当帧再确认台词已下场——
+    /// 两句共用一个槽位，后播的只会顶掉先播的。
+    /// 状态门（core FormationComms.IntelAllowed 的第一项）：只在轰炸段内播出；越段即作废排程，
+    /// 不留到离场段被 1.5s 后的结算台词顶掉或在结算画面上闪现。</summary>
     private void TickIntelHint()
     {
         if (_intelAt > _elapsed)
@@ -444,8 +459,28 @@ public partial class FormationStrikeEvent : EncounterEventBase
             return;
         }
 
+        var bombingRun = _state == State.BOMBING_RUN;
+        if (!FormationComms.IntelAllowed(bombingRun, _lineStage, _lineStartedAt, _lineOnScreenTime, _elapsed))
+        {
+            if (!bombingRun)
+            {
+                _intelAt = float.MaxValue; // 已越过轰炸段：不播，也不悬着等下一段
+            }
+
+            return; // 其余情形是台词仍在场上：本帧不播，句尾自然接上
+        }
+
         _intelAt = float.MaxValue;
         _comm?.ShowLine("FBQ_INTEL");
+    }
+
+    /// <summary>播进度台词（战损/拦截）：登记开播时刻与占场时长，供战术提示让位。
+    /// 占场时长按翻译表实际字数算（打字机是 0.03s/字），故必须先取文案再登记。</summary>
+    private void ShowProgressLine(string key)
+    {
+        _lineStartedAt = _elapsed;
+        _lineOnScreenTime = FormationComms.LineOnScreenTime(Tr(key).Length);
+        _comm?.ShowLine(key);
     }
 
     /// <summary>把当前侧倾量写到全体在编队机（被击坠槽位跳过）。</summary>
@@ -478,8 +513,10 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _warnIndex = 0;
         _bank = 0.0f;
         ApplyBank();
-        // 战术提示的播报时刻：警告台词播完之后、且至少晚于轰炸段开始 0.8s
-        _intelAt = Mathf.Max(IntelEarliest, _elapsed + 0.8f);
+        // 战术提示的播报时刻：警告台词播完之后、且至少晚于轰炸段开始 0.8s；
+        // 进度台词若已在场上（战损/拆弹先于轰炸段发生）则顺延到该句结束
+        _intelAt = FormationComms.NextIntelAt(
+            Mathf.Max(IntelEarliest, _elapsed + 0.8f), _elapsed, _lineStage, _lineStartedAt, _lineOnScreenTime);
     }
 
     /// <summary>收回进场预告线（未到寿命才回收）。C# 侧 `?.` 拦不住已释放的 Godot 对象
@@ -494,13 +531,15 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _telegraph = null;
     }
 
-    /// <summary>离场：沿当前航向加速穿出侧缘（压坡回正，收尾干净）。</summary>
+    /// <summary>离场：沿当前航向加速穿出侧缘（压坡回正，收尾干净）。
+    /// 同时作废尚未播出的战术提示——离场段紧接着结算，提示挤不进来也不该挤（状态门见 TickIntelHint）。</summary>
     private void BeginExit()
     {
         _state = State.FORMATION_EXIT;
         _stateTime = 0.0f;
         _exitSpeed = RunSpeed;
         _bank = 0.0f;
+        _intelAt = float.MaxValue;
         ApplyBank();
         DiscardTelegraph();
     }
@@ -589,9 +628,16 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
     }
 
-    /// <summary>按时刻表投弹：投弹点即当前编队机位置（+机腹偏移）；已毁机跳过（时刻表照走）。</summary>
-    private void ProcessDrops()
+    /// <summary>按时刻表投弹：投弹点即当前编队机位置（+机腹偏移）；已毁机跳过、**投放点出可见域
+    /// 的也跳过**（时刻表照走，游标照常推进，与已毁机同族）。屏外弹既不可见也不可交互，
+    /// 生成出来只会污染「已拦截/投出」计数——编队横穿侧缘时末几枚的落点在视界之外，
+    /// 计进分母会让「全数拦截」结构性不可达；跳过的这次不算投出，也就不进结算分母。
+    /// 可见域取生产单源 FrameCache.ViewRect()（＝ GameState.ViewWorldRect()，玩家侧瞄准钳制
+    /// 与弹体出界回收同一口径），余量取弹体半径（同源 FormationBomb.BodyRadius）——
+    /// 弹心越出界一个半径以内仍有一段弹体在可见区内、可被击落，不算「屏外弹」。</summary>
+    private void ProcessDrops(Rect2 view)
     {
+        var margin = FormationBomb.BodyRadius * (float)GameState.Instance.WorldScale;
         while (_dropIndex < _dropTimes.Length && _stateTime >= _dropTimes[_dropIndex])
         {
             var idx = _dropCraft[_dropIndex];
@@ -602,11 +648,23 @@ public partial class FormationStrikeEvent : EncounterEventBase
                 continue;
             }
 
-            SpawnBomb(craft);
+            var dropPoint = DropPoint(craft);
+            if (!FormationPlan.DropPointVisible(
+                    dropPoint.X, dropPoint.Y, view.Position.X, view.Position.Y, view.Size.X, view.Size.Y, margin))
+            {
+                continue;
+            }
+
+            SpawnBomb(craft, dropPoint);
         }
     }
 
-    private void SpawnBomb(FormationCraft craft)
+    /// <summary>投弹点（弹体生成位置）：编队机当前位置 + 机腹偏移（设计值 × world_scale）。
+    /// 可见域裁剪与弹体落位共用这一处取值——两处各写一份表达式时，裁掉的与落下的会悄悄分叉。</summary>
+    private Vector2 DropPoint(FormationCraft craft)
+        => craft.Position + (new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale);
+
+    private void SpawnBomb(FormationCraft craft, Vector2 dropPoint)
     {
         var bomb = AcquireBomb();
         if (bomb.GetParent() == null)
@@ -633,7 +691,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         bomb.MaxHp = Mathf.Max(1, BombHp);
         bomb.Hp = bomb.MaxHp;
         bomb.Activate(); // 全运行态/外观复位（新弹幂等重入；回收弹经此复活并重绑注册表）
-        bomb.Position = craft.Position + (new Vector2(0.0f, 18.0f) * (float)GameState.Instance.WorldScale);
+        bomb.Position = dropPoint;
         _bombs.Add(bomb);
         craft.FlashBay(); // 机腹照明亮一下：投弹动作可见
         GameState.Instance.PlaySfx(SfxId.Dash, -14.0, 1.7); // 投弹舱释放的轻响（复用采样 + 高音变体）
@@ -681,7 +739,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
             if (_lineStage == 0 && _state != State.IDLE)
             {
                 _lineStage = 2;
-                _comm?.ShowLine("FBQ_TAUNT_INTERCEPT");
+                ShowProgressLine("FBQ_TAUNT_INTERCEPT");
             }
 
             RefreshEventBar(0.0f, force: true);
@@ -823,7 +881,7 @@ public partial class FormationStrikeEvent : EncounterEventBase
         _hud.UpdateEventBar(fill, _alive, _total, _intercepted);
     }
 
-    /// <summary>击坠：单机得分走 AddKillScore（连击+1、乘区放大后照常过难度倍率）；
+    /// <summary>击坠：单机得分与击杀数在击坠处一并入账（编队机 Die），本处只做编排；
     /// 全歼 → 全歼奖励 AddEventScore（不计连击、随 D 增长）+ 提前离场。</summary>
     private void OnCraftDied(FormationCraft craft, int index)
     {
@@ -833,12 +891,11 @@ public partial class FormationStrikeEvent : EncounterEventBase
         }
 
         _alive = Mathf.Max(0, _alive - 1);
-        GameState.Instance.AddKillScore(CraftScore);
         // 进度台词：第一次战损时敌方指挥官的反应（与拦截台词共用单条槽位）
         if (_lineStage == 0 && _state != State.IDLE)
         {
             _lineStage = 1;
-            _comm?.ShowLine("FBQ_TAUNT_LOSS");
+            ShowProgressLine("FBQ_TAUNT_LOSS");
         }
 
         RefreshEventBar(0.0f, force: true);

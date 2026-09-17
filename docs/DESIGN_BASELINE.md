@@ -27,9 +27,13 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   弹幕系惯例是「擦弹 = 贪分」，不吃乘区会让风险回报失真、不鼓励贴弹。
 - **连击窗口 5.0s**：窗口须覆盖最大波间隔（4–7s 的波次节奏），否则跨波必断、×2 不可达。
 - **迷雾事件存活补偿**：四类迷雾是纯负反馈（无奖励、easy/hard 同受），故按其难度给一份存活补偿——
-  结束给 `fog_events.reward_score`(150) × `KillScoreFactor`。
+  **扛满整段**（自然到期）给 `fog_events.reward_score`(150) × `KillScoreFactor`，再经 `AddScore` 乘难度档倍率；
+  **被打断**（返航/死亡/退出标题，经 `FogEvents.EndActive()`）**不发**——打断＝没扛满，「存活」补偿不该兑现
+  （否则长按 B 蓄力 1.5s 即可命中 6~8s 的窗口白拿一笔）。回归面：`--fog-probe` 断自然到期**金额相等**、
+  `--fog-interrupt-probe` 断打断后增量为 0，两半互补（只判一侧会让「一律发／一律不发」混过）。
 - `GameState.AddScore(v)`: multiplies difficulty (easy ×1 / medium ×2 / hard ×3；玩家文案 易/中/难，配置键 `difficulty.<tier>.score`); all kills route here.
 - **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window **5.0s** / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 5s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards do NOT combo；**擦弹吃连击加权**（`graze_combo_weight` 1.0，2026-09-14 起）。 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
+- **遭遇单位同口径**（2026-09-17 裁定）：编队机与精英炮塔的击毁都走 `AddKill()`（计「击杀」数，推进 kill 类任务与进度门）**并且**给一笔击杀分走 `AddKillScore`（吃连击与 `score_amp`）——此前两者都不计击杀数、炮塔连分数都不给，与「所有击杀都经 `AddScore`」冲突。炮塔击杀分取值 `elite_turret_event.turret_score`（**150**，独立于事件档位奖励 `reward_score`）；编队机沿用 `craft_score`（同一处入账，不再由事件编排侧代给）。
 - Boss kill: `AddBossKill(scoreScale)` → `AddScore(500 × scoreScale)` (`milestones.boss_kill_base`); advances talent points/RP/BossKills/difficulty.
 - RP: earned from boss kills (+5) and mission claims (+3) only; spent at base console, not carried between runs.
 - **RefreshPoints**: separate base-only currency — entering base +1 (`base_task.grant_per_visit`), refresh tasks −2 (`base_task.refresh_cost`); no cap, not carried between runs (run save). Task rotation: 3 active slots drawn from 9-mission pool (`MISSION_POOL`, 3 kinds × 3 goals) without replacement; progress routed by `kind` (kill/survive/boss) so rotated ids still advance; completed-but-unclaimed slots kept on refresh.
@@ -95,6 +99,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Key scaling: `rapid_fire.factor` (interval ×0.75/level), `armor.multiplier`, `evasion.chance`, `regen.heal_per_sec`, `slow_field.factor`, `laser_beam.*` (line segment, not projectile；`tick_interval` 可配置), `explosive.*`, `dash_strike.tick_interval` (**0.12s，可配置**), `mothership_recall.cooldown_factor`.
 - Aim assist (`player.aim_assist`): `aim_marked` rolled at birth (`mark_ratio` 0.25); AimFrameLayer brackets, AimCrosshair follows `AimPoint()`; in-frame → `Bullet.HomingTarget` (bounded `HomingTime`); out → straight fire; magnet/weak-track share falloff (full <400px → 0.3 floor at 1400px).
   - **弱追踪覆盖全部敌机**：`NearestConeTarget` 不按 `aim_marked` 过滤——标记只决定**框显示**与**框内强追踪**，不是弱追踪的准入门槛。锥角/强度随档位（low 6°/0.42、medium 8°/0.52、high 10°/0.62）。
+  - **遭遇单位同属瞄准面**（2026-09-17 裁定）：编队机与精英炮塔实现同一个「可瞄准目标」契约（存活 / 世界位置 / 框半宽 / 是否标记），弱追踪、框内强追踪、磁吸、标记框**一律覆盖**；遭遇单位恒为标记目标（框恒显）。理由：遭遇期间它们是屏上唯一可打目标，按类名排除会让瞄准手感随目标类型漂移。框半宽沿用普通敌机的「碰撞半径 + 同一 pad」口径，不另造一套。**Boss 不参与辅助瞄准**（既有例外，刻意留在契约外）。
   - 玩家弹速 `player.bullet_speed`（**2600**，定稿）：纵向 1080 设计高约 0.42s、横向 1920 宽约 0.74s 横穿，远距离目标不必再「等弹到」。
 - **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
 
@@ -123,6 +128,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **Formation strike** (lowest priority; 2026-09-11 深化): 3/4/5 (by difficulty) wedge dive → 90° cross（**全程压坡**）→ **波次化投弹** → exit。**核心是一条「三种应对」的攻防**：炸弹可被**击落**（`bomb_hp`，空中引爆＝无地面伤害 + 拦截分）、可被**弹反**（`IParryable` 契约，反射后反向上升并轻量寻敌，命中编队按 `bomb_reflect_damage` 结算）、也可纯**闪避**。
   - **落点可读**：每枚炸弹自带「落点圈」——完整伤害半径的轮廓 + 12 点起收缩的倒计时弧，**圈越少越亮**（最危险的一刻最显眼）。引信到期在弹体当前位置引爆，伤害按距离衰减（中心满伤 → 边缘 `bomb_edge_falloff`），边界即实际生效边界。
   - **结算三分支**（收益上限由玩家操作决定）：**全数拦截**（投出的弹全被空中拆掉 + 编队机一架未坠）→ `reward_intercept` + 逐枚 `reward_per_intercept`；**全歼**（打光编队，含已投弹）→ `reward_all_clear`；放它离场 → 只有击坠得分。被引信引爆的弹**不计**拦截；弹反后出界回收（未命中）同样不计——空中击落或弹反命中单位才算拆掉。
+  - **投放必须落在可见区内**（2026-09-17 裁定）：投放点越出可见世界域的弹**不再生成**（越界即跳过这次投放，与「已毁机跳过、时刻表照走」同族，不生成弹也不计入投放数）。理由：屏外弹既不可见也不可交互，其存在只会污染「已拦截 n」的分母、让**全数拦截档结构性不可达**，还会用屏外的爆炸边缘蹭到贴边的玩家；而设计口径「投出的弹全被空中拆掉」因此保持字面成立。代价：计划时刻表与实际投放数不再相等（实测 medium 16→9——编队从视野中央带出发朝远端侧缘横穿，t≈2.2s 起的投放点已出界）。**口径：时刻表是「最多投几枚」的上限，实际投放数由可见区决定**，两者不必对齐；档位判定与 HUD 分母一律取实际投放数。若日后要让计划枚数全部落进可见区，须改横穿速度或投放起点（玩家可感取值，需显式改值）。
+  - **拆弹两条路径同额**（2026-09-17 裁定）：空中击落与弹反命中都是「拆掉一枚威胁」，收益必须同族同额——两路都给 `bomb_score` 走 `AddKillScore`（吃连击与 `score_amp`），并叠加同一笔逐枚 `reward_per_intercept`（经 `AddEventScore`，属事件奖励、不计连击）。原实现只在击落路径给击杀分，于是更难的弹反应对收益反而更低。
   - **投弹节奏**：`volley_batches` 波 × 每波按「到长机的距离排序」依次 `bomb_interval` 错开（长机先投），波间 `volley_gap` 呼吸；同机 `bombs_per_craft` 枚以 0.4s 间隔连投。编队几何与投弹时刻表在 core `FormationPlan`（楔形槽位 / 名次定序 / 时刻表排序，可单测）；引擎侧只按表消费。
   - **演出与可读性**（2026-09-12）：入场前屏顶打**进场预告线**（复用普通波次的 `SpawnTelegraph`，换编队身份色，时长取 `spawner.telegraph_duration`）；投弹前 **0.45s 机腹灯闪烁预警**（落点圈只说明「会炸到哪」，预警灯说明「谁要投」）；顶部**事件条**显示全程进度（入场 + 转弯 + 投弹表末刻 + 离场）与「编队机 x/y · 已拦截炸弹 n」（与精英炮塔共用同一组件，标题/计数文案与身份色由事件注入）；通讯序列 = 接敌警告 → 轰炸段开始的战术提示（可击落 / 可弹反回敬）→ 至多一条进度台词（首次战损或首次拆弹，敌方视角）→ 结算台词。
   - **触发与互斥**：触发策略（`min_score` / `trigger_chance` / `trigger_interval`）只由 `GameEventManager` 读取与判定，事件自身只报「就绪」（空闲 + 冷却结束 + 母舰不在场）；资格合成与计时推进下沉 core `EncounterTrigger`（可单测：分数门槛、资格不足时计时冻结、到点先复位整段再掷签）。事件**同时占用波次槽与 Boss 槽**：运行期暂停普通波次并冻结 Boss 调度，收场（含返航打断）一并解除并补触发一次期间到期的 Boss。`Abort()` 连同在场炸弹一并清除且无结算（已入账的击坠分与拦截分保留）。
@@ -139,7 +146,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Brightness proxy from registries (bullets ×0.002 + explosions ×0.15), zero GPU readback; LOD1 skips CA/blur/ripple.
 
 ### 1.9.1 左下集成仪表盘（2026-09-13 追加）
-把左下角从「四条同形横条 + 文字标签」改为**按元素真实特性选形态**的单面板仪表带，两排：上排生命（主读数）＋坞态指示灯，下排燃料量槽＋两枚充能槽＋弹仓格。
+把左下角从「四条同形横条 + 文字标签」改为**按元素真实特性选形态**的单面板仪表带，两排：上排生命（主读数，独占整行）、下排燃料量槽＋两枚充能槽＋弹仓格＋坞态指示灯（枚举状态与充能槽同处下排：两者都是「一瞥判断可用性」的离散指示，与上排的连续主读数不同族）。
 
 - **形态判据**（形态差异必须表达「量是什么样的量」，不是装饰堆砌——这是与「技术展示品」的分界）：
   - **生命 → 分段横条（保持原形态）**：主生存资源、最常扫视，占上排整行、字号最大最亮，是整块面板的视觉主导。
@@ -149,7 +156,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   - **母舰坞态 → `AnnunciatorLamp` 指示灯**：枚举状态 → 灯。配色语义取自 **14 CFR 29.1322** 三级分类（一手法规）——红＝warning（须立即处置，此项目前唯一用途＝弹仓见底）、琥珀＝caution（蓄力/下降/在场/冷却）、绿＝safe operation（就绪待命）。
 - **形状语汇单源**：所有方形构件（量槽、充能槽、面板）一律走 `UITheme.ChamferPoints` 的切角八边形，全盘只有一套方形语言——「每元素一套隐喻」正是读作展示品的根因。
 - **液体表现的克制纪律**：**静止几乎不动、变化时才动**。常驻液面只有约 2px 低频起伏（0.32Hz，只做「是液体」的材质暗示），数值变化时叠加一次衰减晃动读作惯性；**不做气泡**（无信息量的装饰）。弹幕游戏里任何常驻动效都会抢视线。
-- **单源与文件**：`FuelTank.cs` / `AbilitySocket.cs` / `AnnunciatorLamp.cs` / `CartridgeStrip.cs`（均 `Control` + `_Draw` 程序化绘制，零贴图零 shader）；装配与位置单源在 `Hud.BuildInstrumentCluster`（原 tscn 的 FuelBar/DashBar/ParryBar + 三个标签节点退役）。母舰灯态由 `Main.DockStateValue` 单源给出，与坞态文本同分支，不在 HUD 重推。
+- **单源与文件**：`FuelTank.cs` / `AbilitySocket.cs` / `AnnunciatorLamp.cs` / `CartridgeStrip.cs`（均 `Control` + `_Draw` 程序化绘制，零贴图零 shader）；装配与位置单源在 `Hud.BuildInstrumentCluster`（原 tscn 的 FuelBar/DashBar/ParryBar + 三个标签节点退役）。母舰灯态由 `Main.DockStateValue` 单源给出，与坞态文本同分支，不在 HUD 重推。**燃料低量警戒线单源在 core `FuelGauge.WarnRatio`**（液色与刻度着色同阈值，不在 HUD 与构件各写一份）。
 - **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结；闪烁频率全部低于 WCAG 2.3.1 阈值。
 - **文案**：三个小标题复用既有翻译键（`UI_FUEL`/`UI_DASH`/`UI_PARRY`），**不新增任何玩家可见文案或数字**（数值只用形状/颜色/液位编码）。
 - **成本**：仅液槽常态逐帧（每帧 ≤12 点液面 + 4 条刻度线，控件 34×52）；充能槽只在充能追赶与就绪脉冲期间推进，静止 `SetProcess(false)`。
@@ -160,12 +167,14 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 
 ### 1.11 Tutorial
 - Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 4 hold-H → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit.
+- 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
+- 教程是独立于 `Main` 的生产入口，冒烟单独一趟直开 `tutorial.tscn` 覆盖（断 `[tutorial] 场景就绪`）。
 
 ### 1.12 Exit/Back Navigation
 - All back inputs → `BackNavigator.GoBack()` via pure `DecideBackAction()` (confirm → cinematic skip → settings/base/blocking/results → augment dock → pause → top → combat).
 - Stack: L3 ExitConfirm → L2 overlays (Settings/Base/GameOver/cinematics) → L1 run (HUD⇄Pause + augment dock)。标题屏 `title.tscn` 为独立场景（2026-09-09 深空机库改版：程序化星空 + 远景实况战场〔敌机编队/远处爆炸/Boss 剪影〕+ 玩家机自远处跃迁飞入右侧悬挂展示〔轮廓背光/尾焰怠速/铭牌卡〕+ 左侧标题区，开场演出 ~2.2s 不阻塞输入；任意键开局 + T 教程。）
 - **圆盘 UI 全覆盖（2026-09-08）**：左缘 `RadialWheel`（圆心锚屏外左侧，卡片沿弧排列；槽距按选项数自适应 `SlotAngleFor`，端点角钳 ±36° 防压 HUD；全容弧面时键盘/滚轮经 `FocusBias` 移动聚焦项）为全站菜单导航面：天赋面板（已有）、暂停、死亡结算、基地目录、设置页导航；`RadialMenuLayer` 为统一开合骨架（dim+轮盘过冲滑入，`SetWheelActive` 同步轮盘/chrome 遮罩显隐——非模态页须显式关遮罩）；方向键旋转 + Enter 确认（GUI 焦点存在时自动让位焦点链）。
-- Battle exit: 2nd confirm (progress-loss warning); `ExecuteExitCleanup`: save profile, delete save in battle, stop SFX, fade quit.
+- Battle exit: 2nd confirm (progress-loss warning); `ExecuteExitCleanup`: save settings, stop SFX, fade quit. **战斗退出不删档**——删档只发生在死亡与放弃重开（存档语义单源见 §2.5）。
 - Esc / gamepad `ui_cancel`, one state machine.
 
 ### 1.13 Combat Fairness (数值定稿)
@@ -175,7 +184,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   与「压力无界」的设计意图相悖。候选「扩为真自适应」明确不做（须先推翻本条）。
 - **Grace frames**: enemy bullet in Hitbox defers settlement `player.grace_period` (0.05s); only enemy-bullet→player timing. **离场判定（2026-09-10 修复直击不结算）**：窗口内离场时按弹心相对轨迹段（入口→离场，圆心参考系两端同减抵消玩家移动）最近距 ≤ 核心半径（7×ws = 2.8px）判定——贯穿核心 = 视觉直击，照常吃伤害；仅擦边入框（最近距 > 核心）才免伤（高速弹穿越核心约 25ms，若「离场即免伤」会让直击永不结算）。到期仍在框内同样结算（不变）。
 - **Graze**: ring outside hitbox (`player.graze_radius` 20, gameplay-range family, no world_scale) → `player.graze_score` (**30**，× 难度 ramp × 连击加权 `graze_combo_weight`), once/bullet; hitbox area gives none. 玩家受击判定仅经 `Player/Hitbox`（r=7 × world_scale = 2.8）；机身 r=22 不参与碰撞（mask=0）。
-- **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left).
+- **Phase transitions**: P1→P2 & ENRAGE clear all bullets (incl. formation bombs) + brief invincibility (`boss.phases.transition_invincible` 1.0s, additive only); escape: no clear/invincibility. Boss bar segmented (P1 amber/P2 orange/ENRAGE red; boundaries = phase thresholds; drains left) —— **段界由 `boss.phase2_hp_ratio` / `boss.enrage.hp_ratio` 派生**（`[1−p2, p2−e, e]` 与刻度 `[p2, e]`，core `BossBarSegments`），不得另存一份硬编码：改阈值而段界不跟，玩家从血条读出的阶段边界就是假的。
 - **F parry**: full 360° circle, 0.5s window (windup 0.15/recover 0.15); reflect = mirror y-flip ×2 speed ×1.5 dmg (rounded) as player bullet; hard cooldown 3.0s from effect end (3.8s cycle); all `player.parry.*` in balance.json; LT bound.
 
 ### 1.14 Input Surface（PC 专用，定稿）
@@ -192,11 +201,11 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   - **音频 Audio**：主音量 · 音乐 · 音效。
   - **辅助与关于 Accessibility & About**：减少闪光 · 屏幕震动强度 · 命中顿帧强度 · 版本与操作速查。
 - **生效时机**：一律即时生效（无需「应用」按钮）；滑杆拖动即时改值（apply），持久化只在 **`DragEnded` 与离开设置页时各一次**——拖动过程中逐帧全量原子写盘是磁盘写风暴。
-- **持久化版本**：`settings.json` 带 `version`（当前 4），**读入时真读**。版本与当前一致直读、低于当前按旧键名迁移、**高于当前告警并按逐字段默认值回退**（不猜未来字段语义、不拒绝加载文件、不改写格式）；判定在 core `SettingsMigration`（可单测）。
+- **持久化版本**：`settings.json` 带 `version`（当前 4），**读入时真读**。版本与当前一致直读、低于当前按旧键名迁移、**高于当前按逐字段默认值回退**（不猜未来字段语义、不拒绝加载文件、不改写格式）；判定在 core `SettingsMigration`（可单测）。**「逐字段回退」的落地口径**（2026-09-17 收口）：版本高于当前时整份档**按空档读入**——每个字段都取默认值，不拿当前语义去读未来档里的同名键（这正是该分支存在的唯一理由；只对缺失键回退而照读已知键，等于把未来语义当当前语义用）。告警照发，文件在下次落盘前不动。
 - **破坏性动作必二次确认**：恢复默认按键、全部恢复默认都经 `ConfirmationDialog`，确认文案写清后果（会丢什么、什么会保留）。
 - **状态可见**：开关下方给出当前状态读出（垂直同步的实际生效值可能被驱动覆盖，与偏好不一致时明示）；屏幕震动强度与命中顿帧强度 0% 都单独文案说明「已关闭」，避免玩家把 0% 读成「最小」。
 - **无障碍定稿范围**：减少闪光（频闪）× 屏幕震动强度（运动）× 命中顿帧强度（瞬时定格）× 可改键 × 音量三分路。屏幕朗读（XAG 106）与字幕**不做**——本作无配音与叙事对白，无朗读对象。
-- **有意例外**：辅助瞄准不给「关闭」档（常驻机制，仅弱/中/强三档），口径见 §1.5；改键表不含开火与重开（开火在键盘侧无绑定、重开为固定键，见 §1.14 与 §1.12）。
+- **有意例外**：辅助瞄准不给「关闭」档（常驻机制，仅弱/中/强三档），口径见 §1.5；改键表不含开火 / 天赋面板 / 暂停 / 重开（开火在键盘侧无绑定，天赋面板与重开为固定键，暂停走引擎 `ui_cancel`，见 §1.14 与 §1.12）。
 - **默认值取向**：中立、低风险（亮度/音量类不做极端档、震动/闪光/顿帧默认开启但一键可关、语言默认简体中文）。
 
 ---
@@ -258,10 +267,12 @@ GL Compatibility 下 Godot `Environment` 辉光/SSAO 不可用，故手写屏幕
   2. **终结删档**：玩家**死亡**（`GameState._Ready` 订阅自身 `PlayerDied`）与**「放弃重开」**（`GameState.RestartRun`）——本局终结，检查点一并作废，不可读档回滚（保住必死曲线、防 save-scum；也堵住「读档→暂停重开→再退出重进」的无限回滚）。**删档失败不静默**：死亡路径若删除失败，兜底把 `run.json` **覆写为墓碑内容**（版本号置为不可读态），保证「不可读档回滚」承诺不因 IO 失败而失效。
   3. **非破坏性**：标题屏选「**新的一局**」**不删旧档**——一次误触不会抹掉进度；旧档保留到被新档覆盖或被本局终结清除。`ExitToTitle` 同样不删（Tutorial 走此口，删档会误伤；且「回标题保留检查点」语义正确）。
 - **读档**：标题屏 `HasRunSave()` 为真时显示 `C — 继续上次出击`；`C` 置 `GameState.PendingLoadRun`，`Main._Ready` 返回标题分支读档成功则跳过 `ResetRun`（`LoadRun` 内部先 ResetRun 再按存档还原），否则回退全新一局（保留旧档）。读取结果**三态区分**：**无存档 / 损坏隔离（移为 `.corrupt`，不显示假承诺）/ 暂时不可读（文件存在但读不出，如被占用）**——暂时不可读按「稍后重试」处理（不当作没有存档、也不删档），只有确认无档或损坏才按无存档走。
-- **粒度**：**还原本局进度，战场从新一波开始**——持久化 score/kills/boss_kills/combo/milestone_count、run_time/difficulty_multiplier/dda_timer/difficulty_time_step、health/augments、talent(levels/overcharged/route/reset_tokens/bonus_overcharge_slots/cache_values)、missions(rp/refresh_points/条目/last_kind_value)。**不持久化**敌机/子弹/Boss 位置、波次计时、DDA 剩余、回血延迟、TaskPool 洗牌游标、玩家无敌/受击帧守卫。
+- **粒度**：**还原本局进度，战场从新一波开始**——持久化 score/kills/boss_kills/combo/milestone_count、run_time/difficulty_multiplier/dda_timer/difficulty_time_step、health/augments、talent(levels/overcharged/route/reset_tokens/bonus_overcharge_slots/cache_values)、missions(rp/refresh_points/条目/last_kind_value)。**不持久化**敌机/子弹/Boss 位置、波次计时、回血延迟、TaskPool 洗牌游标、玩家无敌/受击帧守卫。**`dda_timer` 属持久化项**（键写读成对）——受击喘息是有界量（≤`DDA_DURATION`），带过读档边界的影响在噪声内；若日后改判为不还原，须连键一起从写侧移除（只留键不读会掉出写读对称判定，属改存档格式）。
   - **连击（combo）**：连击数持久化，读档时恢复并给予**满连击窗口**（与「连击窗口计时本身不持久化」自洽——存档的是连击段位，不是剩余时间）。
 - **还原顺序**（`GameState.RunSave.cs.ApplyRunDict`）：talent → combat（先恢复 extra_life 层级才有正确 MaxHealth）→ score → progress → missions；各服务 `RestoreRunState` 末尾补发既有信号（`AugmentsChanged/TalentsChanged/CacheChanged/RpChanged/…`）驱动 HUD 与 Player 增幅件重建。
 - **健壮性**：档案带 `version`（=1），不符按无存档忽略（不隔离不阻塞开机）；损坏 JSON 走既有隔离（且 `HasRunSave` 会触发该自愈，无需人工清理）；**JSON 往返会把 `StringName` 键退化为 `String`**，还原时对 `augments`/`missions` 键做 StringName 归一化（否则查表落空、增幅与任务进度静默失效）；所有字段判型读取，非法回默认。
+- **还原必须过白名单与上限**（2026-09-17 收口）：手改档是可达输入面，「判型 + 钳域」不足以防静默错值，还原一律按**已知集合**过滤——`missions` 只收 `MISSION_POOL` 里的 id（goal 取池内定稿值，不读存档里的 goal，否则查池得 0 会让 `IsMissionDone` 恒真、可反复领取 RP）；`talent_overcharged` 只收已知节点、去重并按本局过载名额上限截断；`augments` 只收天赋树已知节点且层级 ≤ 该节点上限（**风险加点节点例外**：层级 `max_stacks+1` 是其正当形态，读档必须保留，否则双倍价买的那一级静默消失）；`key_bindings` 只收 `REBINDABLE_ACTIONS` 里的动作名（否则未知动作名被永久回写）。过滤策略下沉 core 纯函数并配单测。
+- **还原末尾补发驱动信号**：各服务 `RestoreRunState` 末尾补发既有信号（`AugmentsChanged/TalentsChanged/CacheChanged/RpChanged/DifficultyChanged/…`）。`DifficultyChanged` 尤其不能漏——HUD 难度标签只在信号与语言变更时刷新（无轮询），漏发会让难度读数停在 x1.00 直到下一次时间档跨步（最长 30s）。
 
 ### 2.6 性能设置（2026-09-10 追加）
 设置页「显示与性能」页的**性能**段（`SettingsService` + `SettingsUi`，settings.json 持久化）：
@@ -305,6 +316,9 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
 - **时间缩放合成器**（`GameFeelService`）：`Engine.TimeScale` 原有唯一写入者是 Boss 狂暴子弹时间（Main 编排演出）。
   两路各自直写会互相覆盖（顿帧把子弹时间顶回 1.0、或子弹时间把顿帧顶掉），故合成收口——Main 只上报
   自己的演出倍率（`SetEnrageTimeScale`），实际写入 = 演出倍率 × 顿帧倍率。终态复位统一走 `ResetTimeScale`。
+  **暂停一并复位**：`SetTreePaused(true)` 走单一复位口连冻结与演出倍率一起清（只清顿帧会让整棵 Always UI
+  以 0.24 倍速播放——狂暴子弹时间内开暂停页/设置页/天赋面板的表现是「菜单卡死」）；恢复后 Main 在慢速段
+  续报倍率，演出从暂停点继续，不被吃掉。
 - **命中顿帧分档**：普通命中 / 暴击（`Bullet` 直击分支，复用既有单次暴击 RNG 结果不重掷）/ 击杀（`Enemy.Die`）/
   重击（玩家受击）四档，时长在 `balance.json effects.hit_stop.*`（**`freeze_scale` 是冻结期间的时间倍率，
   不是强度**——求严格 >0，取 0 会让帧长恒零、剩余时长永远推不完而冻死）。同帧多次请求取**较大者**不叠加。
@@ -313,8 +327,11 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
   小额冲击近乎无感、大额才猛烈，高频抖动不再叠加成持续晃动。衰减与顿帧同时序按真实帧长推进。
   震源表在 `effects.shake.*`，语义是**创伤增量**（不是像素振幅），另有 `recovery`（衰减速率）
   与 `reference`（归一化参考振幅，缺省与 `boss_seq_final` 同量纲）。
-- **设置项**：辅助页新增「命中顿帧强度」（0..1，0 = 完全关闭；按比例**缩时长**而非改冻结倍率——倍率逼近 0
-  会让帧长趋零、采样与输入一起失真）。与「减少闪光」「屏幕震动强度」并列，`HitStopScale` 落 settings.json。
+- **设置项**：辅助页「命中顿帧强度」（0..1，0 = 完全关闭；按比例**缩时长**而非改冻结倍率——倍率逼近 0
+  会让帧长趋零、采样与输入一起失真），与「减少闪光」「屏幕震动强度」并列，`HitStopScale` 落 settings.json。
+  **三项互不连坐**（2026-09-17 收口）：屏幕震动强度只作用在**运动**（trauma 与像素位移），广播给画面增强层的
+  震源强度取原始值——两者的语义分别是「运动」与「频闪」，滑块关掉震动不该连带关掉重击泛光（否则把强度调到
+  1/3 以下时重击脉冲完全消失，而「减少闪光」明明是另一项设置）。
 - **回归面**：`--feel-probe`（冒烟第七趟）请求顿帧与震动后断言「时间缩放被压低 → 自行复位 → trauma 归零」；
   顿帧写坏的表现是**画面永久定格**，无头下不崩也不报错，只有完成标记抓得住。
   时序与 trauma 数学下沉 `csharp/core/GameFeel/`（`HitStopTimeline`/`TraumaShake`）并由单测钉住（含「零真实帧长不得结束顿帧」）。
@@ -329,5 +346,13 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
 - **各基准归属**：真实时间＝返航过场输入宽限 / 标题屏输入守卫、音效最小触发间隔、开机耗时读数、设置页帧率与刷新率读出、打击感的真实帧长推进（`HitStopTimeline`「零真实帧长不得结束顿帧」即此）；模拟时间＝帧级去重与缓存（`FrameCache` 等 `GetPhysicsFrames` 族）、事件/波次编排时间轴、表现层脉动相位、右摇杆准星积分（`GetProcessFrames` 门控 + `GetProcessDeltaTime` 配对）。
 - **维护方式**：门禁双向判定——新增未登记的真实时间使用判红，**已登记站点消失也判红**（防合法墙钟被「顺手改成模拟时间」，正是同一处宽限在 1.5 个月内被反方向改了三次的形态）。改动这些位置时先改 `ALLOW` 再改代码。`csharp/core/` 出现任何真实时间命中即红（纯逻辑层可单测的前提）。
 - **回归面**：`--return-probe`（冒烟第十趟）走生产蓄力链（长按 `homecoming` 蓄满，不直调过场）触发返航后分三段判定——宽限内跳过被忽略；推进 90 帧（1.5 模拟秒，越过生产宽限 1.2s）后**仍**被忽略，这一条是真实时间基准的判别式（若宽限被误按模拟时间计，此刻会放行）；越过宽限后跳过生效且收尾落基地并保持树暂停。探针**不等真实时间**（`--fixed-fps` 下与帧数脱节），另用墙钟做环境过慢的前置守卫，慢到无法判别时显式报错而非静默放过。
+
+### 2.11 数值单源的两道判据（2026-09-15）
+
+balance.json 是数值唯一来源，但一批「表式」数值被手抄进 C# 当 `Cfg(key, 代码内默认值)` 的回退实参——json 完整时读 json，看不出代码默认值已分叉，只有 json 缺失/损坏才回退到错值。两道门禁分工：
+
+- `check_balance_keys.sh` 判**键存在**（键名写错会静默回退默认值）；`check_code_defaults.sh` 判**取值一致**（15 张登记表 256 个缺档默认值 == json 定稿值，含移动策略专属参数与三元素数组）。两侧改一侧不改即红。
+- 登记表逐张声明预期条目数与 `文件:符号`，取不到判据（文件/符号/键缺、条目数不符、零比对）一律红——防「表被改名后零比对静默判 clean」。
+- 同一事实的**读取面**也收口：未经 balance 覆盖的默认表（`Spawner.BuildEnemyTypes` / `BuildEliteTypes`）只许 `Spawner` 内部读取，外部直读即红（教程曾如此，是「正局跟随、教程不跟」的根因）。
 
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*

@@ -272,31 +272,24 @@ public partial class LaserWeapon : Node2D
     /// 倒序不受突变破坏），免 10 次/秒的整表 duplicate 拷贝。</summary>
     private void DamageTick(Vector2 start, Vector2 end)
     {
-        var arr = GameState.Instance.Enemies; // Array<Node>，避免 Variant 拆装箱
+        var arr = GameState.Instance.Enemies; // 注册表（托管 List<Node2D>）
         // 平方距离比较免每敌 sqrt（Bullet.Explode 的 radiusSq 同口径）
         var hitRadiusSq = BeamHalfWidth + EnemyHitRadius;
         hitRadiusSq *= hitRadiusSq;
         for (var i = arr.Count - 1; i >= 0; i--)
         {
             var node = arr[i];
-            if (node == null || !GodotObject.IsInstanceValid(node) || node is not Node2D n2d)
+            if (!GodotObject.IsInstanceValid(node))
             {
                 continue;
             }
 
-            if (DistToSegmentSq(n2d.GlobalPosition, start, end) <= hitRadiusSq)
+            var pos = node.GlobalPosition;
+            if (Core.Combat.SegmentDistance.PointToSegmentSq(pos.X, pos.Y, start.X, start.Y, end.X, end.Y) <= hitRadiusSq)
             {
                 // 激光路径不传 ScoreScale——击杀不加分缩放为既有语义（与 Bullet 直击/溅射路径不同）。
-                EntityDamage.Dispatch(n2d, TickDamage);
+                EntityDamage.Dispatch(node, TickDamage);
             }
         }
-    }
-
-    /// <summary>点到线段距离平方（静态纯函数；配合 hitRadiusSq 平方比较，调用方免开方）。</summary>
-    private static float DistToSegmentSq(Vector2 p, Vector2 a, Vector2 b)
-    {
-        var ab = b - a;
-        var t = Mathf.Clamp((p - a).Dot(ab) / ab.LengthSquared(), 0.0f, 1.0f);
-        return (p - (a + ab * t)).LengthSquared();
     }
 }

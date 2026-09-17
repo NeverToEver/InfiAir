@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Input;
 
 namespace InfiAir;
 
@@ -9,7 +10,10 @@ namespace InfiAir;
 /// 冻结 → 准星失控"的前提；暂停/增幅/基地/结算/过场/开始页等非准星态（AimCrosshair
 /// 恢复系统光标）与窗口失焦一律放行——暂停后鼠标可自由移出窗口（如点系统标题栏
 /// 关闭按钮退出游戏）。
-/// Godot 4 的 Input.warp_mouse 接受屏幕坐标：warp 目标 = 窗口左上角屏幕坐标 + 内容区 clamp 点。
+/// Godot 4 的 Input.warp_mouse 收**窗口相对坐标**（GodotSharp.xml：relative to an origin at the
+/// upper left corner of the currently focused Window Manager game window）——warp 目标就是内容区
+/// clamp 点本身，**不得叠加窗口的屏幕位置**：叠上去会把光标弹开该偏移量（窗口不在 (0,0) 时准星瞬跳，
+/// 窗口左/上边带成死区）。钳制算式单源在 WarpClamp（core 纯逻辑层，配单测）。
 /// warp 目标恒取"出框前最后窗口内位置"（_last_known_pos），位移 ≤ 1-2px；且鼠标在窗口外时
 /// get_global_mouse_position() 本就冻结在最后内部位置，warp 后读值连续——不引入准星跳变，
 /// 反而把"移回窗口时的位置跳变"钳在边缘内侧（无 confine 时可有数十 px 跳变）。
@@ -29,21 +33,24 @@ public partial class MouseTrap : Node
     /// 供 mouse_exited 时生成 warp 目标；从未进入窗口内时为负，此时不拉回）</summary>
     private Vector2 _lastKnownPos = new(-1.0f, -1.0f);
 
+    /// <summary>宿主窗口引用（_Ready 取一次）：逐帧路径上 GetWindow() 是原生调用，
+    /// 而本节点的宿主窗口在本节点生命周期内不变（场景重载会重建实例，不会换窗口）。</summary>
+    private Window _win = null!;
+
     public override void _Ready()
     {
         ProcessMode = Node.ProcessModeEnum.Always; // 暂停时也维持位置缓存与防御；放行判定在 _trap_active
-        var win = GetWindow();
-        win.MouseExited += OnMouseExited;
+        _win = GetWindow();
+        _win.MouseExited += OnMouseExited;
     }
 
     public override void _ExitTree()
     {
         // Window 信号断开——节点未 free 重入树防双连回调；场景重载后防移出窗口回调已释放实例
-        var win = GetWindow();
-        if (win != null
-            && win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
+        if (GodotObject.IsInstanceValid(_win)
+            && _win.IsConnected(Window.SignalName.MouseExited, Callable.From(OnMouseExited)))
         {
-            win.MouseExited -= OnMouseExited;
+            _win.MouseExited -= OnMouseExited;
         }
     }
 
@@ -54,9 +61,8 @@ public partial class MouseTrap : Node
             return; // headless 无真实鼠标/窗口事件，confine 逻辑全部跳过
         }
 
-        var win = GetWindow();
-        var mp = win.GetMousePosition();
-        if (mp.X >= 0.0f && mp.Y >= 0.0f && mp.X < win.Size.X && mp.Y < win.Size.Y)
+        var mp = _win.GetMousePosition();
+        if (mp.X >= 0.0f && mp.Y >= 0.0f && mp.X < _win.Size.X && mp.Y < _win.Size.Y)
         {
             _lastKnownPos = mp;
         }
@@ -72,12 +78,11 @@ public partial class MouseTrap : Node
     /// 聚焦用 HasFocus() 实时查询而非缓存信号（焦点事件可能被 OS 抢占吞掉，见文件头注释）。</summary>
     private bool TrapActive()
     {
-        var win = GetWindow();
         return TrapEnabled(
             GameState.Instance.MouseLock,
-            win.Visible,
-            win.HasFocus(),
-            win.Size.X > 0 && win.Size.Y > 0,
+            _win.Visible,
+            _win.HasFocus(),
+            _win.Size.X > 0 && _win.Size.Y > 0,
             !GetTree().Paused,
             Input.MouseMode == Input.MouseModeEnum.Hidden);
     }
@@ -104,7 +109,9 @@ public partial class MouseTrap : Node
         }
 
         var win = GetWindow();
-        Input.WarpMouse((Vector2)win.GetPosition() + WarpTarget(_lastKnownPos, win.Size));
+        // warp_mouse 收窗口相对坐标：结果原样交出，不加窗口屏幕位置（见文件头注释）
+        var (wx, wy) = WarpTarget(_lastKnownPos.X, _lastKnownPos.Y, win.Size.X, win.Size.Y);
+        Input.WarpMouse(new Vector2(wx, wy));
     }
 
     /// <summary>每帧防御：已知位置经 clamp 改变（窗口尺寸/位置变化等偶发越界）时即时拉回</summary>
@@ -116,18 +123,18 @@ public partial class MouseTrap : Node
         }
 
         var win = GetWindow();
-        var target = WarpTarget(_lastKnownPos, win.Size);
-        if (target != _lastKnownPos)
+        var (tx, ty) = WarpTarget(_lastKnownPos.X, _lastKnownPos.Y, win.Size.X, win.Size.Y);
+        if (tx != _lastKnownPos.X || ty != _lastKnownPos.Y)
         {
-            Input.WarpMouse((Vector2)win.GetPosition() + target);
+            Input.WarpMouse(new Vector2(tx, ty));
         }
     }
 
     /// <summary>warp 目标：已知窗口内位置 clamp 到内容区边缘内侧 1px（窗口相对坐标）。
-    /// 避免系统判定鼠标仍在窗外造成 exited/warp 循环；窗口最小边假设 ≥ 2px。
-    /// 纯函数，公开（见 TrapEnabled）。</summary>
-    public static Vector2 WarpTarget(Vector2 knownPos, Vector2I winSize)
+    /// 钳制算式单源在 core 层 WarpClamp.Target（坐标系语义与退化窗口/非有限输入边界由单测钉住；
+    /// 本方法只做 Godot 类型适配）。</summary>
+    public static (float X, float Y) WarpTarget(float knownX, float knownY, float winWidth, float winHeight)
     {
-        return knownPos.Clamp(Vector2.One, (Vector2)(winSize - Vector2I.One));
+        return WarpClamp.Target(knownX, knownY, winWidth, winHeight);
     }
 }

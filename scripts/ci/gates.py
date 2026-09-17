@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十一步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
-存档写读对称性 → 设置写读对称性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-无头冒烟十趟 → 截图探针（辅助）。
+按 CI fast-gate 顺序跑完全部十六步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
+数值键反向死键 → 存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 零引用成员登记 →
+代码默认值与 balance 定稿对账 → 门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
+无头冒烟二十一趟 → 截图探针（辅助）→ 素材生成可复现性。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十一步
+    python3 scripts/ci/gates.py                  # 全部十六步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -23,6 +24,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -31,20 +33,36 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml）
+# 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml），逐条对应，新增或重排须两处同步。
+# gate_wiring 紧跟在 code_defaults 之后（与 ci.yml 一致）：它是静态检查，本地也要在构建前就暴露
+# 装配错误——排在冒烟之后时，本地一次装配错误要等构建 + 单测 + 导入 + 全部冒烟趟跑完才红。
 STEPS = (
     {"slug": "prose_hygiene", "name": "卫生：注释日期戳与术语", "kind": "bash", "script": "check_prose_hygiene.sh", "godot": False},
     {"slug": "ui_copy", "name": "玩家可见文案", "kind": "bash", "script": "check_ui_copy.sh", "godot": False},
     {"slug": "balance_keys", "name": "数值键存在性", "kind": "bash", "script": "check_balance_keys.sh", "godot": False},
+    {"slug": "balance_dead_keys", "name": "数值键反向死键", "kind": "bash", "script": "check_balance_dead_keys.sh", "godot": False},
     {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
     {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
     {"slug": "realtime_allowlist", "name": "真实时间允许清单", "kind": "bash", "script": "check_realtime_allowlist.sh", "godot": False},
+    {"slug": "zero_ref_members", "name": "零引用成员登记", "kind": "bash", "script": "check_zero_ref_members.sh", "godot": False},
+    {"slug": "code_defaults", "name": "代码默认值与 balance 定稿对账", "kind": "bash", "script": "check_code_defaults.sh", "godot": False},
+    {"slug": "gate_wiring", "name": "门禁装配完整性（脚本↔注册↔完成标记断言）", "kind": "bash", "script": "check_gate_wiring.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "无头冒烟十趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/返航宽限）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
+    {"slug": "smoke", "name": "无头冒烟二十一趟（主场景/设置页/编队/精英炮塔/死亡打断/燃料满扫/手感/难度曲线/迷雾/迷雾打断/返航宽限/Boss阶段机/母舰坞态/遭遇击杀型/恶意存档/死亡删档门控/增幅缓存复用/存档还原/设置版本回退/提前离舰蓄力/教程场景）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
     {"slug": "visual", "name": "截图探针（HUD + 五张设置页，自检非空白/页面互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
+    # 素材复现性排最后：它是唯一会**改写工作区**的步骤（跑生成器覆盖 assets/ 产物），
+    # 排在引擎三步之后时，引擎侧（导入/冒烟/截图）看到的始终是提交态，漂移也不会污染后续步骤的判据。
+    {"slug": "assets_reproducible", "name": "素材生成可复现性（生成器确定 + 产物同步；产出环境 33s，有跨机残差时约 66s）", "kind": "bash", "script": "check_assets_reproducible.sh", "godot": False},
 )
+
+
+# 每步墙钟上限（秒）：任一步挂死时判该步失败并继续跑后续步骤，不再无限等待（此前 subprocess.run
+# 无 timeout，CI 靠 job 的 15 分钟兜底、本地只能人工中断）。取值是实测时长的数倍，只作挂死安全阀
+# ——墙钟不是判定口径（AGENTS §5 约束的是判定与模拟，不是机器耗时），故不追求贴近实测。
+STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 1500, "visual": 900}
+DEFAULT_TIMEOUT = 300
 
 
 def fail(message: str) -> None:
@@ -146,41 +164,86 @@ def preflight(bash: str) -> list[str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=60,
     )
     found = {line.strip().split("/")[-1] for line in probe.stdout.splitlines() if line.strip()}
     missing = [] if any(name.startswith("python") for name in found) else ["python3"]
     return missing
 
 
+def kill_tree(proc: subprocess.Popen) -> None:
+    """杀掉子进程及其整棵进程树。
+
+    门禁脚本会派生引擎与 dotnet 子进程：只杀直接子进程（bash）时挂死的引擎会留在后台，
+    本地表现是「门禁判失败但引擎还在跑、日志还在长」——超时安全阀就失效了。
+    Windows 用 taskkill /T；POSIX 上子进程以新会话启动，按进程组杀。
+    """
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        return
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        proc.kill()
+
+
+def run_with_timeout(cmd: list[str], timeout: int, cwd: str | None = None) -> tuple[int, str, bool]:
+    """跑命令并取 (退出码, 输出, 是否超时)。超时即杀进程树；退出码置 -1（非 0，判失败）。"""
+    kwargs: dict = {}
+    if os.name != "nt":
+        kwargs["start_new_session"] = True       # 独立进程组，超时可整组杀
+    proc = subprocess.Popen(
+        cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, encoding="utf-8", errors="replace", **kwargs,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        code = proc.returncode if proc.returncode is not None else -1
+        return code, (stdout or "") + (stderr or ""), False
+    except subprocess.TimeoutExpired:
+        kill_tree(proc)
+        try:
+            # 回收管道给 5 秒：进程树虽已杀，但子进程可能把管道句柄留着（Windows 上尤其明显），
+            # 等满 30 秒只是白等——判据（该步失败 + 日志尾）在杀进程时就已确定
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = "", ""
+        return -1, (stdout or "") + (stderr or ""), True
+
+
 def run_step(step: dict, bash: str, wsl: bool, godot_shell: str, log_dir: Path) -> tuple[bool, Path]:
     slug = step["slug"]
     log_file = log_dir / f"{slug}.log"
     root_shell = to_shell_path(REPO_ROOT, wsl)
+    timeout = STEP_TIMEOUT.get(slug, DEFAULT_TIMEOUT)
 
     if step["kind"] == "dotnet":
-        completed = subprocess.run(
-            ["dotnet", "build", "--nologo"], cwd=str(REPO_ROOT), capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
+        code, output, timed_out = run_with_timeout(
+            ["dotnet", "build", "--nologo"], timeout, cwd=str(REPO_ROOT)
         )
-        code = completed.returncode
-        output = (completed.stdout or "") + (completed.stderr or "")
     else:
         # 两个环境变量在命令行内联赋值（而非继承）：
         #   GODOT           —— WSL 不继承 Windows 进程环境变量（除登记进 WSLENV 的），
         #                      父进程 set 会让引擎两步退化成 "godot: command not found"
         #   PYTHONUTF8/IOENCODING —— Git Bash 下 python3 是 Windows 版，stdio 默认按本机
         #                      ANSI 编码输出，中文门禁文案会变乱码；固定 UTF-8 使本地与 CI 一致
+        # 解释器按后缀选：门禁发现面是 .sh 与 .py（check_gate_wiring.sh 同口径），两者同构运行。
+        runner = "python3" if step["script"].endswith(".py") else "bash"
         command = f"cd '{root_shell}' && PYTHONUTF8=1 PYTHONIOENCODING=utf-8 "
         if step["godot"]:
             command += f"GODOT='{godot_shell}' "
-        command += f"bash scripts/ci/{step['script']}"
+        command += f"{runner} scripts/ci/{step['script']}"
         if step["godot"]:
             command += f" '{to_shell_path(log_dir / f'{slug}.engine.log', wsl)}'"
-        completed = subprocess.run(
-            [bash, "-c", command], capture_output=True, text=True, encoding="utf-8", errors="replace"
+        code, output, timed_out = run_with_timeout([bash, "-c", command], timeout)
+
+    if timed_out:
+        tail = "\n".join(output.splitlines()[-30:])
+        output += (
+            f"\n[门禁] 步骤超时：{step['name']} 超过 {timeout}s 未退出，已杀掉进程树（含引擎/dotnet "
+            f"子进程）——判该步失败，继续跑后续步骤。日志尾：\n{tail}\n"
         )
-        code = completed.returncode
-        output = (completed.stdout or "") + (completed.stderr or "")
 
     log_file.write_text(output, encoding="utf-8")
     if output:
@@ -259,6 +322,18 @@ def main() -> int:
                 encoding="utf-8",
             )
             print(f"   ！！未执行（判失败）：未找到 Godot 可执行文件（日志：{log_file}）")
+            results.append((step["name"], False, log_file))
+            continue
+        if step["kind"] == "dotnet" and not shutil.which("dotnet"):
+            # 与 godot 同款预检：缺 dotnet 时 subprocess.run 抛 FileNotFoundError，
+            # 栈回溯会中断整个 main()——build 之后的步骤一步都不跑、汇总表也不打。
+            # 判失败并继续后续步骤，失败面与失败原因都可读（AGENTS §6 铁律 2）。
+            log_file = log_dir / f"{step['slug']}.log"
+            log_file.write_text(
+                "未找到 dotnet：本步无法执行。请安装 .NET 8 SDK，或确认它在 PATH 上。\n",
+                encoding="utf-8",
+            )
+            print(f"   ！！未执行（判失败）：未找到 dotnet 可执行文件（日志：{log_file}）")
             results.append((step["name"], False, log_file))
             continue
         ok, log_file = run_step(step, bash, wsl, godot_shell, log_dir)

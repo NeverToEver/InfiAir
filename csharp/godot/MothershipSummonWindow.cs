@@ -85,8 +85,6 @@ public partial class MothershipSummonWindow : CanvasLayer
     /// <summary>扫描带（纵向缓移的横向光带，机库纵深信号的常驻动效）。</summary>
     private ColorRect _scanBand = null!;
 
-    private long _feedStartMs;
-
     private readonly List<Line2D> _chargeLines = new();
 
     private readonly List<Sprite2D> _chargeSparks = new(); // 断开点软火花
@@ -168,7 +166,7 @@ public partial class MothershipSummonWindow : CanvasLayer
         // 左侧竖长：贴左缘垂直居中（1920×1080 设计坐标）
         _panel.Position = new Vector2(24.0f, (1080.0f - PanelSize.Y) * 0.5f);
         _panel.Size = PanelSize;
-        _panel.BgColor = new Color(0.038f, 0.032f, 0.026f, 0.92f);
+        _panel.BgColor = UITheme.BgDeepest;
         _panel.BorderColor = new Color(UITheme.Accent, 0.7f);
         _panel.BracketColor = UITheme.Accent;
         _panel.Brackets = true;

@@ -52,6 +52,42 @@ public sealed class FormationPlanTests
     }
 
     [Fact]
+    public void DropRank_BreaksTiesBySlotBeyondInsertionSortSize()
+    {
+        // 「同距离按槽位定序」的判别式必须跨过 .NET 排序实现的插入排序分界：Array.Sort 对
+        // 长度 ≤16 的输入走插入排序，比较器返回 0 时不交换（天然稳定），于是删掉第二排序键
+        // 的变异在 5 元素楔形上照样全绿——契约（Schedule 按 rank[craft] 决定先投哪一架）
+        // 会在排序实现变化或编队规模超过 16 后静默漂移。故这里用 ≥20 个严格等距槽位：
+        // 名次只能由槽位索引决定，与排序算法无关。
+        var slots = new FormationPlan.Slot[24];
+        for (var i = 0; i < slots.Length; i++)
+        {
+            // 同一距离圆上的四个方向轮流取点：LengthSquared 逐位等于 10000（严格等距，无浮点误差）
+            slots[i] = (i % 4) switch
+            {
+                0 => new FormationPlan.Slot(100.0f, 0.0f),
+                1 => new FormationPlan.Slot(-100.0f, 0.0f),
+                2 => new FormationPlan.Slot(0.0f, 100.0f),
+                _ => new FormationPlan.Slot(0.0f, -100.0f),
+            };
+        }
+
+        var rank = FormationPlan.DropRank(slots);
+        for (var i = 0; i < rank.Length; i++)
+        {
+            Assert.Equal(i, rank[i]);
+        }
+
+        // 大楔形（≥17 架，越过插入排序分界）同样逐位自定序：等距的两架按槽位先后
+        var wedge = FormationPlan.Wedge(21, 55.0f);
+        var wedgeRank = FormationPlan.DropRank(wedge);
+        for (var i = 0; i < wedgeRank.Length; i++)
+        {
+            Assert.Equal(i, wedgeRank[i]);
+        }
+    }
+
+    [Fact]
     public void DropRank_PutsNearerWingBeforeFartherOne()
     {
         // 手写乱序槽位：名次只由到长机距离决定，与槽位排列无关
@@ -161,5 +197,43 @@ public sealed class FormationPlanTests
         Assert.Equal(0.0f, FormationPlan.AnchorJitter(-5.0));
         Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.NaN));
         Assert.Equal(0.0f, FormationPlan.AnchorJitter(double.PositiveInfinity));
+    }
+
+    [Fact]
+    public void DropPointVisible_InsideOrWithinMargin_IsVisible()
+    {
+        // 视域 x ∈ [-100, 100]、y ∈ [0, 200]，余量 12：域内与其外一个余量内的投放点都算可见
+        Assert.True(FormationPlan.DropPointVisible(0.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(-112.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(112.0f, -12.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_BeyondMargin_IsCut()
+    {
+        // 编队横穿侧缘的形态：投放点越出右界一个余量以上即不生成
+        // （屏外弹不可见不可交互，计进投出数会让「全数拦截」结构性不可达）
+        Assert.False(FormationPlan.DropPointVisible(113.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(-113.0f, 100.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(0.0f, 213.0f, -100.0f, 0.0f, 200.0f, 200.0f, 12.0f));
+        // 视界右缘 1920 的实测量级：2425 判不可见，1928（余量内）判可见
+        Assert.False(FormationPlan.DropPointVisible(2425.0f, 700.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+        Assert.True(FormationPlan.DropPointVisible(1928.0f, 700.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_NonFinitePoint_IsCut()
+    {
+        // 坏坐标（NaN 编队机位置）生成出来只会是 NaN 节点：判不可见即跳过这次投放
+        Assert.False(FormationPlan.DropPointVisible(float.NaN, 100.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+        Assert.False(FormationPlan.DropPointVisible(100.0f, float.PositiveInfinity, 0.0f, 0.0f, 1920.0f, 1080.0f, 12.0f));
+    }
+
+    [Fact]
+    public void DropPointVisible_NonFiniteView_DoesNotCut()
+    {
+        // 视域读数坏掉时不裁剪：裁剪不得成为「事件整个不投弹」的静默来源
+        var nan = float.NaN;
+        Assert.True(FormationPlan.DropPointVisible(5000.0f, 100.0f, nan, 0.0f, nan, nan, nan));
     }
 }

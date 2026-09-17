@@ -7,6 +7,9 @@ shader_type canvas_item;
 // 不要再手动翻转（手动翻转会把世界垂直镜像）。
 // 「减少闪光」不进 shader：GDScript 侧传参前折算，shader 零分支。
 
+// 下列 uniform 的字面默认值是「死默认」：MetaHealthFX 在 _Ready 即按
+// data/balance.json effects.meta_health.* 全量写入，运行期恒被覆盖。默认值仍与
+// balance.json 保持同值（不另起一套数），防某条路径漏写时落到与设计值有偏差的旧常数。
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear;
 uniform sampler2D u_crack_field : filter_linear;  // R=距裂隙线距离(0在线上)，G=单元 hash，B=生长门(0边缘→1中心)（D1 预烘焙）
 uniform float u_hit_intensity = 0.0;         // 受击总强度（hit_pulse）
@@ -20,9 +23,9 @@ uniform vec4 u_crack_color : source_color = vec4(0.208, 0.878, 1.0, 1.0);
 uniform float u_crack_glow = 0.8;            // 裂纹 ADD 伪泛光强度（effects.meta_health.crack.glow）
 uniform float u_crack_density = 0.0;         // 裂纹 alpha 上限（状态分层）
 uniform float u_heal_jitter = 0.0;           // 修复期单元错峰消散幅度
-uniform float u_crack_spread_min = 0.15;     // 生长门下限（边缘最早激活，满血不出裂纹）
+uniform float u_crack_spread_min = 0.10;     // 生长门下限（边缘最早激活，满血不出裂纹）
 uniform float u_crack_edge_softness = 0.08;  // 生长门激活柔和度
-uniform float u_crack_width = 0.10;          // 裂隙线半宽（场空间）
+uniform float u_crack_width = 0.03;          // 裂隙线半宽（场空间）
 uniform float u_desaturation = 0.0;          // 暗示层去饱和
 uniform float u_hue_cool = 0.0;              // 冷青色偏强度
 uniform float u_vignette_strength = 0.0;     // 晕影（含 DYING 警告脉动，GDScript 折算）

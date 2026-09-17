@@ -38,4 +38,10 @@ public sealed class AugmentBoolCache
             gs.Disconnect(GameState.SignalName.AugmentsChanged, _callable);
         }
     }
+
+    /// <summary>只读探针口：当前是否已接到 AugmentsChanged。敌机池化复用的 reparent 会触发
+    /// `_ExitTree`，连/断一旦错序，缓存整个活跃期不再刷新（表现是「买了力场没感觉」，零报错），
+    /// 故连接态本身需要可判定——修复的构造性保证由本口变成可失败断言。</summary>
+    public bool IsConnectedTo(GameState gs) =>
+        gs != null && gs.IsConnected(GameState.SignalName.AugmentsChanged, _callable);
 }

@@ -85,6 +85,33 @@ public sealed class RunGoalTests
         Assert.Equal(0.0, RunGoal.Progress(0, double.NaN, cfg), 6);
     }
 
+    [Fact]
+    public void CloserKind_PicksTheNearerBranch()
+    {
+        var cfg = Cfg();
+        // 5/10 杀 = 0.5；300/1200 秒 = 0.25 → 击杀更近
+        Assert.Equal(RunGoalKind.BossKills, RunGoal.CloserKind(5, 300.0, cfg));
+        // 2/10 = 0.2；600/1200 = 0.5 → 存活更近
+        Assert.Equal(RunGoalKind.Survive, RunGoal.CloserKind(2, 600.0, cfg));
+        // 并列（0.5 vs 0.5）取 Boss 击杀——与 Kind 的固定优先级同向
+        Assert.Equal(RunGoalKind.BossKills, RunGoal.CloserKind(5, 600.0, cfg));
+    }
+
+    [Fact]
+    public void CloserKind_SingleBranchConfigured_ReturnsThatBranch()
+    {
+        // 单支未配置时不得把「未配置」当比例参与比较（HUD 原内联实现用 −1 占位，
+        // 在 kill 未配置、survive 已配置且进度为 0 时会把 −1 判成更近的一支）。
+        var onlySurvive = new RunGoalConfig { BossKillsTarget = 0, SurviveSeconds = 1200.0 };
+        Assert.Equal(RunGoalKind.Survive, RunGoal.CloserKind(0, 0.0, onlySurvive));
+
+        var onlyKills = new RunGoalConfig { BossKillsTarget = 10, SurviveSeconds = 0.0 };
+        Assert.Equal(RunGoalKind.BossKills, RunGoal.CloserKind(0, 0.0, onlyKills));
+
+        var none = new RunGoalConfig { BossKillsTarget = 0, SurviveSeconds = 0.0 };
+        Assert.Equal(RunGoalKind.None, RunGoal.CloserKind(3, 600.0, none));
+    }
+
     // ---------------- DifficultyTier ----------------
 
     private static readonly double[] Tiers = { 1.0, 1.6, 2.4, 3.6, 5.5, 8.0 };
