@@ -447,6 +447,9 @@ public partial class GameState : Node
         // ResetCombo 发 ComboChanged(0)（幂等早退），随后 AugmentsChanged 收尾
         _runProg.ResetAll();
         _score.ResetAll();
+        // 「本局刷新了记录」属本局状态：新一局从这里起必须是无判定态（上一局的判定不得被
+        // 下一局的结算页读到——练习局与正局共用同一个结算页）。
+        BestImprovedThisRun = false;
         EmitSignal(SignalName.AugmentsChanged);
     }
 

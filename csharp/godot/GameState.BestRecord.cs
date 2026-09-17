@@ -25,7 +25,10 @@ public partial class GameState : Node
     /// <summary>盘上是否已取到可信记录（无档＝可信的空记录；损坏隔离与暂时不可读为 false）。</summary>
     public bool BestKnown { get; private set; }
 
-    /// <summary>本局是否刷新了记录（本局终结时定格；结算页据此打「新纪录」）。</summary>
+    /// <summary>本局是否刷新了记录（本局终结时定格；结算页据此打「新纪录」）。
+    /// 该位描述的是**当前这一局**，故两个复位点缺一不可：<see cref="ResetRun"/>（新一局从零起）
+    /// 与「终结但不计入记录」（练习局/非本局，见 <see cref="RecordRunResult"/>）——后者是唯一
+    /// 不给判定值的终结，漏清就让上一局的判定渗进这一局的结算页。</summary>
     public bool BestImprovedThisRun { get; private set; }
 
     private void LoadBestRecord()
@@ -52,6 +55,9 @@ public partial class GameState : Node
     {
         if (!_runActive || PracticeActive)
         {
+            // 不产生判定的终结必须当场清位：练习局（或教程/标题屏这类非本局）死亡的结算页
+            // 若读到上一局留下的「刷新记录」，会把玩家上一局的最好读数当本局成绩打出来。
+            BestImprovedThisRun = false;
             return;
         }
 

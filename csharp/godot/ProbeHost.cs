@@ -492,13 +492,17 @@ public partial class ProbeHost : Node
     /// <summary>记录探针第一步写下的本局存档路径（记录与本局存档分区：死亡删档只动前者）。</summary>
     private string _runPathForBest = "";
 
-    /// <summary>记录读出探针步序（0 置两局前提 → 1 第一局 → 2 断记录落盘 → 3 第二局更差 → 4 断不回退）。</summary>
+    /// <summary>记录读出探针步序（0 置两局前提 → 1 第一局 → 2 断记录落盘 → 3 第二局更差 → 4 断不回退
+    /// → 5/6 断「刷新记录」判定的两个复位点）。</summary>
     private int _bestStage;
 
     private int _bestStageFrame;
 
     /// <summary>第一局落定的读数（第二局的「更差」前提与「不回退」基准都对着它判）。</summary>
     private BestRecord _bestFirstRun = BestRecord.Empty;
+
+    /// <summary>复位段里最后一次真实局刷新出的记录（练习终结段的「记录不受影响」基准）。</summary>
+    private BestRecord _bestImprovedRun = BestRecord.Empty;
 
     /// <summary>记录文件绝对路径（存在性与读回判定）。</summary>
     private string _bestPath = "";
@@ -5603,6 +5607,81 @@ public partial class ProbeHost : Node
                     return;
                 }
 
+                // 「刷新记录」判定属本局状态，判据两半都要真局读数当前提（摆不出前提即判红，
+                // 不静默降级成空转）：① 再刷一次真实局把判定重新摆出来，供后两半使用；
+                // ② 之后的 900/6 第二次刷新是「练习终结不得留下判定」那半的前提。
+                GameState.Instance.SetTreePaused(false);
+                GameState.Instance.RunTime = 600.0;
+                GameState.Instance.BossKills = 5;
+                _bestStage = 5;
+                _bestStageFrame = _frame;
+                return;
+
+            case 5:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                _bestImprovedRun = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                if (!GameState.Instance.BestImprovedThisRun)
+                {
+                    GD.PushError("[best-record-probe] 更差一局之后再刷一局更好的读数未能标记「刷新记录」——"
+                        + "复位段的判据前提取不到，拒绝判 clean");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                // 半 ①：新一局不得继承上一局的判定（ResetRun 是「全新一局」的唯一入口）
+                GameState.Instance.ResetRun();
+                if (GameState.Instance.BestImprovedThisRun)
+                {
+                    GD.PushError("[best-record-probe] ResetRun 未复位「刷新记录」判定——"
+                        + "新一局的结算页会读到上一局的判定（练习局与正局共用结算页）");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.SetTreePaused(false);
+                GameState.Instance.RunTime = 900.0;
+                GameState.Instance.BossKills = 6;
+                _bestStage = 6;
+                _bestStageFrame = _frame;
+                return;
+
+            case 6:
+                if (_frame - _bestStageFrame < BestRecordSettleFrames)
+                {
+                    return;
+                }
+
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                _bestImprovedRun = new BestRecord(
+                    GameState.Instance.RunTime, GameState.Instance.BossKills,
+                    GameState.Instance.DifficultyMultiplier, GameState.Instance.GoalAchieved());
+                if (!GameState.Instance.BestImprovedThisRun)
+                {
+                    GD.PushError("[best-record-probe] 复位段之后的真实局未标记「刷新记录」——"
+                        + "练习终结段的判据前提取不到，拒绝判 clean");
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                // 半 ②：练习局终结（不产生判定的终结）不得留下判定——练习面板与正局共用结算页，
+                // 残留的 true 会让玩家在练习里死一次就看到自己上一局的成绩被当作本局「新纪录」。
+                // 走生产练习入口 BeginPractice（练习宿主 _EnterTree 调的就是它）+ 生产死亡信号。
+                GameState.Instance.BeginPractice(PracticeSetup.Default);
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDied);
+                if (!VerifyPracticeTerminalClearsImproved())
+                {
+                    _bestRecordProbe = false;
+                    return;
+                }
+
+                GameState.Instance.EndPractice();
                 GameState.Instance.SetTreePaused(false);
                 GD.Print(GdFormat.Format(
                     "[best-record-probe] 两局语义成立（记录 %.0fs / Boss %d 不回退，键集 %d 项无分数）",
@@ -5610,6 +5689,47 @@ public partial class ProbeHost : Node
                 _bestRecordProbe = false;
                 return;
         }
+    }
+
+    /// <summary>练习终结后的断言（半 ②）：判定必须当场清掉，且记录（内存与盘上）不受练习读数影响——
+    /// 只判「判定为假」会被「练习顺手把记录也回退成空」蒙过，故记录两侧一并判。</summary>
+    private bool VerifyPracticeTerminalClearsImproved()
+    {
+        var ok = true;
+        if (GameState.Instance.BestImprovedThisRun)
+        {
+            GD.PushError("[best-record-probe] 练习局终结留下了上一局的「刷新记录」判定——"
+                + "练习死亡的结算页会把上一局的最好读数当本局成绩打「新纪录」");
+            ok = false;
+        }
+
+        if (GameState.Instance.Best != _bestImprovedRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] 练习局改动了跨局记录（内存 %.1f/%d/%.3f，期望 %.1f/%d/%.3f）",
+                GameState.Instance.Best.SurvivedSeconds, GameState.Instance.Best.BossKills,
+                GameState.Instance.Best.MaxDifficulty,
+                _bestImprovedRun.SurvivedSeconds, _bestImprovedRun.BossKills, _bestImprovedRun.MaxDifficulty));
+            ok = false;
+        }
+
+        if (!TryReadBestFile(out var onDisk, out var why))
+        {
+            GD.PushError("[best-record-probe] 练习局之后记录读不出：" + why);
+            return false;
+        }
+
+        if (onDisk != _bestImprovedRun)
+        {
+            GD.PushError(GdFormat.Format(
+                "[best-record-probe] 盘上记录被练习局覆写（%.1f/%d/%.3f，期望 %.1f/%d/%.3f）——"
+                + "练一次就改掉玩家的跨局记录",
+                onDisk.SurvivedSeconds, onDisk.BossKills, onDisk.MaxDifficulty,
+                _bestImprovedRun.SurvivedSeconds, _bestImprovedRun.BossKills, _bestImprovedRun.MaxDifficulty));
+            ok = false;
+        }
+
+        return ok;
     }
 
     /// <summary>第一局落盘后的断言：文件在、键集恰好等于编解码器字段集、逐字段回读一致、
