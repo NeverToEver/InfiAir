@@ -25,6 +25,10 @@
 #   c) check_smoke.sh 的每条 run_case 紧随一条 expect_marker（漏断言＝该趟降级为不崩即过），
 #      且 run_case 总数不低于 MIN_SMOKE_CASES、每趟帧数参数为正整数——整趟的 run_case 与
 #      expect_marker 两行一起删时配对性仍成立，只有趟数下限能抓「覆盖被整趟删掉」；
+#      两条语句还必须是趟函数体里的**顶层语句**：只判「语句文本相邻」时，把 expect_marker 包进
+#      `if [ -n "${X:-}" ]; then … fi`（或 for/while/case 体）后计数、配对、绑定三项全过，而断言
+#      永不执行——该趟静默降级为「不崩即过」，正是本门禁声称要抓的形态。判定按函数体的最小
+#      缩进基线：语句缩进深于基线，或同行的语句头不是 run_case/expect_marker 本身，即判非顶层；
 #      断言还须与趟次真绑定：expect_marker 的日志实参 = 紧邻 run_case 的日志实参、每个日志
 #      token 恰好被一条断言引用、标记的 `[标签]` 与该趟开关/场景派生的一致——否则「把断言改成
 #      另一趟的日志 + 另一趟的标记」静态判定全过，真实标记从此无人判（并行分批时另一趟的日志
@@ -40,7 +44,7 @@
 #      至少一个文件）——写错或漏跟改名时该条排除静默失效，而导出照常成功、日志干净。构建产物
 #      目录（obj/bin）跳过：干净检出里本就不存在；
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数、配置项找不到、版本断言解析不出，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -401,15 +405,88 @@ else:
 # ---------- c) 冒烟趟次 ↔ 完成标记断言 ----------
 
 if smoke_text is not None:
-    # 先吃掉反斜杠续行，再按语句看顺序：每条 run_case 之后必须紧跟一条 expect_marker
-    joined = re.sub(r"\\\n", " ", smoke_text)
+    # 逐行吃掉反斜杠续行后按语句看顺序：每条 run_case 之后必须紧跟一条 expect_marker。
+    # 语句文本用「去首尾空白」形态（续行拼成一条，与下方绑定判据的实参正则同源）；行号取**首行**
+    # 的原始行号（拼接后的行号会落到续行上，失败信息指不动位置）。缩进单独留一份 line_indent：
+    # 续行让「按下标找原文」错位，故首行缩进在此固化（可达性判定要用）。
+    # `if` 之类的控制关键字后必须带空白：`ifx()` 这类函数名不得被误判成包裹
+    CMD_PREFIX = re.compile(r"^(?:run_case|expect_marker)\s")
+    smoke_lines = smoke_text.split("\n")
     stmts = []
-    for lineno, raw in enumerate(joined.split("\n"), 1):
-        s = raw.strip()
-        if s.startswith("run_case "):
-            stmts.append(("run_case", s, lineno))
-        elif s.startswith("expect_marker "):
-            stmts.append(("expect_marker", s, lineno))
+    wrapped_lines: list[int] = []
+    pending, pending_line = None, 0
+    for lineno, raw in enumerate(smoke_lines, 1):
+        stripped = raw.strip()
+        if pending is not None:
+            head = stripped[:-1].rstrip() if stripped.endswith("\\") else stripped
+            pending += " " + head
+            if not stripped.endswith("\\"):
+                stmts.append(("run_case", pending, pending_line))
+                pending = None
+            continue
+        if stripped.startswith("#") or not stripped:
+            continue
+        if not CMD_PREFIX.match(stripped) and re.search(r"\b(?:run_case|expect_marker)\s", stripped):
+            # 语句不在行首：`if …; then run_case …` / `… && expect_marker …` 这类包裹即断言不可达
+            # （行首不是调用本身），报红并指位置，别让它静默落进「未解析」的黑洞
+            wrapped_lines.append(lineno)
+            continue
+        if stripped.startswith("run_case ") or stripped.startswith("expect_marker "):
+            if stripped.endswith("\\"):
+                pending, pending_line = stripped[:-1].rstrip(), lineno
+            else:
+                stmts.append(("run_case" if stripped.startswith("run_case ") else "expect_marker",
+                              stripped, lineno))
+        # 其余命令行（函数定义、条件、赋值、调度）不参与趟次判定
+
+    def stmt_indent(lineno: int) -> int:
+        raw = smoke_lines[lineno - 1]
+        return len(raw) - len(raw.lstrip())
+
+    for lineno in wrapped_lines:
+        errors.append(
+            f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} run_case/expect_marker 不在行首"
+            f"（{smoke_lines[lineno - 1].strip()[:60]}）——被 if/for/… 或 && 包裹时"
+            "该语句可能永不执行：趟次静默降级为「不崩即过」，而计数、配对与绑定判定全过"
+        )
+
+    # 趟函数体（首行行号 → 函数名）：可达性判定的作用域
+    case_fns = []
+    for m in re.finditer(r"^(smoke_[A-Za-z0-9_]+)\(\)\s*\{", smoke_text, re.M):
+        body_end = smoke_text.find("\n}", m.end())
+        case_fns.append((m.group(1), smoke_text.count("\n", 0, m.start()) + 1,
+                         len(smoke_lines) if body_end < 0 else smoke_text.count("\n", 0, body_end) + 1))
+
+    def fn_of(lineno: int):
+        for name, start, end in case_fns:
+            if start <= lineno <= end:
+                return name
+        return None
+
+    fn_min_indent: dict[str, int] = {}
+    for _kind, _stmt, lineno in stmts:
+        name = fn_of(lineno)
+        if name is not None:
+            fn_min_indent[name] = min(fn_min_indent.get(name, 1 << 30), stmt_indent(lineno))
+    for name, base in sorted(fn_min_indent.items()):
+        if base > 2:
+            errors.append(
+                f"趟函数 {name} 的 run_case/expect_marker 最小缩进是 {base} 空格（顶层应为函数体基线）"
+                "——整趟被包进条件/循环块时两条断言永不执行，而这不会让任何静态计数变化"
+            )
+    for kind, stmt, lineno in stmts:
+        name = fn_of(lineno)
+        if name is None:
+            errors.append(f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 的 {kind} 不在任何趟函数体里"
+                          "——顶层散语句不参与调度，断言可能永不执行（请放回对应的 smoke_* 函数）")
+            continue
+        if stmt_indent(lineno) != fn_min_indent.get(name, 0):
+            errors.append(
+                f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 的 {kind} 缩进 "
+                f"{stmt_indent(lineno)} 空格、趟函数 {name} 的基线是 {fn_min_indent.get(name, 0)} 空格——"
+                "该语句嵌在 if/for/while/case 块里，条件不成立时永不执行：该趟静默降级为"
+                "「退出码 0 + 日志无错误」＝只判不崩，而计数、配对与绑定判定全过"
+            )
 
     cases = [s for kind, s, _ln in stmts if kind == "run_case"]
     markers = [s for kind, s, _ln in stmts if kind == "expect_marker"]
@@ -446,14 +523,30 @@ if smoke_text is not None:
     for m in re.finditer(r"^(smoke_[A-Za-z0-9_]+)\(\)\s*\{", smoke_text, re.M):
         defined_case_fns.add(m.group(1))
 
-    arr = re.search(r"SMOKE_CASES=\((.*?)^\)", smoke_text, re.M | re.S)
-    if not arr:
+    # 数组正文取到**配平的那一个**右括号为止：既支持末尾一项换行收尾的形态，也支持
+    # `SMOKE_CASES=(smoke_a smoke_b)` 这类单行写法——只认「行首 )」会把后者判成「取不到判据」
+    # 而红（假红：数组明明在、趟数也对），推动的却是把写法改回多行，而不是修真问题。注释先剥离，
+    # 否则 `smoke_old # 已并入 smoke_b)` 这类括号会带偏配平计数。
+    arr_m = re.search(r"SMOKE_CASES=\(", smoke_text)
+    if not arr_m:
         errors.append("check_smoke.sh 未找到 SMOKE_CASES=(...) 调度数组——取不到判据，拒绝判 clean")
     else:
-        smoke_cases = [
-            tok for tok in arr.group(1).split()
-            if tok and not tok.startswith("#")
-        ]
+        body: list[str] = []
+        depth, pos = 1, arr_m.end()
+        while pos < len(smoke_text) and depth > 0:
+            ch = smoke_text[pos]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            body.append(ch)
+            pos += 1
+        arr_body = re.sub(r"(?m)#.*$", "", "".join(body))
+        smoke_cases = [tok for tok in arr_body.split() if tok]
+        if depth > 0:
+            errors.append("SMOKE_CASES=(...) 的右括号不配平——数组解析取不到判据，拒绝判 clean")
         if not smoke_cases:
             errors.append("SMOKE_CASES 为空——没有任何趟会被执行，拒绝判 clean")
         for name in smoke_cases:
@@ -595,7 +688,14 @@ if smoke_text is not None:
                 f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 趟次「{label}」的日志 stem（{log_stem.group(1)}）"
                 f"与用户目录（{userdir}）不一致——两者不是同一趟的产物时，隔离目录与被断言的日志对不上")
         if "$" in marker:
-            continue                                    # 变量拼出的标记无法静态判（本表内不存在）
+            # 变量拼出的标记静态判不出（本表内不存在这种写法）——**显式失败**而不是静默跳过：
+            # 跳过即「取不到判据仍判 clean」，该标记的打印点从此无人判（AGENTS §6 铁律 2）
+            errors.append(
+                f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 趟次「{label}」的完成标记含 `$`"
+                f"（{marker}）——变量拼出的标记无法静态判定，本门禁在此取不到判据；"
+                "请把标记写成字面量，或登记进静态可判的表格并写明理由"
+            )
+            continue
         tag_match = re.match(r"^\[([a-z0-9-]+)\]", marker)
         if not tag_match:
             errors.append(f"完成标记「{marker}」不带 `[标签]` 前缀——标签与趟次开关的对应关系取不到判据，"
@@ -682,7 +782,13 @@ if smoke_text is not None:
             continue
         marker = found[-1]
         if "$" in marker:
-            continue  # 变量拼出的标记无法静态判定，跳过（本表内不存在）
+            # 同上：静默跳过一次，就会在下面「标记必须有打印点」这一节里被当成通过——
+            # 断言的实际取值无人判，属「取不到判据」形态
+            errors.append(
+                f"{SMOKE.relative_to(ROOT).as_posix()}:{lineno} 的完成标记含 `$`（{marker}）——"
+                "无法判定它在 csharp/ 里有没有打印点（取不到判据），请写成字面量"
+            )
+            continue
         # 运行时判定是 `grep -qF`（子串匹配），故标记是某条打印实参的子串即成立
         # （如 `[boss-probe] 阶段机全周期完成` 命中 `...（P1→P2→狂暴→击杀，BossKills=%d）`）。
         if any(marker in lit for lit in print_lits):
