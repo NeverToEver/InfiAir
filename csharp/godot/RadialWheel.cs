@@ -49,6 +49,8 @@ public partial class RadialWheel : Node2D
     private const float CardW = 240f;
     private const float CardH = 64f;
     private const float CardChamfer = 11f;
+    private const float CardLift = 6f; // 卡面径向浮起（悬停/聚焦的 Z 表达；绘制与引线锚点共用）
+    private const float CardTipPad = 6f; // 卡面外缘尖端外扩（引线锚点用）
     private const float MaxTilt = 0.052f; // 视差倾斜上限（≈±3°）
     private const float ShrinkDur = 0.5f;
     private const float PopDur = 0.18f;
@@ -353,6 +355,20 @@ public partial class RadialWheel : Node2D
     /// <summary>收缩/回弹动画进行中（忙态）。外部联动绘制（如内容引线）可据此暂停跟随。</summary>
     public bool IsBusy => _shrinkT >= 0f;
 
+    /// <summary>卡面局部坐标系（绘制与引线锚点的唯一来源）：径向位置含悬停/聚焦浮起，姿态随弧角倾斜。
+    /// 绘制与锚点各写一遍时，锚点会落在卡片**内缩浮起量**的位置（引线脱开卡角），故合并到此。</summary>
+    private (Vector2 Pos, float Rot) CardFrame(float angleDeg, float h)
+    {
+        var aRad = Mathf.DegToRad(angleDeg);
+        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * ((Radius + (CardLift * h)) * _contentScale);
+        var rot = Mathf.Clamp(angleDeg * CardTiltFactor, -20f, 20f) * Mathf.DegToRad(1f);
+        return (pos, rot);
+    }
+
+    /// <summary>卡面外缘尖端相对卡心的偏移（引线锚点用）：卡宽半 + 尖端外扩，按卡缩放与倾斜变换。</summary>
+    private static Vector2 CardTipOffset(float cardScale, float rot) =>
+        new Vector2(((CardW * 0.5f) + CardTipPad) * cardScale, 0f).Rotated(rot);
+
     /// <summary>聚焦卡径向外缘尖端（含浮起/缩放/倾斜）的轮盘本地坐标；无可见聚焦卡返回 null。供引线类联动锚定。</summary>
     public Vector2? FocusedTipLocal()
     {
@@ -385,11 +401,9 @@ public partial class RadialWheel : Node2D
             }
         }
 
-        var aRad = Mathf.DegToRad(a);
         var cardScale = 1.09f * pop * Mathf.Lerp(0.5f, 1f, (float)RadialWheelModel.EaseOutBack(deploy));
-        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * (Radius * _contentScale);
-        var rot = Mathf.Clamp(a * CardTiltFactor, -20f, 20f) * Mathf.DegToRad(1f);
-        return pos + (new Vector2((CardW * 0.5f + 6f) * cardScale, 0f)).Rotated(rot);
+        var (pos, rot) = CardFrame(a, 1f); // 聚焦卡 h 恒满（同 DrawCard 的 Mathf.Max(_h[i], 1f)）
+        return pos + CardTipOffset(cardScale, rot);
     }
 
     // ---------------- 帧驱动：动画积分 / 视差 / 悬停 / 拖拽 ----------------
@@ -1309,11 +1323,9 @@ public partial class RadialWheel : Node2D
         }
 
         var h = Mathf.Max(_h[i], focused ? 1f : 0f); // 悬停/聚焦共享的平滑过渡因子（聚焦恒满）
-        var aRad = Mathf.DegToRad(angleDeg);
         var deployScale = Mathf.Lerp(0.5f, 1f, (float)RadialWheelModel.EaseOutBack(deploy)); // 开机部署的过冲缩放
         var cardScale = (1f + 0.09f * h) * Mathf.Lerp(1.12f, 1f, pop) * deployScale;
-        var pos = new Vector2(Mathf.Cos(aRad), Mathf.Sin(aRad)) * ((Radius + 6f * h) * _contentScale); // 径向浮起 = 悬停的 Z 表达
-        var rot = Mathf.Clamp(angleDeg * CardTiltFactor, -20f, 20f) * Mathf.DegToRad(1f);
+        var (pos, rot) = CardFrame(angleDeg, h);
 
         // 底板投影：下缘暗影随悬停浮起拉长（悬浮深度感）
         c.DrawSetTransform(pos + new Vector2(0f, (3f + 2f * h) * cardScale), rot, new Vector2(cardScale, cardScale));
