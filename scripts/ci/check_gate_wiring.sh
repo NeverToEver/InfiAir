@@ -38,9 +38,9 @@
 #      DEBUG/TOOLS 的主程序集，探针类编进正式产物）；
 #   e2) export_presets.cfg 的 include/exclude 过滤项都指向仓库内真实存在的路径（含通配项须匹配到
 #      至少一个文件）——写错或漏跟改名时该条排除静默失效，而导出照常成功、日志干净。构建产物
-#      目录（obj/bin）跳过：干净检出里本就不存在。
+#      目录（obj/bin）跳过：干净检出里本就不存在；
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数、配置项找不到，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到、版本断言解析不出，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -58,11 +58,18 @@ GATES = CI_DIR / "gates.py"
 CI_YML = ROOT / ".github" / "workflows" / "ci.yml"
 SMOKE = CI_DIR / "check_smoke.sh"
 CSHARP = ROOT / "csharp"
+TOOLS_DIR = ROOT / "scripts" / "tools"
+
+# scripts/tools 下的非生成器脚本（豁免 regenerate_all.sh 覆盖判定）：须在实际形态变化时同步。
+# 共享模块（被生成器 import，如 sprite_polish.py）不在此登记——只要真被某个被调用的生成器
+# import 即自动豁免；这张表只收「独立工具」，不收「漏挂的生成器」。
+TOOLS_IGNORE = {
+    "balance_editor.py": "本机数值编辑器（起本地服务手动改 balance.json），不是素材生成器",
+    "shot_ab.py": "引擎升级的同机 A/B 截图比对工具（需两个引擎，人工流程），不是素材生成器",
+}
 
 errors: list[str] = []
 MISSING = object()
-
-
 def read(path: pathlib.Path):
     if not path.exists():
         errors.append(f"{path.relative_to(ROOT).as_posix()} 不存在——取不到判据，拒绝判 clean")
@@ -363,11 +370,14 @@ if presets_text is None:
     errors.append("找不到 export_presets.cfg——取不到导出过滤判据，拒绝判 clean")
 else:
     filter_entries = 0
+    exclude_entries: list[str] = []
     for lineno, raw in enumerate(presets_text.split("\n"), 1):
         m = re.match(r'\s*(include_filter|exclude_filter|encryption_include_filters|'
                      r'encryption_exclude_filters)\s*=\s*"(.*)"\s*$', raw)
         if not m:
             continue
+        if m.group(1) == "exclude_filter":
+            exclude_entries += [e.strip() for e in m.group(2).split(",") if e.strip()]
         for entry in (e.strip() for e in m.group(2).split(",")):
             if not entry:
                 continue
@@ -416,8 +426,11 @@ if smoke_text is not None:
     # 趟数下限：配对性判定抓不到「整趟两行一起删」——run_case 与 expect_marker 同删时配对关系
     # 仍成立、条数仍相等，覆盖静默消失而门禁判 clean。取**下限**而非精确值：新增趟是被鼓励的
     # 覆盖增量、不构成静默错误（新趟漏配 expect_marker 由上面的配对性判定抓），把新增也判红
-    # 会造成「加覆盖反而红」的反向激励。当前实测二十一趟（check_smoke.sh 的 run_case 条数）。
-    MIN_SMOKE_CASES = 18
+    # 会造成「加覆盖反而红」的反向激励。
+    # 维护口径：本常量随 check_smoke.sh 的趟数在**同一个提交**里同步（加一趟就加一、删一趟须在
+    # 提交正文写明理由并同时下调）——下限过期即等于没下限：曾把它留在 18 而实际 24 趟，整趟删除
+    # 后元门禁照判 clean，正是本行声称要抓的形态。
+    MIN_SMOKE_CASES = 24
     if len(cases) < MIN_SMOKE_CASES:
         errors.append(
             f"{SMOKE.relative_to(ROOT).as_posix()} 只解析出 {len(cases)} 趟 run_case（下限 "
@@ -659,7 +672,9 @@ if smoke_text is not None:
     if not templates:
         errors.append("csharp/ 里未解析出任何含占位的打印模板——取不到判据，拒绝判 clean")
 
-    for stmt in markers:
+    for _kind, stmt, lineno in stmts:
+        if _kind != "expect_marker":
+            continue
         # expect_marker "label" "$log" "marker"  → 取最后一个引号串
         found = re.findall(r'"([^"]*)"', stmt)
         if not found:
@@ -688,6 +703,6 @@ if errors:
 print(
     f"gate-wiring gate: clean（{len(on_disk - set(HELPER_MODULES))} 个门禁脚本全部注册进 gates.py 与 ci.yml，"
     f"{len(ci_steps) if ci_steps else 0} 个 CI 步骤无容错属性；另有 {len(HELPER_MODULES)} 个共用模块被门禁 import）；"
-    f"冒烟 {len(cases)} 趟各自配对完成标记断言，标记均有对应打印点"
+    f"冒烟 {len(cases)} 趟各自配对完成标记断言（下限 {MIN_SMOKE_CASES}）、标记均有对应打印点"
 )
 PY
