@@ -35,7 +35,10 @@
 #   e) 构建期配置声明与判据不脱钩：Directory.Build.props 的 TreatWarningsAsErrors 必须为 true
 #      （否则「零警告」门禁静默降级为「零 error」）、各 csproj 不得用 false 覆盖；InfiAir.sln 里
 #      主工程的 Release|Any CPU 不得映射到 Debug（否则 `dotnet build -c Release` 静默产出带
-#      DEBUG/TOOLS 的主程序集，探针类编进正式产物）。
+#      DEBUG/TOOLS 的主程序集，探针类编进正式产物）；
+#   e2) export_presets.cfg 的 include/exclude 过滤项都指向仓库内真实存在的路径（含通配项须匹配到
+#      至少一个文件）——写错或漏跟改名时该条排除静默失效，而导出照常成功、日志干净。构建产物
+#      目录（obj/bin）跳过：干净检出里本就不存在。
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
 # 趟次为 0、帧数非正整数、配置项找不到，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
@@ -349,6 +352,41 @@ if sln is not None:
             elif not value.startswith("Release"):
                 errors.append(f"InfiAir.sln 的主工程 Release|Any CPU.{label} = {value}——"
                               "配置映射既不是 Release 也不是 Debug，构建口径不可判，门禁需同步")
+
+# ---------- e2) 导出预设的过滤项不得指向不存在的路径 ----------
+# 判据：过滤项写错（或改了名没跟着改）时 Godot 不报错——该条排除静默失效，导出照常成功、
+# 日志干净，而「探针场景/源码不进发布包」的声明已经名存实亡（本项目实际发生过：
+# ProbeHost.Play.cs 改名为 ProbeHost.Autoplay.cs 后过滤器仍写着旧名）。
+# 跳过 */obj/* 与 */bin/*：那是构建产物目录，干净检出里本就不存在，断言它们等于制造假红。
+presets_text = read(ROOT / "export_presets.cfg")
+if presets_text is None:
+    errors.append("找不到 export_presets.cfg——取不到导出过滤判据，拒绝判 clean")
+else:
+    filter_entries = 0
+    for lineno, raw in enumerate(presets_text.split("\n"), 1):
+        m = re.match(r'\s*(include_filter|exclude_filter|encryption_include_filters|'
+                     r'encryption_exclude_filters)\s*=\s*"(.*)"\s*$', raw)
+        if not m:
+            continue
+        for entry in (e.strip() for e in m.group(2).split(",")):
+            if not entry:
+                continue
+            if re.search(r"(^|/)(obj|bin)/", entry):
+                continue
+            filter_entries += 1
+            pat = entry[6:] if entry.startswith("res://") else entry
+            if any(ch in pat for ch in "*?["):
+                if not list(ROOT.glob(pat)):
+                    errors.append(
+                        f"export_presets.cfg:{lineno} 的过滤项 {entry} 匹配不到任何文件——"
+                        "该条排除静默失效（路径写错，或目标已改名/删除）")
+            elif not (ROOT / pat).exists():
+                errors.append(
+                    f"export_presets.cfg:{lineno} 的过滤项 {entry} 指向不存在的路径——"
+                    "该条排除静默失效；文件改名或删除时须同步这里")
+    if filter_entries == 0:
+        errors.append("export_presets.cfg 一条过滤项都没解析出来——格式或路径漂移？"
+                      "取不到判据，拒绝判 clean")
 
 # ---------- c) 冒烟趟次 ↔ 完成标记断言 ----------
 
