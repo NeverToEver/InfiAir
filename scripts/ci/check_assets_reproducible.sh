@@ -7,10 +7,14 @@
 # 或改了生成器却忘了提交产物时，产物会静默漂移：游戏照跑、单测照绿、冒烟照过，直到某次真要重跑素材才
 # 暴露（那时已分不清是本次漂移还是历史累积漂移）。
 #
-# 判定分两段，都不依赖「本机恰好是产出这些产物的那台机器」——跨机逐字节一致对这条管线**原理上做不到**：
-# 生成器全程 4× 超采样 + LANCZOS 降采样 + 高斯滤波，这些卷积核的定点实现随 Pillow 里的
-# FreeType/图像库构建与浮点路径变化，换机器必然出现抗锯齿级像素差（实测：同一份源码 + Pillow 12.2，
-# macOS 漂 6 张、CI 的 ubuntu 几乎全部产物都漂；而同机两次重跑逐字节一致）。故：
+# 判定分两段，都不依赖「本机恰好是产出这些产物的那台机器」——跨机逐字节一致对这条管线**原理上做不到**，
+# 且实测的跨机差异有两类，量级完全不同：
+#   (1) **PNG 编码字节**：像素逐位一致，只有压缩流不同（zlib / 编码器实现的版本差）。实测 CI 的 ubuntu
+#       （Pillow 12.2）上全部漂移产物都属此类——产物内容其实是可复现的，逐字节判据在此纯属过严。
+#   (2) **栅格化像素差**：AA 级、落在图元边缘（4× 超采样 + LANCZOS 降采样 + 高斯滤波的卷积实现与
+#       FreeType 构建随平台变化）。实测 macOS（Pillow 12.2）最坏 3.6%：logo 字形边缘的亚像素落点，
+#       最大通道差可达 255 但面积占比低。
+# 同机两次重跑则逐字节一致（生成器本身确定）。故：
 #
 #   段一 同步（重跑一次）：逐文件与入库资产比对——尺寸/模式必须相同；PNG **非像素块**（文本、时间、
 #        物理分辨率等元数据）必须相同（时间戳类漂移在此判红）；像素差异占比必须 ≤ 抗锯齿包络。
@@ -123,6 +127,7 @@ def chunk_signature(data: bytes) -> list:
 structural = []
 over = []
 within = []
+encoding = []
 identical = 0
 
 for path in paths:
@@ -159,13 +164,16 @@ for path in paths:
     differing = total - mask.histogram()[0]
     ratio = 100.0 * differing / total
     max_delta = max(band.getextrema()[1] for band in bands)
-    if ratio > envelope:
+    if differing == 0:
+        # 像素逐位一致、只有 PNG 编码字节不同（zlib / 编码器实现的版本差）：产物内容可复现
+        encoding.append((path, f"编码字节不同（{len(committed)} → {len(current)} B），像素逐位一致"))
+    elif ratio > envelope:
         over.append((path, f"差异像素 {ratio:.2f}%（上限 {envelope:g}%）、最大通道差 {max_delta}"))
     else:
         within.append((path, f"差异像素 {ratio:.2f}%、最大通道差 {max_delta}"))
 
 print(f"identical={identical}")
-for label, rows in (("STRUCTURAL", structural), ("OVER", over), ("WITHIN", within)):
+for label, rows in (("STRUCTURAL", structural), ("OVER", over), ("ENCODING", encoding), ("WITHIN", within)):
     for path, detail in rows:
         print(f"{label}\t{path}\t{detail}")
 sys.exit(1 if (structural or over) else 0)
@@ -203,7 +211,7 @@ printf '%s\n' "$drift_files" | while IFS= read -r path; do
     [ -n "$path" ] && git checkout -- "$path"
 done
 
-echo "assets-reproducible gate: clean（生成器本机确定：两次重跑逐字节一致；"
-echo "产物与入库资产的差异全部落在抗锯齿包络内——本机不是产出这些产物的那台机器，"
-echo "逐字节同步未在本机判定，残差摘要见上；已把本门禁重跑出的产物还原回入库状态。"
+echo "assets-reproducible gate: clean（生成器本机确定：两次重跑逐字节一致；与入库资产的差异见上方逐文件归类："
+echo "ENCODING = 像素逐位一致、仅 PNG 编码字节不同（产物内容可复现）；WITHIN = 抗锯齿级像素差"
+echo "（本机非产出环境，逐字节同步未在本机判定）。已把本门禁重跑出的产物还原回入库状态；"
 echo "跨机差异口径见 AGENTS §6 与本步脚本头注）"
