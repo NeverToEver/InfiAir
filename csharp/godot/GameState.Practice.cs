@@ -46,7 +46,10 @@ public partial class GameState : Node
         ((SceneTree?)Engine.GetMainLoop())?.ChangeSceneToFile(PracticeScenePath);
     }
 
-    /// <summary>取出待开始的练习设置并清待定标记（练习场景宿主 _EnterTree 调用；无待定时回默认）。</summary>
+    /// <summary>取出待开始的练习设置（练习场景宿主 _EnterTree 调用；无待定时回默认）。
+    /// **不清待定值**：同一个值就是练习面板「记住上次的选择」的来源（<c>PracticePanel</c> 直接读
+    /// <see cref="PendingPractice"/>），清掉会把面板默认档打回出厂值；而「待定」也没有独立状态
+    /// （值与默认值同解），重开一局由 <see cref="RearmPractice"/> 重新置位。</summary>
     public PracticeSetup ConsumePendingPractice() => PendingPractice;
 
     /// <summary>练习局开始：置练习态 + 应用起始难度档。
