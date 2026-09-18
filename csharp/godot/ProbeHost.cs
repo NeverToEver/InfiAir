@@ -291,6 +291,10 @@ public partial class ProbeHost : Node
 
     private bool _settingsProbe;
     private bool _startupProbe;
+    /// <summary>分段读数的两拍：第一拍在首个 process 帧（= autoload + 场景 _Ready 装载完成），
+    /// 第二拍在下一帧（该间隔里含首帧的绘制与着色器编译）。合成一个总耗时读不出巨帧归属——
+    /// 装载与编译的处置手段完全不同（前者分帧构建、后者预热一帧），故必须分开。</summary>
+    private ulong _startupFirstFrameMsec;
     private bool _fuelProbe;
     private bool _shotProbe;
     private bool _feelProbe;
@@ -1005,8 +1009,16 @@ public partial class ProbeHost : Node
         if (_startupProbe && !_startupPrinted)
         {
             _startupPrinted = true;
-            GD.Print(GdFormat.Format("[startup] boot → first frame: %d ms",
-                (long)Time.GetTicksMsec() - GameState.Instance.BootTicksMsec));
+            _startupFirstFrameMsec = Time.GetTicksMsec();
+            GD.Print(GdFormat.Format("[startup] boot → first frame（装载）: %d ms",
+                (long)_startupFirstFrameMsec - GameState.Instance.BootTicksMsec));
+        }
+        else if (_startupProbe && _startupFirstFrameMsec > 0)
+        {
+            // 第二拍：读上一帧的绘制成本（含着色器编译）。无头 dummy 渲染下这一拍接近 0，
+            // 要判「预热有没有用」必须用真实渲染器跑（同机前后对比）。
+            GD.Print(GdFormat.Format("[startup] 首帧含绘制: %d ms", (long)(Time.GetTicksMsec() - _startupFirstFrameMsec)));
+            _startupFirstFrameMsec = 0;
         }
 
         if (_hostileProbe && _frame >= 2)

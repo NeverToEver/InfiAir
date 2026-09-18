@@ -321,9 +321,14 @@ public partial class Main : Node2D
         {
             GameState.Instance.BootHandoffDone = true;
             ApplyNewRun();
-            // _Ready 装载期不能同步 ChangeSceneToFile——父节点正 busy adding/removing children，
-            // 引擎会报 remove_child 错误；延迟到本帧装载完成后再切
-            Callable.From(GoTitleScreen).CallDeferred(); // 开机直达标题屏
+            // 开机预热一帧着色器再交接标题屏：本帧 _Ready 刚建好的材质在切场景前没有绘制机会，
+            // 不预热则它们的编译落在「标题屏 → 开局」那一帧（口径与边界见 ShaderPrewarm）。
+            // 交接由预热完成事件触发——预热没跑完就不会有标题屏，冒烟据此判红；同时这也替代了
+            // 原先的 CallDeferred：_Ready 装载期不能同步 ChangeSceneToFile（父节点正 busy
+            // adding/removing children，引擎会报 remove_child 错误），预热完成时本帧装载已结束。
+            var prewarm = new ShaderPrewarm();
+            AddChild(prewarm);
+            prewarm.Completed += GoTitleScreen;
         }
 
         _readyDone = true;
