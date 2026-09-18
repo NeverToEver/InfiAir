@@ -284,6 +284,27 @@ public partial class GameState : Node
     /// 构建即缓存被绕过）。挂实例而非静态：autoload 实例重建时允许重新构建一次。</summary>
     public int SoftDotTexBuilds { get; set; }
 
+    /// <summary>星云能量场贴图共享缓存（CinematicFx.NebulaTexture 惰性生成，全实例共用）：
+    /// 构建一次＝core NebulaField 采 256² 逐像素 SetPixel 再加一次 768² 双线性放大上传（约 2.4MB）。
+    /// **每个 Starfield 实例都会调**——开机链路（main + 标题屏）2 次、返航过场 5 次，
+    /// 而贴图由固定种子决定，逐次重建是纯重复成本（对齐 SoftDotTex 的缓存口径）。</summary>
+    public ImageTexture? NebulaTex { get; set; }
+
+    /// <summary>本实例上星云贴图已构建次数（同 SoftDotTexBuilds 的护栏读数）。</summary>
+    public int NebulaTexBuilds { get; set; }
+
+    /// <summary>缓存中星云贴图的参数（size/seed）：调用方传异参时缓存不命中，护栏据此判定
+    /// 「是缓存被绕过还是真的换了参数」——两者都得先改缓存键，故都报错（不静默给错图）。</summary>
+    public int NebulaTexSize { get; set; }
+    public int NebulaTexSeed { get; set; }
+
+    /// <summary>衍射芒贴图共享缓存（CinematicFx.SpikeTexture 惰性生成，全实例共用）：
+    /// 96² 逐像素确定性生成，同 NebulaTex 的重复构建面（每个 Starfield 一次）。</summary>
+    public ImageTexture? SpikeTex { get; set; }
+
+    /// <summary>本实例上衍射芒贴图已构建次数（同 SoftDotTexBuilds 的护栏读数）。</summary>
+    public int SpikeTexBuilds { get; set; }
+
     /// <summary>爆炸粒子池可用队列（Explosion.OnFinished 回池 / SpawnAt 取用；元素失效由
     /// 取用方 IsInstanceValid 过滤）。实例字段而非静态——同上铁律。</summary>
     public Godot.Collections.Array<Explosion> ExplosionStock { get; } = new();

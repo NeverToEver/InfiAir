@@ -66,8 +66,41 @@ public partial class CinematicFx : RefCounted
     /// <summary>深空星云贴图工厂：256² 画布采样环面无缝能量场（core NebulaField：值噪声云 +
     /// 脊状细丝 + 暗尘带），再双线性放大。灰度能量场（RGB=alpha=能量值），颜色全部交给
     /// 调用方 modulate 染色——星空共用一张。贴图四向平铺无缝（无缝判据在 NebulaField 单测）。
-    /// 一次性构建（调用方自持实例字段），热路径零分配。</summary>
+    /// 惰性建一次、缓存于 GameState autoload 的实例字段（同 SoftTexture 口径）：输出只由
+    /// (size, seed) 决定，而每个 Starfield 实例（开机链路 2 个、返航过场 5 个）都会调一次，
+    /// 逐次重建是 256² 逐像素 SetPixel 加一次 768² 双线性放大上传的纯重复成本。
+    /// **缓存只覆盖一套参数**（现存调用点全用默认值）：传异参即不命中，走非缓存路径并报错。
+    /// 构建后不再改写，热路径零分配。</summary>
     public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907)
+    {
+        var host = GameState.Instance;
+        if (host.NebulaTex != null && host.NebulaTexSize == size && host.NebulaTexSeed == seed)
+        {
+            return host.NebulaTex;
+        }
+
+        // 护栏（代码层，非探针）：第二次构建只有两种来路，都只在耗时上悄悄变坏，不崩、不报错、
+        // 画面逐位一致，除本行外没有任何信号——故走 PushError 撞冒烟探针的 ERROR 正则。
+        if (host.NebulaTexBuilds > 0)
+        {
+            var sameParams = host.NebulaTexSize == size && host.NebulaTexSeed == seed;
+            GD.PushError($"CinematicFx.NebulaTexture 在同一 GameState 实例上重复构建"
+                + $"（第 {host.NebulaTexBuilds + 1} 次：请求 size={size} seed={seed}，"
+                + $"缓存内为 size={host.NebulaTexSize} seed={host.NebulaTexSeed}）："
+                + (sameParams
+                    ? "参数相同却走到这里＝上面的缓存命中被绕过，已回落到逐实例重建。"
+                    : "参数不同＝缓存只覆盖一套参数；要第二套参数请把缓存键改成按 (size, seed) 索引。"));
+        }
+
+        var tex = BuildNebulaTexture(size, seed);
+        host.NebulaTexBuilds++;
+        host.NebulaTexSize = size;
+        host.NebulaTexSeed = seed;
+        host.NebulaTex = tex;
+        return tex;
+    }
+
+    private static ImageTexture BuildNebulaTexture(int size, int seed)
     {
         const int BaseSize = 256;
         var field = InfiAir.Core.NebulaField.Build(BaseSize, seed);
@@ -86,8 +119,31 @@ public partial class CinematicFx : RefCounted
     }
 
     /// <summary>四芒衍射星贴图（亮星层的十字微光）：细高斯横竖光轴 + 小型软核，灰度。
-    /// 96² 单张，确定性逐像素生成；旋转/缩放交给绘制端 DrawSetTransform，贴图零状态。</summary>
+    /// 96² 单张，确定性逐像素生成；旋转/缩放交给绘制端 DrawSetTransform，贴图零状态。
+    /// 惰性建一次、缓存于 GameState autoload 的实例字段（同 SoftTexture 口径）：每个
+    /// Starfield 实例都会调一次，逐次重建＝9216 次逐像素 SetPixel 加一次纹理解析。</summary>
     public static ImageTexture SpikeTexture()
+    {
+        var host = GameState.Instance;
+        if (host.SpikeTex != null)
+        {
+            return host.SpikeTex;
+        }
+
+        var tex = BuildSpikeTexture();
+        // 护栏（代码层，非探针）：同一宿主实例第二次构建＝共享缓存被绕过（同 SoftTexture）。
+        if (host.SpikeTexBuilds > 0)
+        {
+            GD.PushError($"CinematicFx.SpikeTexture 在同一 GameState 实例上重复构建"
+                + $"（第 {host.SpikeTexBuilds + 1} 次）——共享缓存被绕过？");
+        }
+
+        host.SpikeTexBuilds++;
+        host.SpikeTex = tex;
+        return tex;
+    }
+
+    private static ImageTexture BuildSpikeTexture()
     {
         const int Size = 96;
         const float Center = Size * 0.5f;
