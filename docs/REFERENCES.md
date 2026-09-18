@@ -163,11 +163,22 @@
 
 来源：`egmatic.com/blog/how-to-make-your-game-feel-good`（2026-07，game feel 手法表与三层模型综述）、`en.senkohome.com/sakurai-game-dev-specification/`（Sakurai 频道 18 期按主题重构；原频道 youtube.com/@sora_sakurai_en）、`gamedesignskills.com/game-design/game-feel/`（Swink 三层模型的通识转述）
 
+### 4.9 全息 FUI 面板惯例（2026-09-19）
+
+| 惯例 | 本项目现状 |
+| --- | --- |
+| **全息读感三要素：半透明体积 + 像素化/扫描质感 + 自发光**（对《禁忌星球》《Strange》《31区》全息投影的分析：投影是「translucent, volumetric display」「highly pixelated translucent appearance」——是光，不是带金属拉丝的实体面板） | **本轮落地**：虚影面板关拉丝钢、加发光边缘与扫描线（DESIGN_BASELINE §2.15）；钢板受光线/拼板缝/铆钉从全息面板退役（受光金属的标记与自发光语义冲突） |
+| **发光必须服务信息传达**，不承载信息的发光线条被该站归为「fuigetry」（好看但牺牲可用性＝bad design） | 发光强度克制（外晕 14%/30% 两层、常态扫掠带峰值 10%）；周期扫掠/显影类动效全部尊重减少闪光设置，静态扫描线（无闪烁）保留 |
+| **boot-up 扫掠**是 FUI 面板出场的通用语汇；**环境扫描带**表达「实时投影/监控屏」 | HoloBoot 叠一次性投影显影带（0.32s）；常态 6s 周期柔边亮带 + 既有屏幕级 8s 慢扫描带，均为纯装饰层 |
+
+来源：`scifiinterfaces.com/tag/hologram`、`scifiinterfaces.com/tag/glow`（2026-09 查证可达；两条引文取自 hologram 标签页文章摘要）
+
 ## 5 参考来源（本次实际可访问）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`、`wiki.creativecommons.org/wiki/Recommended_practices_for_attribution`
 **素材站**：`kenney.nl/support`、`kenney.nl/assets/category:Audio`、`opengameart.org/content/faq`、`freesound.org/help/faq/`、`game-icons.net/about.html`、`polyhaven.com/license`、`ambientcg.com/license`、`godotshaders.com/faq/`、`incompetech.com/music/royalty-free/faq.html`、`freepd.com`、`lucide.dev/license`、`github.com/feathericons/feather`、`github.com/google/material-design-icons`、`github.com/chr15m/jsfxr`
 **玩法与无障碍**：`hardcoregaming101.net/battle-garegga`、`.../dodonpachi`、`.../touhou`、`gdcvault.com/play/1023470`、`hardingfpa.com`、`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`accessible.games/accessible-player-experiences/`、`egmatic.com/blog/how-to-make-your-game-feel-good`、`en.senkohome.com/sakurai-game-dev-specification/`、`youtube.com/@sora_sakurai_en`、`gamedesignskills.com/game-design/game-feel/`
+**FUI 与科幻界面**：`scifiinterfaces.com/tag/{hologram,glow}`
 **测试与引擎**：`arxiv.org/abs/2202.12777`、`.../2208.07811`、`.../2107.12061`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,physics/interpolation/index,scripting/c_sharp/*}`
 **智能体指令与规则治理**：`code.claude.com/docs/en/{memory,best-practices,skills}`、`cursor.com/docs/context/rules`、`docs.cline.bot/features/cline-rules`、`code.visualstudio.com/docs/copilot/customization/custom-instructions`、`docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions`、`agents.md`、`github.com/openai/codex`（`codex-rs/core/gpt_5_2_prompt.md`）、`github.com/anthropics/skills`（skill-creator）、`anthropic.com/engineering/effective-context-engineering-for-ai-agents`、`humanlayer.dev/blog/writing-a-good-claude-md`、`trychroma.com/research/context-rot`、`arxiv.org/abs/2507.11538`（IFScale）、`.../2602.11988`（ETH Zurich 上下文文件实测，预印本）、`.../2307.03172`（lost-in-the-middle）、`.../2404.02060`、`.../2608.11095`（指令生命周期实测，预印本）、`martinfowler.com/bliki/ArchitectureDecisionRecord.html`、`martinfowler.com/articles/continuousIntegration.html`、`kubernetes.io/docs/reference/using-api/deprecation-policy/`、`peps.python.org/pep-0387/`、`openjdk.org/jeps/182`、`bazel.build/{release/backward-compatibility,reference/be/common-definitions}`、`eslint.org/docs/latest/use/rule-deprecation`、`docs.gitlab.com/ee/development/documentation/{workflow,styleguide}.html`、`abseil.io/resources/swe-book/html/{ch08,ch10,ch11,ch20,ch23}.html`、`arxiv.org/abs/1810.05286`（Meta 预测式选测）、`learn.microsoft.com/en-us/azure/devops/pipelines/{test/test-impact-analysis,test/flaky-test-management}`
 
