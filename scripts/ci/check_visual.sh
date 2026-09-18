@@ -27,7 +27,7 @@ SHOT_DIR="$(mktemp -d)"
 # 读走开发者本机配置、写坏开发者当前存档。Windows 读 APPDATA、Linux 读 XDG_DATA_HOME、
 # macOS 读 HOME——三处都指到临时目录（macOS 不认前两个，user:// 会落真实用户目录）。
 USERDIR="$(mktemp -d)"
-FRAMES=700
+FRAMES=900
 # 引擎错误正则：与 check_smoke.sh 同口径。`ERROR:` 是通用引擎错误前缀，兜住未列举的错误类别
 # （此前只有 SCRIPT ERROR 等五类：截图写出失败、`Invalid polygon data` 这类静默坏点全漏判——
 # 探针只打一条 PushError 就跳过该图，日志有 ERROR 而正则抓不到，门禁照样判绿）。

@@ -558,7 +558,9 @@ public partial class ProbeHost : Node
     /// <summary>截图序列：帧号 → 先切到哪一页（空＝不切）→ 捕获名（空＝只切不捕）→ 本步是否击杀玩家
     /// → 本步的开关动作。固定帧捕获——序列本身即「要覆盖哪些视觉面」的清单。切页与捕获隔开若干帧，
     /// 等新页构建并渲染完成（捕获取的是已渲染帧，同帧切页会捕到上一帧）。
-    /// 切页与捕获间留 ~0.5s，避开设置页交叉淡入/入场动画（捕在转场中段画面未成形）。
+    /// 切页与捕获间留 70 帧（~1.2s）：设置页入场是「整页淡入 + 逐行错峰」（UITheme.StaggerOpen
+    /// 每行 60ms、最长的一页十余行 ≈0.85s），按 0.5s 捕会捕到还没亮完的行——关于页尾部
+    /// （版本号与操作速查）就整段落在画面外，而那正是这页最该被看到的内容。
     ///
     /// 练习那两拍的落位与理由：面板只有行内文字随直选变化（刚打开的选择态与三行选定后的选定态），
     /// 两态之间的画面差**小于互异判据**（实测签名最大差 2 < MinPageDiff——两张同底图的面板图会被
@@ -569,35 +571,35 @@ public partial class ProbeHost : Node
     {
         (90, "", "hud", false, ShotAction.None),
         (100, "gameplay", "", false, ShotAction.None),
-        (130, "", "settings-gameplay", false, ShotAction.None),
-        (140, "display", "", false, ShotAction.None),
-        (170, "", "settings-display", false, ShotAction.None),
-        (180, "audio", "", false, ShotAction.None),
-        (210, "", "settings-audio", false, ShotAction.None),
-        (220, "about", "", false, ShotAction.None),
-        (250, "", "settings-about", false, ShotAction.None),
-        (260, "controls", "", false, ShotAction.None),
-        (290, "", "settings-controls", false, ShotAction.None),
+        (170, "", "settings-gameplay", false, ShotAction.None),
+        (180, "display", "", false, ShotAction.None),
+        (250, "", "settings-display", false, ShotAction.None),
+        (260, "audio", "", false, ShotAction.None),
+        (330, "", "settings-audio", false, ShotAction.None),
+        (340, "about", "", false, ShotAction.None),
+        (410, "", "settings-about", false, ShotAction.None),
+        (420, "controls", "", false, ShotAction.None),
+        (490, "", "settings-controls", false, ShotAction.None),
         // 死亡结算页（人工验收项「本局记录读出过目」的实拍面）：先击杀玩家，隔 ~0.6s 再捕——
         // 遮罩 150ms 淡入 + 面板 200ms 入场 + 轮盘 500ms 滑入，捕在中段刚好是页面成形后的样子。
         // 捕在死亡回放（3s 幽灵弹幕，ZIndex 在 HUD 之下）播完之前，属画面的一部分，不影响自检。
-        (292, "", "", true, ShotAction.None),
-        (330, "", "gameover", false, ShotAction.None),
+        (492, "", "", true, ShotAction.None),
+        (530, "", "gameover", false, ShotAction.None),
         // 练习面板选择态：结算页轮盘「练习模式」那处生产入口的就地开面板背景（GameOverUi.
         // OpenPracticePanel），三行取面板初值（默认＝不指定 Boss / 中档 / 不指定遭遇）。
         // 捕在一片已成形、无动画的底图上——本图判的是面板自身排版与可读性，不判它压在哪张底图上。
-        (340, "", "", false, ShotAction.PracticeOpen),
-        (380, "", "practice-panel", false, ShotAction.None),
+        (540, "", "", false, ShotAction.PracticeOpen),
+        (580, "", "practice-panel", false, ShotAction.None),
         // 选定三行后按确认（走生产单口换场），捕练习局开局的画面：所选 Boss 与遭遇由生产链
         // 逐帧请出，起始难度档也已落到 HUD 上——面板上选的东西有没有真的出现在局里，这一张是实拍面。
-        (382, "", "", false, ShotAction.PracticeSelect),
-        (384, "", "", false, ShotAction.PracticeConfirm),
-        (534, "", "practice-run", false, ShotAction.None),
+        (582, "", "", false, ShotAction.PracticeSelect),
+        (584, "", "", false, ShotAction.PracticeConfirm),
+        (734, "", "practice-run", false, ShotAction.None),
         // 标题屏入口聚焦态（手柄可达入口的实拍面）：回标题后注入摇杆导航——教程入口被聚焦提亮，
         // 焦点态若无可见反馈（手柄玩家看不见自己在哪）这张图一眼可见；两段间留足标题加载与输入守卫
-        (560, "", "", false, ShotAction.TitleReturn),
-        (650, "", "", false, ShotAction.TitleFocus),
-        (678, "", "title-entries", false, ShotAction.None),
+        (760, "", "", false, ShotAction.TitleReturn),
+        (850, "", "", false, ShotAction.TitleFocus),
+        (878, "", "title-entries", false, ShotAction.None),
     };
 
     /// <summary>宿主身份注入点：_EnterTree 由父到子（本节点先于子节点 Main），_Ready 由子到父
