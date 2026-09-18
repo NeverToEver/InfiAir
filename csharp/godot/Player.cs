@@ -524,6 +524,8 @@ public partial class Player : CharacterBody2D
         ParryArcDeg = CfgFx.Float("player.parry.arc_deg", ParryArcDeg, 0.0f);
         ParryRadius = CfgFx.Float("player.parry.radius", ParryRadius, 0.0f);
         _parryCooldownBase = CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f);
+        // 输入缓冲窗口（§2.14③）：钳 ≥0——负窗口在 core InputBuffer 内本就按不缓冲处理，此处再钳一道
+        _inputBufferWindow = CfgFx.Float("player.input_buffer_window", 0.1f, 0.0f);
         _parry.Configure(
             CfgFx.Float("player.parry.duration", 0.8f, 0.0f),
             CfgFx.Float("player.parry.active_time", 0.5f, 0.0f),
@@ -1062,6 +1064,13 @@ public partial class Player : CharacterBody2D
     private float _dashStrikeInterval = 0.12f;
     private float _dashStrikeTick;
 
+    // ---- 输入缓冲（§2.14③）：就绪前 player.input_buffer_window（0.1s）内的按下在就绪帧自动生效 ----
+    // 判定单源 core InputBuffer（窗口边界/消费幂等/暂存过期由单测钉住）；只缓冲时机类锁定，
+    // 燃料类资源锁在调用侧拦截（arm 前先查燃料，燃料不足直接走拒绝回应）。
+    private readonly Core.Combat.InputBuffer _parryBuffer = new();
+    private readonly Core.Combat.InputBuffer _dashBuffer = new();
+    private float _inputBufferWindow = 0.1f;
+
     public float FuelDrainRate() => _fuelDrainRate;
 
     public float FuelRegenRate() => _fuelRegenRate;
@@ -1143,8 +1152,26 @@ public partial class Player : CharacterBody2D
             {
                 _parryDenyCue = true;
                 GameState.Instance.PlaySfx(SfxId.UiDeny);
+                // 输入缓冲（§2.14③）：流程中的按下不缓冲（流程后面还隔着一整个冷却）；
+                // 冷却收尾窗内的早按记暂存，就绪帧在下方补触发（窗外不记，仍走拒绝回应）
+                if (!_parry.IsFlowing())
+                {
+                    _parryBuffer.Arm(_parry.CooldownRemaining(), _inputBufferWindow);
+                }
             }
         }
+
+        // 缓冲补触发（§2.14③）：帧内次序＝先消费判定后 Tick，就绪帧上暂存必然还活着；
+        // 走与直接按下同一条 TryStart 门，门再拒（编排取消等罕见路径）降级为拒绝回应
+        if (_parryBuffer.ConsumeIfReady(!_parry.IsFlowing() && _parry.CooldownRemaining() <= 0.0f))
+        {
+            if (!_parry.TryStart())
+            {
+                _parryDenyCue = true;
+                GameState.Instance.PlaySfx(SfxId.UiDeny);
+            }
+        }
+        _parryBuffer.Tick(d);
 
         var shieldOn = _parry.Phase == PlayerParry.ParryPhase.ACTIVE;
         if (_parryShield != null && _parryShield.Monitoring != shieldOn)
@@ -1180,13 +1207,33 @@ public partial class Player : CharacterBody2D
                 _dash.Start(inputDir, this);
                 CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
             }
+            else if (_fuel >= DashFuelCost())
+            {
+                // 输入缓冲（§2.14③）：只缓冲时机类锁定——燃料足够而冷却未到，且按下落在
+                // 收尾窗内才记暂存（窗外 Arm 不生效），降级为拒绝回应
+                _dashBuffer.Arm(_dash.CooldownRemaining(), _inputBufferWindow);
+                if (_dashBuffer.PendingRemaining <= 0.0f)
+                {
+                    _dashDenyCue = true;
+                    GameState.Instance.PlaySfx(SfxId.UiDeny);
+                }
+            }
             else
             {
-                // 拒绝回应（§2.14）：冷却中或燃料不足的按下不再静默丢弃（§2.14③ 燃料类资源锁不缓冲）
+                // 资源类锁定即拒不缓冲（§2.14③）：燃料恢复不可预期，「燃料一到就自走一格」是意外行为
                 _dashDenyCue = true;
                 GameState.Instance.PlaySfx(SfxId.UiDeny);
             }
         }
+
+        // 缓冲补触发（§2.14③）：触发时重验燃料并取当前输入方向（零方向走 Start 内的准星回退，
+        // 与直接按下同语义）；燃料不足则不消费，暂存随寿命自然过期
+        if (_dashBuffer.ConsumeIfReady(_dash.CooldownRemaining() <= 0.0f && _fuel >= DashFuelCost()))
+        {
+            _dash.Start(inputDir, this);
+            CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
+        }
+        _dashBuffer.Tick(d);
 
         if (_dash.IsDashing())
         {

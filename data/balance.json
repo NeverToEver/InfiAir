@@ -27,7 +27,7 @@
 		"grace_period": 0.05,
 		"graze_radius": 20,
 		"graze_score": 30,
-		"parry": {
+		"input_buffer_window": 0.1,		"parry": {
 			"duration": 0.8,
 			"active_time": 0.5,
 			"cooldown": 3.0,
