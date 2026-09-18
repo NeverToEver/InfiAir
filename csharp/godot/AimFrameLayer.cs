@@ -228,6 +228,39 @@ public partial class AimFrameLayer : Node2D
         return best;
     }
 
+    /// <summary>准星压点命中的可打目标（不要求标记）：碰撞圆包含判定，多重叠时取圆心最近者；
+    /// 无命中返回 null。「可以攻击」反馈口径（准星变色）＝出弹即命中的判定面，与框包含
+    /// （追踪已生效，MarkedTargetAt）分开——未标记敌机同样可被打，变色不得只看标记。
+    /// Boss 不实现契约故天然排除（既有例外）。不做帧缓存：只有 AimCrosshair 一个调用方，每帧至多一次。</summary>
+    public IAimTarget? TargetableTargetAt(Vector2 point)
+    {
+        IAimTarget? best = null;
+        var bestSq = float.PositiveInfinity;
+        var arr = CachedEnemies();
+        for (var i = 0; i < arr.Count; i++)
+        {
+            if (arr[i] is not IAimTarget t || !t.AimTargetable)
+            {
+                continue;
+            }
+
+            var center = t.AimWorldPosition;
+            if (!AimTargeting.InCircle(point.X, point.Y, center.X, center.Y, t.AimCollisionRadius))
+            {
+                continue;
+            }
+
+            var dSq = point.DistanceSquaredTo(center);
+            if (dSq < bestSq)
+            {
+                bestSq = dSq;
+                best = t;
+            }
+        }
+
+        return best;
+    }
+
     /// <summary>准星磁吸修正向量：把准星轻微拉向最近框外标记目标（框内归 stickiness 管辖）。
     /// 静止/抖动（|delta| &lt; input_min）与高速甩枪（&gt;= input_full）直接返回 ZERO——输入优先，
     /// 静止无磁吸天然满足；强度 = strength × (1 - 框沿距/range) × 输入 smoothstep × 距离衰减，

@@ -1022,6 +1022,11 @@
 			"time": 0.06,
 			"size": 30
 		},
+		"crosshair": {
+			"lock_time": 0.25,
+			"color_blend_time": 0.08,
+			"release_fade_time": 0.12
+		},
 		"low_hp": {
 			"ratio": 0.2,
 			"bar_ratio": 0.3,

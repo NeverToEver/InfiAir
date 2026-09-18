@@ -59,8 +59,9 @@ public partial class UITheme : RefCounted
     public static readonly Color ShadowBlack = new(0.0f, 0.0f, 0.0f, 0.50f); // 仪表外框投影
     public static readonly Color SheenWhite = new(1.0f, 1.0f, 1.0f, 0.40f); // 仪表顶缘受光
     public static readonly Color AimAmber = new(1.0f, 0.76f, 0.30f, 0.95f); // 准星十字
+    public static readonly Color AimOnTarget = new(1.0f, 0.36f, 0.46f, 0.95f); // 准星可攻击态（压住敌机碰撞圆，出弹即命中；与敌弹/敌机轮廓同族红粉）
     public static readonly Color AimAmberLit = new(1.0f, 0.72f, 0.30f); // 瞄准框常态
-    public static readonly Color AimAmberHot = new(1.0f, 0.90f, 0.45f); // 瞄准框锁定峰值
+    public static readonly Color AimAmberHot = new(1.0f, 0.90f, 0.45f); // 瞄准框锁定峰值（准星锁定态同用此色：同一状态一种颜色）
     public static readonly Color HostileCool = new(0.52f, 0.64f, 0.80f, 0.50f); // 标题战场远处敌机冷色（暖族中的刻意冷色例外）
     public static readonly Color MothershipCool = new(0.35f, 0.85f, 1.0f); // 母舰能量青（能量层 tint / 召唤蓄力背光；与 HostileCool 同族的刻意冷色例外）
 
