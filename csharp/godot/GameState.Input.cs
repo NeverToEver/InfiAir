@@ -68,18 +68,38 @@ public partial class GameState : Node
     /// <summary>动作当前是否有生效绑定（提示文本要跳过未绑定方向时用）</summary>
     public bool ActionBound(StringName action) => _input.ActionBound(action);
 
+    /// <summary>摇杆噪声门限：低于它的轴事件不算「玩家操作了手柄」。手柄摇杆老化漂移（中位偏移
+    /// 常在 0.05–0.15）会持续产生轴事件，无门限时提示档会在玩家用鼠标时被漂移一路掰回手柄档——
+    /// 取 0.2（生产扳机死区同档）挡掉漂移，同时不挡任何有意的推杆（0.2 以下推不出有效移动）。
+    /// 按键事件不受门限约束（按下就是明确意图）。</summary>
+    private const float JoyHintAxisFloor = 0.2f;
+
     /// <summary>观察全部输入事件并按类型映射到设备档（键鼠事件 ⇄ 手柄事件，最近者胜）：
     /// 只观察不消费，档位判定在 core（LastInputDevice），切换经 InputDeviceChanged 广播。
-    /// 逐事件只做类型分派——热路径无分配。</summary>
+    /// 逐事件只做类型分派——热路径无分配；零位移的鼠标移动事件同样不算操作（抖动台面/系统补发）。</summary>
     public override void _Input(InputEvent @event)
     {
-        if (@event is InputEventJoypadButton or InputEventJoypadMotion)
+        if (@event is InputEventJoypadButton)
         {
             _input.NoteInputDevice(Core.Input.HintDevice.Gamepad);
         }
-        else if (@event is InputEventKey or InputEventMouseButton or InputEventMouseMotion)
+        else if (@event is InputEventJoypadMotion joyMotion)
+        {
+            if (Mathf.Abs(joyMotion.AxisValue) >= JoyHintAxisFloor)
+            {
+                _input.NoteInputDevice(Core.Input.HintDevice.Gamepad);
+            }
+        }
+        else if (@event is InputEventKey or InputEventMouseButton)
         {
             _input.NoteInputDevice(Core.Input.HintDevice.KeyboardMouse);
+        }
+        else if (@event is InputEventMouseMotion mouseMotion)
+        {
+            if (mouseMotion.Relative != Vector2.Zero)
+            {
+                _input.NoteInputDevice(Core.Input.HintDevice.KeyboardMouse);
+            }
         }
         // 其余事件类型（触摸板手势等）不参与档位判定
     }
