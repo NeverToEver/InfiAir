@@ -44,6 +44,30 @@ public sealed class AimTargetingTests
     }
 
     [Fact]
+    public void SquareOverlapsCircle_CoversOnTouch()
+    {
+        // 圆心在方内：覆盖
+        Assert.True(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 5.0f, -3.0f, 10.0f));
+
+        // 恰在方沿外相切（14 + 10 = 24）：含相切；再远一丝即不覆盖
+        Assert.True(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 24.0f, 0.0f, 10.0f));
+        Assert.False(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 24.01f, 0.0f, 10.0f));
+
+        // 角部方向同样按轴向钳取最近点：方角 (14,14) 到圆心 (20,20) 距 √72 ≈ 8.49
+        Assert.True(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 20.0f, 20.0f, 9.0f));
+        Assert.False(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 20.0f, 20.0f, 8.0f));
+
+        // 判别式（与「准心点入圆」的分界）：圆心距 23 > r 10，点入圆不成立；
+        // 方沿距 23 − 14 = 9 < 10，方与圆相交 → 盖住成立（人类口径：盖住即可，不必准心点入）
+        Assert.False(AimTargeting.InCircle(23.0f, 0.0f, 0.0f, 0.0f, 10.0f));
+        Assert.True(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 23.0f, 0.0f, 10.0f));
+
+        // 数据损坏（负/NaN 半径）恒不相交
+        Assert.False(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 0.0f, 0.0f, -1.0f));
+        Assert.False(AimTargeting.SquareOverlapsCircle(0.0f, 0.0f, 14.0f, 0.0f, 0.0f, float.NaN));
+    }
+
+    [Fact]
     public void FrameEdgeDistance_UsesOnlyOutsideComponent()
     {
         // 单轴出框（x 出 5，y 在框内 → y 的分量为负）：只计框外分量，长度 = 5

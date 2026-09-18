@@ -12,8 +12,8 @@ namespace InfiAir;
 /// Player 与 Enemy.SinFast 均 C# typed 直调。
 ///
 /// 交战反馈（core <see cref="CrosshairState"/> 单源，本节点只做查询与绘制）：
-/// 压住任一可打目标碰撞圆（出弹即命中）→ 琥珀向红粉混合变色；入辅助瞄准标记目标框
-/// （强追踪已生效）→ 叠加金热色 + 一次性整圈旋转 + 括角收拢的锁定框，出框锁定视觉淡出。
+/// 准星盖住任一可打目标（方域与碰撞圆相交，盖住即可）→ 琥珀向红粉混合变色；入辅助瞄准
+/// 标记目标框（强追踪已生效）→ 叠加金热色 + 一次性整圈旋转 + 括角收拢的锁定框，出框淡出。
 /// 时长按模拟时间推进（本节点累计 _Process delta），配置在 balance.json effects.crosshair。
 /// </summary>
 public partial class AimCrosshair : Node2D
@@ -86,11 +86,12 @@ public partial class AimCrosshair : Node2D
             var aim = _player!.AimPoint();  // active 蕴含 _player 非空（NRT 流分析不透传布尔变量）
             GlobalPosition = aim;
             // 交战态查询与推点同帧同源（aim 即本帧 _aimSmooth）：锁定走框包含（= 强追踪已生效，
-            // Player 粘滞查询已热帧缓存）；可攻击走碰撞圆包含（= 出弹即命中），锁定蕴含之故短路
+            // Player 粘滞查询已热帧缓存）；可攻击走覆盖判定（准星方域盖住敌机即算，含 14px 方域）。
+            // marked 已驱动可攻击混合（状态机蕴含），锁定时短路免再扫
             if (GameState.Instance.AimFrameLayer is AimFrameLayer layer)
             {
                 var marked = layer.MarkedTargetAt(aim) != null;
-                var hostile = marked || layer.TargetableTargetAt(aim) != null;
+                var hostile = marked || layer.TargetableTargetAt(aim, HalfSize) != null;
                 _fx.Update((float)delta, hostile, marked);
             }
             else

@@ -38,6 +38,24 @@ public static class AimTargeting
         return dx * dx + dy * dy <= radius * radius;
     }
 
+    /// <summary>轴对方域是否与圆相交（准星「盖住敌机」判定）：把圆心钳到方内取最近点，
+    /// 距离 ≤ 半径即相交，含相切。比「准心点入圆」宽——准星擦到敌机就算盖住。
+    /// 负/NaN 半径恒不相交；负半宽按 0（退化为点判定）。</summary>
+    public static bool SquareOverlapsCircle(float px, float py, float half, float cx, float cy, float radius)
+    {
+        if (!(radius >= 0.0f))
+        {
+            return false;
+        }
+
+        var h = half > 0.0f ? half : 0.0f;
+        var qx = Clamp(cx, px - h, px + h);
+        var qy = Clamp(cy, py - h, py + h);
+        var dx = cx - qx;
+        var dy = cy - qy;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+
     /// <summary>框沿距（点未入框时的欧氏距离，入框为 0）：只取框外分量——
     /// 单轴出框时另一轴为负，把负分量计入长度会系统性偏近（磁吸偏弱、range 边界误判）。</summary>
     public static float FrameEdgeDistance(float px, float py, float cx, float cy, float half)
@@ -61,6 +79,8 @@ public static class AimTargeting
 
     // 逐位等价于引擎 Mathf.Abs/Sqrt（同一求值顺序；MathF.Sqrt 与 Mathf.Sqrt 同为正确舍入）
     private static float Abs(float v) => v < 0.0f ? -v : v;
+
+    private static float Clamp(float v, float lo, float hi) => v < lo ? lo : v > hi ? hi : v;
 
     private static float Sqrt(float v) => System.MathF.Sqrt(v);
 }

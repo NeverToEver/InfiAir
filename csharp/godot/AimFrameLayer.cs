@@ -228,11 +228,12 @@ public partial class AimFrameLayer : Node2D
         return best;
     }
 
-    /// <summary>准星压点命中的可打目标（不要求标记）：碰撞圆包含判定，多重叠时取圆心最近者；
-    /// 无命中返回 null。「可以攻击」反馈口径（准星变色）＝出弹即命中的判定面，与框包含
-    /// （追踪已生效，MarkedTargetAt）分开——未标记敌机同样可被打，变色不得只看标记。
-    /// Boss 不实现契约故天然排除（既有例外）。不做帧缓存：只有 AimCrosshair 一个调用方，每帧至多一次。</summary>
-    public IAimTarget? TargetableTargetAt(Vector2 point)
+    /// <summary>准星盖住的可打目标（不要求标记）：准星方域与碰撞圆**相交**即算（人类口径
+    /// 「准星盖住敌机即可」，不必准心点入圆），多重叠时取圆心最近者；无命中返回 null。
+    /// 「可以攻击」反馈口径（准星变色），与框包含（追踪已生效，MarkedTargetAt）分开——
+    /// 未标记敌机同样可被打，变色不得只看标记。Boss 不实现契约故天然排除（既有例外）。
+    /// 不做帧缓存：只有 AimCrosshair 一个调用方，每帧至多一次。</summary>
+    public IAimTarget? TargetableTargetAt(Vector2 point, float coverHalf)
     {
         IAimTarget? best = null;
         var bestSq = float.PositiveInfinity;
@@ -245,7 +246,7 @@ public partial class AimFrameLayer : Node2D
             }
 
             var center = t.AimWorldPosition;
-            if (!AimTargeting.InCircle(point.X, point.Y, center.X, center.Y, t.AimCollisionRadius))
+            if (!AimTargeting.SquareOverlapsCircle(point.X, point.Y, coverHalf, center.X, center.Y, t.AimCollisionRadius))
             {
                 continue;
             }
