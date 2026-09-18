@@ -10,6 +10,8 @@ namespace InfiAir;
 /// 布局确定性：启动时固定种子 RNG 掷一次（同 Starfield），热路径原地写数组零分配。
 /// 区域锚定 zoom 感知的 view_world_rect；视角档位切换按相对坐标重映射（同 Starfield
 /// RebuildArea），避免「大档位建区后切回小档位，背景只剩中央一块」的残留。
+/// 战况响应（2026-09-18，§2.12 B4）：行星缓慢自转 + 三层按玩家横移做微视差——
+/// 两者都受「动效强度」缩放（强度 0 时逐位回到上面的既有观感），既有速度与布局种子不动。
 /// </summary>
 public partial class DeepSpaceBackdrop : Node2D
 {
@@ -28,6 +30,20 @@ public partial class DeepSpaceBackdrop : Node2D
     private int _dustCount = 40;
     private float _dustSpeed = 112.0f;
     private float _dustAlpha = 0.12f;
+
+    /// <summary>行星自转角速度（rad/s；`effects.motion.planet_spin_rad_s`，B4 背景战况响应）。
+    /// 0.02 ≈ 5 分钟一圈：长时注视能看出天体在转，但不去抢弹幕焦点。</summary>
+    private float _planetSpin = 0.02f;
+
+    /// <summary>微视差上限：玩家横向位移的一小部分（1.2%，判据上限 1.5%）作为三层的横向偏移。
+    /// 取「相对可见区中心的位移 × 系数」而**不是积分**——玩家回中位即归零，不会有累积漂移
+    /// （积分式微视差在长局里会把残骸/尘埃整层推走，且回不来）。</summary>
+    private const float ParallaxMax = 0.012f;
+
+    /// <summary>三层各分摊多少微视差（远层少、近层多 = 纵深越近跟得越紧）。</summary>
+    private const float PlanetParallaxK = 0.35f;
+    private const float DebrisParallaxK = 0.65f;
+    private const float DustParallaxK = 1.0f;
 
     // ---- 行星远景层：位置表驱动（x 相对区域宽，y0 相对回绕带高），避画面中心弹幕焦点区 ----
     private static readonly string[] PlanetTextures =
@@ -70,6 +86,14 @@ public partial class DeepSpaceBackdrop : Node2D
     private Vector2 _areaSize = new(1920.0f, 1080.0f);
     private Vector2 _origin = Vector2.Zero;
 
+    /// <summary>行星自转角（累积；逐帧写回 Rotation——自转是旋转不是位移，不参与微视差的位移账）。</summary>
+    private float _planetAngle;
+
+    /// <summary>已施加给三层的横向微视差偏移（逐帧按目标差值施加到各层的坐标状态上）：
+    /// 用「差值」而不是「绝对值」，是为了让残骸/尘埃这类**积分式状态**保持一致——
+    /// 直接写绝对值会把这帧的下漂位移一起抹掉。</summary>
+    private float _parallaxApplied;
+
     /// <summary>建区时生效的视角档位倍率（重映射判据，同 Starfield：轮询设置档位而非
     /// 视口 rect——DYING 呼吸缩放每帧改相机 Zoom，按 rect 判会逐帧抖动重映射）。</summary>
     private float _builtZoom = -1.0f;
@@ -104,6 +128,8 @@ public partial class DeepSpaceBackdrop : Node2D
         _dustCount = CfgCount(gs, "effects.backdrop.dust_count", _dustCount);
         _dustSpeed = Mathf.Max(0.0f, CfgF(gs, "effects.backdrop.dust_speed", _dustSpeed));
         _dustAlpha = Mathf.Clamp(CfgF(gs, "effects.backdrop.dust_alpha", _dustAlpha), 0.0f, 1.0f);
+        // 行星自转（B4）：只加这一个量，既有残骸/尘埃速度与布局种子一概不动
+        _planetSpin = Mathf.Clamp(CfgF(gs, "effects.motion.planet_spin_rad_s", _planetSpin), 0.0f, 2.0f);
     }
 
     private static float CfgF(GameState gs, string key, float def)
@@ -144,7 +170,8 @@ public partial class DeepSpaceBackdrop : Node2D
         }
     }
 
-    /// <summary>行星世界坐标：x 相对区域宽（重映射自动跟随），y 沿加高回绕带取模。</summary>
+    /// <summary>行星每帧位姿：x 相对区域宽（重映射自动跟随）+ 本层的微视差份额，
+    /// y 沿加高回绕带取模，Rotation 取累积自转角（<see cref="_planetAngle"/>）。</summary>
     private void PlacePlanet(int i, float relX, float relY)
     {
         var s = _planets[i];
@@ -155,7 +182,8 @@ public partial class DeepSpaceBackdrop : Node2D
 
         var band = _areaSize.Y + PlanetBandMargin * 2.0f;
         var y = _origin.Y - PlanetBandMargin + Mathf.PosMod(relY * band + _planetScroll, band);
-        s.Position = new Vector2(_origin.X + relX * _areaSize.X, y);
+        s.Position = new Vector2(_origin.X + relX * _areaSize.X + _parallaxApplied * PlanetParallaxK, y);
+        s.Rotation = _planetAngle;
     }
 
     private void BuildDebris(RandomNumberGenerator rng)
@@ -255,6 +283,27 @@ public partial class DeepSpaceBackdrop : Node2D
 
         // 行星远景：滚动量累积，每帧按回绕带取模重定位（近乎静止的极慢视差）
         _planetScroll += _planetSpeed * d;
+
+        // 动效强度（判据 6）：本轮新增的两样（自转、微视差）整体受它缩放，0 时精确回到
+        // 本批次之前的画面；既有三层下漂速度不吃它（那是 §2.7 已定稿的观感，不在本轮范围）
+        var intensity = VisualRhythm.Instance?.Intensity ?? 0.0f;
+        _planetAngle += _planetSpin * intensity * d;
+
+        // 微视差目标：玩家相对可见区中心的横移 × 一小份（取不到玩家则回中，不抛不崩）
+        var target = 0.0f;
+        var player = GameState.Instance.PlayerRef; // 离场时由 Player 置空（null 语义）
+        if (player != null)
+        {
+            var offset = Mathf.Clamp(
+                player.GlobalPosition.X - (_origin.X + _areaSize.X * 0.5f),
+                -_areaSize.X * 0.5f,
+                _areaSize.X * 0.5f); // 位移读数钳到半屏：过场/击退瞬移出屏时不把三层拉走
+            target = offset * ParallaxMax * intensity;
+        }
+
+        var parallaxDx = target - _parallaxApplied;
+        _parallaxApplied = target;
+
         for (var i = 0; i < _planets.Length; i++)
         {
             PlacePlanet(i, PlanetLayout[i].RelX, PlanetLayout[i].RelY);
@@ -272,7 +321,7 @@ public partial class DeepSpaceBackdrop : Node2D
                 continue;
             }
 
-            var p = s.Position + new Vector2(_debrisDriftX[i] * d, _debrisSpeed[i] * d);
+            var p = s.Position + new Vector2(_debrisDriftX[i] * d + parallaxDx * DebrisParallaxK, _debrisSpeed[i] * d);
             if (p.Y > wrapY)
             {
                 p.Y -= band;
@@ -295,7 +344,7 @@ public partial class DeepSpaceBackdrop : Node2D
         var dustWrapY = _origin.Y + _areaSize.Y;
         for (var i = 0; i < _dust.Length; i++)
         {
-            var p = _dust[i] + new Vector2(0.0f, _dustSpeed * _dustSpeedK[i] * d);
+            var p = _dust[i] + new Vector2(parallaxDx * DustParallaxK, _dustSpeed * _dustSpeedK[i] * d);
             if (p.Y > dustWrapY)
             {
                 p.Y -= _areaSize.Y;

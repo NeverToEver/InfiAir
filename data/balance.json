@@ -1225,7 +1225,15 @@
 			"enemy_damage_glow_low": 0.45,
 			"enemy_damage_fx_interval": 0.55,
 			"enemy_entry_time": 0.3,
-			"formation_phase_delay": 0.15
+			"formation_phase_delay": 0.15,
+			"speedline_count": 48,
+			"speedline_alpha": 0.45,
+			"speedline_life": 1.2,
+			"speedline_fade_in": 0.12,
+			"speedline_fade_out": 0.5,
+			"speedline_speed": 1800.0,
+			"starfield_battle_speed_max": 1.35,
+			"planet_spin_rad_s": 0.02
 		}
 	},
 	"elite_turret_event": {

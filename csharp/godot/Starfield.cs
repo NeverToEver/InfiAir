@@ -30,6 +30,11 @@ public partial class Starfield : Node2D
     private float _meteorMinDelay = 6.0f;
     private float _meteorMaxDelay = 13.0f;
 
+    /// <summary>战况速度上限倍率（`effects.motion.starfield_battle_speed_max`）：局内难度档升到顶时
+    /// 星野整体推进到该倍率。**只改速度**——星点数/亮度/闪烁频率不动（后者受 FlashBudget 与
+    /// 减少闪光约束，改它等于越权）。</summary>
+    private float _battleSpeedMax = 1.35f;
+
     private Vector2[] _far = System.Array.Empty<Vector2>();
     private Vector2[] _near = System.Array.Empty<Vector2>();
     private Vector2[] _farLines = System.Array.Empty<Vector2>(); // Godot C#：PackedVector2Array → Vector2[]
@@ -91,6 +96,10 @@ public partial class Starfield : Node2D
     /// <summary>返航过场的星光拉伸倍率，随时间衰减回 1（过场导演 warp() 设置）。</summary>
     public float WarpFactor { get; private set; } = 1.0f;
 
+    /// <summary>当前滚动速度倍率 = 星光拉伸 × 战况（难度）倍率。同屏的速度线取它定线长
+    /// （<see cref="SpeedLines.Burst"/>），使两层的「快」是同一个读数而不是两套。</summary>
+    public float ScrollK { get; private set; } = 1.0f;
+
     /// <summary>可见世界区域尺寸缓存（view_world_rect），不得硬编码 1920×1080。</summary>
     private Vector2 _areaSize = new(1920.0f, 1080.0f);
 
@@ -98,6 +107,35 @@ public partial class Starfield : Node2D
     private Vector2 _origin = Vector2.Zero;
 
     public void Warp(float factor) => WarpFactor = factor;
+
+    /// <summary>一次性跃迁冲刺（战况响应的小幅档，事件调用）：取**较大者**而不是直接覆写——
+    /// 返航跃迁已把倍率抬到 18 时，一次事件冲刺不该把它压回小值（覆写会把正在播的过场镜头拉平）。</summary>
+    public void WarpBoost(float factor) => WarpFactor = Mathf.Max(WarpFactor, factor);
+
+    /// <summary>
+    /// 局内难度 → 星野推进倍率（1.0 = 无耦合，未乘动效强度）。
+    /// 读数取**难度命名档位**（`GameState.DifficultyTierIndex/TierCount`，档阈值单源在 balance
+    /// `progression.tier_thresholds`）而不是裸难度乘数：档位正是 HUD 上玩家看着的那个读数，
+    /// 爬上档时星空同步快一档，两边同一份判据；且天然有界（裸乘数按设计无上限）。
+    /// 取不到读数一律回落 1.0、不抛：装饰星野语境（标题屏/返航过场的 1:1 画布）与
+    /// 难度表损坏/只有一档（`tier_count ≤ 1`）都走这条。
+    /// </summary>
+    private float BattleSpeedK()
+    {
+        if (_canvasSpace)
+        {
+            return 1.0f;
+        }
+
+        var tiers = GameState.Instance.DifficultyTierCount();
+        if (tiers <= 1)
+        {
+            return 1.0f;
+        }
+
+        var t = Mathf.Clamp((float)GameState.Instance.DifficultyTierIndex() / (tiers - 1), 0.0f, 1.0f);
+        return 1.0f + (_battleSpeedMax - 1.0f) * t;
+    }
 
     /// <summary>是否挂在 CanvasLayer 之下（标题屏/返航过场镜头等 1:1 画布语境）。</summary>
     private bool InCanvasLayerSpace()
@@ -207,6 +245,13 @@ public partial class Starfield : Node2D
             _meteorMaxDelay = Mathf.Max(_meteorMinDelay, (float)mMax.AsDouble());
         }
 
+        // 战况速度上限（B4）：只加速度这一个量，星数与亮度/闪烁频率一概不动
+        var bsm = GameState.Instance.Cfg("effects.motion.starfield_battle_speed_max", _battleSpeedMax);
+        if (bsm.VariantType is Variant.Type.Float or Variant.Type.Int)
+        {
+            _battleSpeedMax = Mathf.Clamp((float)bsm.AsDouble(), 1.0f, 3.0f);
+        }
+
         // 星点范围随可见世界区域而非写死 1920×1080；区域锚点 = 可见区左上角。
         // 语境适配：CanvasLayer 下 1:1 画布取全视口（zoom 不作用于该画布，
         // 过场镜头/标题屏按 zoom 收窄会把星空缩成屏幕中央一块）；世界层走 view_world_rect。
@@ -290,10 +335,14 @@ public partial class Starfield : Node2D
 
         _t += d;
         WarpFactor = Mathf.Lerp(WarpFactor, 1.0f, 1.5f * d);
+        // 战况耦合（B4）：局内难度档线性映射到 [1, starfield_battle_speed_max] 再乘动效强度——
+        // 强度 0 时精确回到 1.0（＝本批次之前的画面，判据 6）。只动速度，不动星数/亮度/闪烁频率。
+        var battleK = 1.0f + (BattleSpeedK() - 1.0f) * (VisualRhythm.Instance?.Intensity ?? 0.0f);
+        ScrollK = WarpFactor * battleK;
         var wrapY = _origin.Y + _areaSize.Y; // 回绕基线随区域锚点（zoom>1 时非 0）
         for (int i = 0; i < _far.Length; i++)
         {
-            var p = _far[i] + new Vector2(0.0f, _farSpeed * WarpFactor * d);
+            var p = _far[i] + new Vector2(0.0f, _farSpeed * ScrollK * d);
             if (p.Y > wrapY)
             {
                 p.Y -= _areaSize.Y;
@@ -306,7 +355,7 @@ public partial class Starfield : Node2D
 
         for (int i = 0; i < _near.Length; i++)
         {
-            var p = _near[i] + new Vector2(0.0f, _nearSpeed * WarpFactor * d);
+            var p = _near[i] + new Vector2(0.0f, _nearSpeed * ScrollK * d);
             if (p.Y > wrapY)
             {
                 p.Y -= _areaSize.Y;
@@ -318,10 +367,10 @@ public partial class Starfield : Node2D
         }
 
         // 星云缓慢下卷（Warp 时同步加速）；亮星按 BrightParallax 倍速（更近的视差层）
-        _nebulaScroll += NebulaScrollSpeed * WarpFactor * d;
+        _nebulaScroll += NebulaScrollSpeed * ScrollK * d;
         // 星云相位单 uniform（x 偏 0.15 格；y = 1 − PosMod(scroll, tile)/tile，同原回绕基线）
         _nebulaMat?.SetShaderParameter(UNebulaPhase, new Vector2(0.15f, 1.0f - Mathf.PosMod(_nebulaScroll, _nebulaTileY) / _nebulaTileY));
-        var brightSpeed = _nearSpeed * BrightParallax * WarpFactor;
+        var brightSpeed = _nearSpeed * BrightParallax * ScrollK;
         for (int i = 0; i < _bright.Length; i++)
         {
             var p = _bright[i] + new Vector2(0.0f, brightSpeed * d);

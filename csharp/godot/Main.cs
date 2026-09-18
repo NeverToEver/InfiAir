@@ -18,6 +18,10 @@ public partial class Main : Node2D
     /// 不依赖时长自然到期。</summary>
     private const float SummonInvincibleSeconds = 999.0f;
 
+    /// <summary>大事件的星野冲刺倍率（B4 背景战况响应）：取小档，与返航跃迁的 18 区分量级——
+    /// 事件冲刺只该让人「感觉到一下」，不该把过场镜头的跃迁感抢过来。</summary>
+    private const float FxWarpSprint = 4.0f;
+
     /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
     private static readonly StringName NoActiveEncounter = new();
     // 逐帧输入查询的动作名静态持有：免每帧把 C# 字符串转成 StringName 的原生 intern 开销
@@ -44,6 +48,8 @@ public partial class Main : Node2D
     private TalentPanel _talentUi = null!;
     private Player _player = null!;
     private Starfield _starfield = null!;
+    /// <summary>一次性速度线（背景战况响应，§2.12 B4）：_Ready 建好，四个既有事件点各触发一次</summary>
+    private SpeedLines _speedLines = null!;
     private Camera2D _camera = null!;
     private bool _gameOver;
     /// <summary>本局是否为练习局（口径见 DESIGN_BASELINE §1.16；练习宿主经 <see cref="MarkPracticeRun"/>
@@ -192,6 +198,8 @@ public partial class Main : Node2D
         _events.RegisterEncounter(new StringName("elite_turret"), _event);
         _events.RegisterEncounter(new StringName("formation_strike"), _formation);
         _events.SetRunActive(true);
+        // 遭遇开始 → 背景战况响应（同一个 EventStarted 也发迷雾事件，按组过滤，见回调）
+        _events.EventStarted += OnEventStartedFx;
         var gs = GameState.Instance;
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
@@ -227,6 +235,10 @@ public partial class Main : Node2D
         // 辅助瞄准框覆盖层：世界坐标单节点，每帧统一画标记敌 bracket 框
         _aimFrames = new AimFrameLayer();
         AddChild(_aimFrames);
+        // 背景战况响应（速度线，B4）：世界层介于背景与实体之间（节点自置 z=-1）；静止期不逐帧、
+        // 不绘制，只在四个既有事件点各触发一次（Boss 入场 / 遭遇开始 / 母舰召唤 / 返航跃迁）
+        _speedLines = new SpeedLines();
+        AddChild(_speedLines);
 
         ApplyCameraZoom();
         if (!gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
@@ -341,6 +353,9 @@ public partial class Main : Node2D
         var gs = GameState.TryGetInstance();
         if (gs != null)
         {
+            // 事件管理器的 C# event 不随接收方释放自动断开（同 FogEventManager 口径）：
+            // 它是 autoload，本节点每局重建——不退订就会在下一场景回调到已释放的 Main
+            _events.EventStarted -= OnEventStartedFx;
             // 子弹时间内退出（重开/中途退出）也要保证演出倍率与顿帧残留一并复位
             gs.ResetTimeScale();
             gs.SummonInProgress = false; // 同 TimeScale：跨场景不残留
@@ -822,6 +837,35 @@ public partial class Main : Node2D
         _musicBoss = boss;
         boss.Died += OnMusicBossGone;
         RefreshMusic();
+        FxBurst(1.0f); // Boss 入场：满档战况响应
+    }
+
+    /// <summary>遭遇开始（统一管理器信号）→ 背景战况响应。迷雾事件走同一个信号，但它按
+    /// FOG_CHECK_INTERVAL 反复掷签、是常驻扰动而不是「大事件」——给它加速感会让本动效变成
+    /// 常驻，与 §1.9.1 的克制纪律冲突，故按组过滤（遭遇组才触发）。</summary>
+    private void OnEventStartedFx(StringName eventId, float duration)
+    {
+        if (_events.GroupOf(eventId) != GameEventManager.GroupEncounter)
+        {
+            return;
+        }
+
+        FxBurst(0.7f);
+    }
+
+    /// <summary>背景战况响应（B4）：一次速度线 + 一次小幅星野冲刺。动效强度 0 时整体不触发
+    /// （判据 6：0 ＝ 回到本批次之前的画面）；星野冲刺用 WarpBoost 取较大者，返航跃迁正在播时
+    /// 不会被事件冲刺拉平。速度线自己也会再判一次强度（同一口径，两处都读 VisualRhythm）。</summary>
+    private void FxBurst(float strength)
+    {
+        var intensity = VisualRhythm.Instance?.Intensity ?? 0.0f;
+        if (intensity <= 0.0f)
+        {
+            return;
+        }
+
+        _speedLines.Burst(strength, _starfield.ScrollK);
+        _starfield.WarpBoost(1.0f + (FxWarpSprint - 1.0f) * intensity);
     }
 
     /// <summary>Boss 离场（击毁与逃跑同走 Died）：曲目上下文复位（回默认曲目或基地休整曲）。
@@ -997,6 +1041,7 @@ public partial class Main : Node2D
         };
         AddChild(gate);
         GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
+        FxBurst(0.8f); // 母舰出场（穿梭门开启 / 穿出）：战况响应次强档
         _mothership = MothershipScene.Instantiate<Mothership>();
         var mothership = _mothership;
         mothership.BeginWarpIn(gatePos, gate);
@@ -1079,6 +1124,9 @@ public partial class Main : Node2D
         // 冷却照计；由统一事件管理器统一 abort（Boss 解冻走事件自身 BOSS_DELAY 流程）
         _events.EndActive(_events.GROUP_ENCOUNTER);
         _starfield.Warp(18.0f); // 保留：返航过场镜头 1 的星光拉伸自然衔接
+        // 返航跃迁：触发点沿用上面这行既有调用点（跳过过场/过场未铺满的路径上，速度线就是这一跳
+        // 的读法；进程模式 Always 保证它不冻在半途）；不另给星野冲刺——Warp(18) 已是大得多的那一档
+        _speedLines.Burst(1.0f, _starfield.ScrollK);
         PlayReturnCinematic();
     }
 
