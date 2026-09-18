@@ -41,19 +41,21 @@ public static class CrosshairRender
         _ => 0.0f,
     };
 
-    /// <summary>完整画一份准星（形状 + 中心点 + 交战变色合成）。</summary>
+    /// <summary>完整画一份准星（形状 + 中心点 + 交战变色合成）。origin＝准星心在绘制空间的
+    /// 落点（游戏内是节点原点零向量，设置页预览用面板中心）。</summary>
     public static void Draw(
-        CanvasItem ci, CrosshairProfile p, float hostileBlend, float lockedBlend, float pulse)
+        CanvasItem ci, CrosshairProfile p, float hostileBlend, float lockedBlend, float pulse,
+        Vector2 origin = default)
     {
         var line = ResolveColor(p, hostileBlend, lockedBlend) * new Color(1.0f, 1.0f, 1.0f, pulse);
         if (p.Shape != CrosshairShape.Dot)
         {
             if (p.Outline)
             {
-                DrawSegments(ci, p, OutlineColor, p.Thickness + 2.0f);
+                DrawSegments(ci, p, OutlineColor, p.Thickness + 2.0f, origin);
             }
 
-            DrawSegments(ci, p, line, p.Thickness);
+            DrawSegments(ci, p, line, p.Thickness, origin);
         }
 
         // 中心点：dot 形状恒画（它就是本体），其余形状按开关
@@ -62,16 +64,16 @@ public static class CrosshairRender
             var radius = p.DotSize;
             if (p.Outline)
             {
-                ci.DrawCircle(Vector2.Zero, radius + 1.0f, OutlineColor * new Color(1.0f, 1.0f, 1.0f, pulse));
+                ci.DrawCircle(origin, radius + 1.0f, OutlineColor * new Color(1.0f, 1.0f, 1.0f, pulse));
             }
 
-            ci.DrawCircle(Vector2.Zero, radius, line);
+            ci.DrawCircle(origin, radius, line);
         }
     }
 
-    private static void DrawSegments(CanvasItem ci, CrosshairProfile p, Color c, float width)
+    private static void DrawSegments(CanvasItem ci, CrosshairProfile p, Color c, float width, Vector2 origin)
     {
-        ci.DrawSetTransform(Vector2.Zero, Mathf.DegToRad(p.RotationDeg), Vector2.One);
+        ci.DrawSetTransform(origin, Mathf.DegToRad(p.RotationDeg), Vector2.One);
         var size = p.Size;
         switch (p.Shape)
         {
@@ -114,7 +116,7 @@ public static class CrosshairRender
                 break;
         }
 
-        ci.DrawSetTransform(Vector2.Zero, 0.0f, Vector2.One);
+        ci.DrawSetTransform(origin, 0.0f, Vector2.One);
     }
 
     private static readonly float[] SignValues = { -1.0f, 1.0f };
