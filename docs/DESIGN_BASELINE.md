@@ -158,7 +158,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **形状语汇单源**：所有方形构件（量槽、充能槽、面板）一律走 `UITheme.ChamferPoints` 的切角八边形，全盘只有一套方形语言——「每元素一套隐喻」正是读作展示品的根因。
 - **液体表现的克制纪律**：**静止几乎不动、变化时才动**。常驻液面只有约 2px 低频起伏（0.32Hz，只做「是液体」的材质暗示），数值变化时叠加一次衰减晃动读作惯性；**不做气泡**（无信息量的装饰）。弹幕游戏里任何常驻动效都会抢视线。
 - **单源与文件**：`FuelTank.cs` / `AbilitySocket.cs` / `AnnunciatorLamp.cs` / `CartridgeStrip.cs`（均 `Control` + `_Draw` 程序化绘制，零贴图零 shader）；装配与位置单源在 `Hud.BuildInstrumentCluster`（原 tscn 的 FuelBar/DashBar/ParryBar + 三个标签节点退役）。母舰灯态由 `Main.DockStateValue` 单源给出，与坞态文本同分支，不在 HUD 重推。**燃料低量警戒线单源在 core `FuelGauge.WarnRatio`**（液色与刻度着色同阈值，不在 HUD 与构件各写一份）。
-- **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结；闪烁频率全部低于 WCAG 2.3.1 阈值。
+- **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结。**全屏尺度脉冲的频率与减闪处置单源在 core `FlashBudget`**：单测断言频率 < 3Hz 且减闪下振幅为零（XAG 118；表内 `balance` 来源的行另与随包数据交叉判定）；精灵与局部尺度的频闪按 WCAG 面积阈值不在该判据面内。
 - **文案**：三个小标题复用既有翻译键（`UI_FUEL`/`UI_DASH`/`UI_PARRY`），**不新增任何玩家可见文案或数字**（数值只用形状/颜色/液位编码）。
 - **成本**：仅液槽常态逐帧（每帧 ≤12 点液面 + 4 条刻度线，控件 34×52）；充能槽只在充能追赶与就绪脉冲期间推进，静止 `SetProcess(false)`。
 
@@ -235,7 +235,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **音乐分层**：至少 Boss 战与基地 / 标题各有独立曲目（现状全套只有一首循环）。
   边界：走既有程序化音频管线（零第三方依赖），素材可复现门禁照旧。
   落地：`bgm_boss.wav` / `bgm_base.wav` 两首（同一程序化管线，重跑可复现）；曲目选择下沉 core 并单测钉住，`MusicDirector` 只做播放与淡入淡出适配。**标题屏无 BGM**（`title.tscn` 无音频节点、`MusicDirector` 只在 `Main` 实例化；原「标题屏仍用原曲目」的写法与实现不符，已按实测订正），标题屏只有程序化星空与远景实况战场的画面运动。
-- **高对比弹体**：辅助页开关，给敌弹加**形状 / 描边**编码（不靠色相），落实 Game Accessibility Guidelines 的「关键信息不得仅由固定颜色传达」。
+- **高对比弹体**：辅助页开关（**默认开**），给敌弹加**形状 / 描边**编码（不靠色相），落实 Game Accessibility Guidelines 的「关键信息不得仅由固定颜色传达」。
   边界：纯表现层、玩法判定零改动（同 `reduce_flash` 口径）；GAG 的「游戏速度可调」**不做**（速度即难度、与必死曲线耦合），登记为有意例外。
   落地：`BulletAppearance.SkinFor`（core，单测钉住映射与中性态）＋ 敌弹**亮色**轮廓贴图档。轮廓取亮色而非深色：本作背景中位亮度 9/255，深色描边在可读像素上等于没画——无障碍编码必须是亮度编码。关闭开关时贴图逐位退回原档。
 
