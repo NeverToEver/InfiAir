@@ -158,7 +158,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **形状语汇单源**：所有方形构件（量槽、充能槽、面板）一律走 `UITheme.ChamferPoints` 的切角八边形，全盘只有一套方形语言——「每元素一套隐喻」正是读作展示品的根因。
 - **液体表现的克制纪律**：**静止几乎不动、变化时才动**。常驻液面只有约 2px 低频起伏（0.32Hz，只做「是液体」的材质暗示），数值变化时叠加一次衰减晃动读作惯性；**不做气泡**（无信息量的装饰）。弹幕游戏里任何常驻动效都会抢视线。
 - **单源与文件**：`FuelTank.cs` / `AbilitySocket.cs` / `AnnunciatorLamp.cs` / `CartridgeStrip.cs`（均 `Control` + `_Draw` 程序化绘制，零贴图零 shader）；装配与位置单源在 `Hud.BuildInstrumentCluster`（原 tscn 的 FuelBar/DashBar/ParryBar + 三个标签节点退役）。母舰灯态由 `Main.DockStateValue` 单源给出，与坞态文本同分支，不在 HUD 重推。**燃料低量警戒线单源在 core `FuelGauge.WarnRatio`**（液色与刻度着色同阈值，不在 HUD 与构件各写一份）。
-- **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结。**全屏尺度脉冲的频率与减闪处置单源在 core `FlashBudget`**：单测断言频率 < 3Hz 且减闪下振幅为零（XAG 118；表内 `balance` 来源的行另与随包数据交叉判定）；精灵与局部尺度的频闪按 WCAG 面积阈值不在该判据面内。
+- **无障碍**：全套动效（液面起伏、就绪脉冲、灯态呼吸、低量脉动）按 `ReduceFlash` 递减或冻结。**全屏尺度脉冲的频率与减闪处置单源在 core `FlashBudget`**：单测断言频率 < 3Hz 且减闪下振幅为零（XAG 118；表内 `balance` 来源的行另与随包数据交叉判定）；精灵与局部尺度的频闪按 WCAG 面积阈值不在该判据面内。**一次性闪光（能力槽就绪脉冲、血条掉段闪、Boss 阶段闪）无频率、不进频率表，但抑制处置同样单源在同一处**（`OneShotFlashId` / `AllowsOneShot`，单测两半互补：减闪下一律抑制、非减闪下一律放行），三处站点不留本地布尔副本，探针按正反两半各采样一次。
 - **文案**：三个小标题复用既有翻译键（`UI_FUEL`/`UI_DASH`/`UI_PARRY`），**不新增任何玩家可见文案或数字**（数值只用形状/颜色/液位编码）。
 - **成本**：仅液槽常态逐帧（每帧 ≤12 点液面 + 4 条刻度线，控件 34×52）；充能槽只在充能追赶与就绪脉冲期间推进，静止 `SetProcess(false)`。
 
