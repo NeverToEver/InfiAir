@@ -909,6 +909,18 @@ public partial class Hud : CanvasLayer
         _lastParryFull = parryRatio >= ParryFullRatio ? 1 : 0;
         _parrySocket.SetReady(_lastParryFull == 1);
 
+        // 拒绝回应（§2.14）：冷却/燃料拒绝的按下经 Player 暂存标志到这里播否认脉冲
+        //（音效在 Player 拒绝处已播；此处只管槽上的视觉）
+        if (player.ConsumeDashDenyCue())
+        {
+            _dashSocket.PlayDeny();
+        }
+
+        if (player.ConsumeParryDenyCue())
+        {
+            _parrySocket.PlayDeny();
+        }
+
         if (_main != null)
         {
             var dockText = _main.DockStatusText();

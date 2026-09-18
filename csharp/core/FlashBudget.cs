@@ -39,6 +39,9 @@ public enum OneShotFlashId
 
     /// <summary>舰体事件流光：擦弹 / 弹反 / 受击 / 击杀连击里程碑各扫过一次（一次性，非常驻）。</summary>
     ShipGlowSweep,
+
+    /// <summary>能力槽否认脉冲：冷却中/燃料不足按下弹反或冲刺时，槽上一圈向内收拢的危险色弧（§2.14）。</summary>
+    AbilityDenyPulse,
 }
 
 /// <summary>一次性闪光登记行：无频率可言（不进 <see cref="FlashBudget.Sources"/>），但同样受「减少闪光」约束。</summary>
@@ -87,9 +90,9 @@ public readonly record struct PulseSource(
 ///     故只有它进本表（判定线就在面积上，不在「是不是脉冲」上）。
 ///   - 标题屏的远景爆炸、光带与按键提示不属本表判据面——那是文字界面背后的背景运动
 ///     （XAG 117 的「活跃玩法期间」约束不适用于它），出处见 `docs/REFERENCES.md`。
-///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪、舰体事件流光）
-///     无频率可言，不进频率表——但它们的减闪门控同样单源在本类（<see cref="AllowsOneShot"/>），
-///     四个站点各自引它，不留本地布尔副本。判据面＝本类单测的两半互补（减闪下一律抑制／
+///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪、舰体事件流光、
+///     能力槽否认脉冲）无频率可言，不进频率表——但它们的减闪门控同样单源在本类（<see cref="AllowsOneShot"/>），
+///     各站点引它，不留本地布尔副本。判据面＝本类单测的两半互补（减闪下一律抑制／
 ///     非减闪一律放行）＋ 行序与枚举对齐；**站点的实际接线没有自动判据**——覆盖该面的结构性
 ///     门禁已按 2026-09-18 的裁剪决策退役；覆盖靠站点结构（站点必须引用 AllowsOneShot 与自身 id）
 ///     与本类单测的两半互补，不另设人工验收环节。
@@ -154,12 +157,15 @@ public static class FlashBudget
         new(Id: OneShotFlashId.ShipGlowSweep, SuppressedByReduceFlash: true,
             Note: "舰体事件流光；抑制后触发事件各自的既有读数仍在——擦弹有计分与音效、"
                 + "弹反有金环与音效、受击有白闪与方向弧、击杀有击杀环与连击本身，只停这道扫光"),
+        new(Id: OneShotFlashId.AbilityDenyPulse, SuppressedByReduceFlash: true,
+            Note: "冷却拒绝回应（§2.14）；抑制后环形冷却读数仍在（槽本身就在回答「还差多少」），"
+                + "另有 UiDeny 低音不在此表管辖"),
     };
 
     /// <summary>登记行（下标即枚举值）。</summary>
     public static OneShotFlash OneShot(OneShotFlashId id) => OneShots[(int)id];
 
-    /// <summary>一次性闪光是否放行——生产的唯一判据口（四个站点各自引它，不留本地布尔副本）。
+    /// <summary>一次性闪光是否放行——生产的唯一判据口（各站点各自引它，不留本地布尔副本）。
     /// 两半互补：只有「非减闪一律放行」会让写反的实现混过，只有「减闪下一律抑制」会让
     /// 「一律不闪」混过，故单测两半都判。</summary>
     public static bool AllowsOneShot(OneShotFlashId id, bool reduceFlash)

@@ -41,6 +41,11 @@ public partial class AbilitySocket : Control
     private const float ReadyPulseTime = 0.42f;
     private const float ReadyPulseGrow = 9.0f;
 
+    /// <summary>否认脉冲时长（秒）与向内收拢行程（px）：冷却/燃料拒绝时的一次性反馈（§2.14）。
+    /// 与就绪脉冲的外扩互为反向手势——收拢读「进不去/还差着」，外扩读「好了/可用」。</summary>
+    private const float DenyPulseTime = 0.24f;
+    private const float DenyPulseShrink = 7.0f;
+
     /// <summary>充能追赶速率（每秒，比例收敛）：让环平滑追上而非随 0.1s 轮询跳格。</summary>
     private const float ChargeEaseRate = 8.0f;
 
@@ -54,6 +59,7 @@ public partial class AbilitySocket : Control
     private bool _locked;
     private bool _reduceFlash;
     private float _pulse = -1.0f;
+    private float _deny = -1.0f;
 
     // ---- 绘制顶点缓冲（实例级一次分配）----
     // 充能追赶与就绪脉冲期间本控件逐帧重绘，_Draw 内不得再 new 顶点数组
@@ -127,6 +133,20 @@ public partial class AbilitySocket : Control
         QueueRedraw();
     }
 
+    /// <summary>否认脉冲（§2.14）：冷却中/燃料不足按下本槽对应能力时的一圈向内收拢危险色弧。
+    /// 减闪下不播（FlashBudget 单源门控）——环形冷却读数本身仍在回答「还差多少」。</summary>
+    public void PlayDeny()
+    {
+        if (!FlashBudget.AllowsOneShot(OneShotFlashId.AbilityDenyPulse, _reduceFlash))
+        {
+            return;
+        }
+
+        _deny = 0.0f;
+        SetProcess(true);
+        QueueRedraw();
+    }
+
     /// <summary>无障碍：关就绪脉冲（就绪仍以亮度与满环表达，不靠闪）。</summary>
     public void SetReduceFlash(bool reduce)
     {
@@ -139,6 +159,7 @@ public partial class AbilitySocket : Control
         if (reduce)
         {
             _pulse = -1.0f;
+            _deny = -1.0f;
         }
 
         QueueRedraw();
@@ -165,6 +186,19 @@ public partial class AbilitySocket : Control
             if (_pulse >= 1.0f)
             {
                 _pulse = -1.0f;
+            }
+            else
+            {
+                busy = true;
+            }
+        }
+
+        if (_deny >= 0.0f)
+        {
+            _deny += d / DenyPulseTime;
+            if (_deny >= 1.0f)
+            {
+                _deny = -1.0f;
             }
             else
             {
@@ -218,6 +252,11 @@ public partial class AbilitySocket : Control
         {
             DrawPulse(center);
         }
+
+        if (_deny >= 0.0f)
+        {
+            DrawDenyPulse(center);
+        }
     }
 
     /// <summary>充能环：暗轨 + 亮填充弧（填充从正上方顺时针起，符合冷却惯例）。</summary>
@@ -244,6 +283,16 @@ public partial class AbilitySocket : Control
         var radius = Mathf.Min(Size.X, Size.Y) * 0.5f + 1.0f + ReadyPulseGrow * _pulse;
         var alpha = (1.0f - _pulse) * 0.5f;
         DrawArc(center, radius, 0.0f, Mathf.Tau, 28, new Color(_accent, alpha), 1.5f, true);
+    }
+
+    /// <summary>否认脉冲：一圈自充能环外缘向内收拢的危险色弧（一次性）——
+    /// 收拢与就绪脉冲的外扩互为反向手势，读「进不去/还差着」而非「故障」。</summary>
+    private void DrawDenyPulse(Vector2 center)
+    {
+        var baseRadius = Mathf.Min(Size.X, Size.Y) * 0.5f - RingInset;
+        var radius = baseRadius + 2.0f - DenyPulseShrink * _deny;
+        var alpha = (1.0f - _deny) * 0.65f;
+        DrawArc(center, radius, 0.0f, Mathf.Tau, 28, new Color(UITheme.Danger, alpha), 1.5f, true);
     }
 
     /// <summary>闭合环（首点补到末尾）写入并返回实例缓冲，零分配。</summary>

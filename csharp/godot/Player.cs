@@ -1001,6 +1001,29 @@ public partial class Player : CharacterBody2D
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
+    // ---- 拒绝回应消费口（§2.14）：按下被拒时置位，HUD 每帧轮询取走并播否认脉冲 ----
+    // 暂存标志而非直调：Player 不持 HUD 引用，与既有「HUD 轮询 Player」的读数方向一致；
+    // 无 HUD 的场景（理论上）标志滞留无害——下一次有 HUD 消费时多播一次脉冲。
+
+    private bool _dashDenyCue;
+    private bool _parryDenyCue;
+
+    /// <summary>取走并清除冲刺拒绝标志（HUD 每帧轮询）。</summary>
+    public bool ConsumeDashDenyCue()
+    {
+        var cue = _dashDenyCue;
+        _dashDenyCue = false;
+        return cue;
+    }
+
+    /// <summary>取走并清除弹反拒绝标志（HUD 每帧轮询）。</summary>
+    public bool ConsumeParryDenyCue()
+    {
+        var cue = _parryDenyCue;
+        _parryDenyCue = false;
+        return cue;
+    }
+
     /// <summary>燃油速率缓存（RefreshAugmentFactors 刷新：_ready 初始 + augments_changed 信号驱动；
     /// 默认值 = 无增幅 时的 FuelDrain/FuelRegen 脚本默认，直实例化未 _ready 路径语义不变）。</summary>
     private float _fuelDrainRate = 35.0f;
@@ -1114,7 +1137,13 @@ public partial class Player : CharacterBody2D
         _parry.Tick(d);
         if (Input.IsActionJustPressed(ActParry))
         {
-            _parry.TryStart();
+            // 拒绝回应（§2.14）：冷却中/流程中的按下不再静默丢弃——槽上否认脉冲 + UiDeny 低音
+            //（音效在此处播，视觉经暂存标志由 HUD 每帧轮询消费，与既有 HUD→Player 读数同向）
+            if (!_parry.TryStart())
+            {
+                _parryDenyCue = true;
+                GameState.Instance.PlaySfx(SfxId.UiDeny);
+            }
         }
 
         var shieldOn = _parry.Phase == PlayerParry.ParryPhase.ACTIVE;
@@ -1144,12 +1173,19 @@ public partial class Player : CharacterBody2D
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
         if (DashUnlocked()
             && Input.IsActionJustPressed(ActDash)
-            && _dash.CooldownRemaining() <= 0.0f
-            && !_dash.IsDashing()
-            && _fuel >= DashFuelCost())
+            && !_dash.IsDashing())
         {
-            _dash.Start(inputDir, this);
-            CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
+            if (_dash.CooldownRemaining() <= 0.0f && _fuel >= DashFuelCost())
+            {
+                _dash.Start(inputDir, this);
+                CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
+            }
+            else
+            {
+                // 拒绝回应（§2.14）：冷却中或燃料不足的按下不再静默丢弃（§2.14③ 燃料类资源锁不缓冲）
+                _dashDenyCue = true;
+                GameState.Instance.PlaySfx(SfxId.UiDeny);
+            }
         }
 
         if (_dash.IsDashing())
