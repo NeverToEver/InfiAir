@@ -316,6 +316,7 @@ compute shaders、`CompositorEffects`、particle trails、MSAA 2D、debanding）
 - **Boss P2 变身**：切换瞬间装甲碎片炸散 + 能量层切狂暴配色（品红→白炽）+ 持续光环粒子；贴图沿用 `_p2` 帧不重绘。
 - **标题品牌化**：`generate_logo.py` 确定性生成字标 + 切角徽章（呼应 ChamferedPanel 与机体剪影），文字 Label 退役。
 - 数值全部落 `data/balance.json` effects 段（`backdrop` / `explosion` / `ship_energy` / `thruster_core` / `boss_p2_transform` 等）；world_grade 辉光阈值/强度随新亮点上调。
+- **星野风格化（2026-09-19 追加，人类委托「星光背景再精美些」）**：星云贴图从「软斑叠加棉团」重构为 core `NebulaField` 能量场（环面无缝值噪声云 + 脊状能量细丝 + 暗尘带切割；无缝性与确定性由单测钉住——贴图接缝是冒烟/截图都不判的静默坏点）；冷青层降为点缀（alpha 比例 0.7→0.55，暖琥珀主导）；远/近星点逐星亮度与色温差分（暖琥珀 12% / 冷蓝白 6% 点缀，仍每层 1 次 draw）；亮星改「光环 + 逐星微旋衍射芒 + 软核」三层（衍射芒为程序化贴图，DrawSetTransform 旋转缩放，绘制端零贴图状态）；流星补软核头部辉光。星数/种子/滚动与战况耦合语义不变，闪烁仍走 FlashBudget（减少闪光下归零常亮）。
 
 ### 2.8 动效与可读性强化（2026-09-13 追加）
 第三轮视觉升级，补齐「界面无动效、状态变化硬切、事件缺反馈」三层缺口，仍为纯表现层、**玩法判定零改动**。
