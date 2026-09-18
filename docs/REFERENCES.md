@@ -133,6 +133,24 @@
 来源：`ign.com/wikis/valorant/The_Best_Valorant_Crosshair_Guide`、`redbull.com`（Valorant 职业准星 11 项）、`totalcsgo.com`（cl_crosshair 命令全集与生成器）、`cybershoke.net`、`xplay.gg`、`dmarket.com`（CS2 分享码导入与 dot/gap 负间距实践）、`prosettings.net`（职业配置库）
 
 
+### 4.7 战斗动效升级调研（2026-09-18 复核，联网可达后重取）
+
+背景：人类委托「战斗动效全面升级（呼吸灯 / 舰船流光 / 趣味小动效 / 背景与界面互动）」。上一轮调研受网络限制，多条结论无一手出处；本轮复核后**三条硬约束落地**，其中一条推翻首版方案。
+
+| 事实 | 逐字要点 | 对方案的影响 |
+| --- | --- | --- |
+| **Godot 渲染器对照表**（官方） | 「Glow ✔️ Supported」「Custom post-processing with fullscreen quad ✔️ Supported」；**❌ Not supported**：`CompositorEffects`、`MSAA 2D`、`Compute shaders`、`Debanding`、**`Particle trails`**、`Particle SDF collision`、`2D HDR Viewport`、`HDR output`；Color precision ＝「RGBA8. Low dynamic range, medium precision.」 | 手写全屏后处理是唯一路径（已如此）；**粒子拖尾在该后端不存在**——敌弹拖尾不能走 `GPUParticles2D`；无 HDR 语义，亮点在 1.0 截断 |
+| **节拍同步**（官方 Sync the gameplay with audio and music） | 精确播放位置＝`get_playback_position() + AudioServer.get_time_since_last_mix() - AudioServer.get_output_latency()`；「The result may be a bit jittery due how multiple threads work. Just check that the value is not less than in the previous frame (**discard it if so**)」；长时间播放会与系统时钟漂移，须走声卡时钟（即 `get_playback_position` 路径） | 呼吸/节拍层采到相位后**必须做回退值丢弃**，否则全屏节奏会偶发倒跳 |
+| **XAG 118 光敏性**（微软官方当前版） | 「A flash is defined as a **10% change in luminance** (where 100% is the maximum luminance of a white screen). The darker luminance value should be **below 0.8**.」失败判据三条并列：频率「approximately **more than three per second**」／面积「approximately **20 percent or more**」／「Lower intensity flashing can also cause a failure if it's continued for an extended period of time」；红闪阈值更低；「All games should be tested … regardless of whether the game includes intentional flashing」 | **首版方案被推翻**：全屏「每拍亮一下」即使 2.5Hz 合规频率，仍会踩**面积**判据（全屏＝100% ≫ 20%）。故全屏层只能做**低于 10% 亮度变化**的慢呼吸（低于「闪」的定义线，面积判据随之不适用），拍点一律下放到局部元素 |
+| **战斗可读性**（Art Director 视角，2026） | 特效核心在暗背景上「never exceeds **80% white**」；亮度应「peaks sharply and decays rapidly」而非线性；「The player's eye … the brain processes **color before shape**」——UI 与危险物不得共用色相；**拖尾最致命**：「If a trail lingers for 100ms longer than the active hitbox … the player will roll dodge to avoid what looks like the blade, only to get hit」且会盖住下一段前摇，宁取 1–2 帧拉伸 | 敌弹只动画**自身四边形内的烘焙尾部**：不新增滞后几何、不新增 draw call，弹头与判定逐位不变 |
+| **敌人可读性**（The Level Design Book） | 需要「Unique silhouette so players can discern enemy type at mid-range」与「Design details and animations that **telegraph enemy state, intent, and strengths/weaknesses**」 | 支持「损伤状态分级」而非堆装饰 |
+| **弹幕美学**（Danmaku 设计指南） | 有方向弹体天然传达运动方向，圆形无方向弹「do not telegraph their movement direction at all」 | 弹体语言优先于装饰 |
+
+**未能核验（需人工核验，不作条款推断）**：`shmups.wiki`（社区权威弹幕设计文档 Boghog's bullet hell shmup 101 的载体）本轮 TCP 层不可达，其镜像站返回 Cloudflare 520、`web.archive.org` 亦不可达；`old.reddit.com` 的同文转载要求登录。故弹幕可读性一节采用的是上述可访问来源，shmup 社区口径仍待补。
+**已核验但未采纳**：把敌弹改 `MultiMesh`（官方定位为成千上万实例，本作需保留 `Area2D` 碰撞与对象池语义，见 §4.4）。
+
+来源：`docs.godotengine.org/en/stable/tutorials/rendering/renderers.html`、`.../tutorials/audio/sync_with_audio.html`、`learn.microsoft.com/en-us/xbox/accessibility/xbox-accessibility-guidelines/118`、`mystpixel.com/posts/5-visual-clutter-culprits-ruining-your-indie-game-s-combat-readability/`、`book.leveldesignbook.com/process/combat/enemy`、`sparen.github.io/ph3tutorials/ddsga2.html`（检索入口：`html.duckduckgo.com`）
+
 ## 5 参考来源（本次实际可访问）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`、`wiki.creativecommons.org/wiki/Recommended_practices_for_attribution`
