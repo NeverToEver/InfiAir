@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 截图探针门禁（辅助）：固定帧捕获 HUD、五张设置页、死亡结算页、练习面板与练习局开局（九张），
+# 截图探针门禁（辅助）：固定帧捕获 HUD、五张设置页、死亡结算页、练习面板与练习局开局、标题屏入口聚焦态（十张），
 # 存 PNG 供人工/文档使用；探针内部做两条廉价自检（画面非空白、各图两两互不相同），全过才打完成标记。
 # Usage: check_visual.sh [log_path]           (default /tmp/visual.log)
 #        KEEP_SHOTS=<dir> check_visual.sh      # 把 PNG 留到该目录（生成截图用）

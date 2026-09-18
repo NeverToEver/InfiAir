@@ -30,7 +30,7 @@ public partial class ProbeHost
 /// <summary>
 /// 教程全周期探针（`--tutorial-probe`）：把生产场景 `scenes/tutorial.tscn` 当普通场景跑起来，
 /// 经**生产输入面**（`Input.ActionPress/Release`）与**生产伤害入口**（`Enemy.TakeDamage` /
-/// `Boss.TakeDamage`，与弹体命中同一条链）走满六阶段，判定全部落在玩家可见读数上
+/// `Boss.TakeDamage`，与弹体命中同一条链）走满七阶段，判定全部落在玩家可见读数上
 /// （阶段索引、标题与目标行文本、检查点、完成度），不注入无敌、不直接改血量或阶段。
 ///
 /// 为什么必须探：教程是独立于 `Main` 的另一条生产入口，此前只有一趟「场景就绪」冒烟——

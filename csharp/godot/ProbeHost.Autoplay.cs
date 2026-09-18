@@ -9,8 +9,11 @@ using InfiAir.Core.Text;
 //   - **CI 趟只取短局**（`--autoplay-probe=180`，≈8s 墙钟）：判「能开局但玩不起来」这一类——
 //     整局零击杀（火力/命中/刷怪链断线）、存活却连续 60 模拟秒无得分无击杀（停摆）、跑局中的引擎错误；
 //     通过才打完成标记 `[autoplay-probe] 自动游玩完成`。
-//   - **长局靠人工**（`--autoplay-probe=900`）：覆盖后半程难度、Boss、遭遇与母舰循环，判定口径与
-//     通过标准登记在 `docs/ROADMAP.md`「发布前人工验收」——时长换覆盖，不塞进 CI。
+//   - **长局靠人工**（`--autoplay-probe=900`，≈40s 墙钟）：覆盖后半程难度、Boss、遭遇与母舰循环——
+//     时长换覆盖，不塞进 CI。跑法＝`godot --headless --path . --fixed-fps 60 --quit-after <秒×60+余量>
+//     --scene res://scenes/probe_host.tscn -- --autoplay-probe=<秒> --expect-user-dir=<临时目录>`，
+//     并把 `APPDATA`/`XDG_DATA_HOME`/`HOME` 一并指向该临时目录；CI 短局覆盖不到的长时面按
+//     AGENTS §5 登记人工项或 ROADMAP 开放项，不留口头。
 //   - **真实规则**：不注入无敌、不直接改血量/得分/位置，全部经生产输入面（Input 动作 +
 //     Player.AimPointOverride）驱动；死了就是死了（必死曲线下的正常收场），只写进汇总、不判失败。
 //   - **必须在隔离用户目录里跑**：未带 `--expect-user-dir` 时探针拒绝启动（它会写 user://，

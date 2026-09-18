@@ -57,6 +57,8 @@
 #   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
 #   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
 # --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
+# 每趟帧数 = 事件全周期秒数 × 60 + 余量；帧数只在本文件维护一份（AGENTS §1 单源表）。
+# 日志面：主场景 <LOG>，其余 <LOG>.<面>.log（面名即各趟 run_case 的实参，如 settings/formation/…）。
 #
 # 首趟跑生产 main.tscn；中间各趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入
 # main.tscn）——测试开关不进生产 main.tscn/Main（AGENTS §5）；最后一趟直开
@@ -361,7 +363,7 @@ smoke_tutorial() {
 }
 
 smoke_tutorial_flow() {
-  # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满六阶段——断阶段推进、目标行补参
+  # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满七阶段——断阶段推进、目标行补参
   # 成形、键位随改键跟变、跳过本阶段、死亡重开本阶段且进度归零、检查点写入与完成清零。
   # 帧数：实测三遍流程 2666 帧，取 3900 帧（65 模拟秒）留约五成余量。
   run_case "tutorial flow probe smoke" 5600 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
