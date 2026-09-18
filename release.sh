@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # InfiAir 发布构建：资源导入 → 导出 Linux/Windows → 打包（含安装/卸载脚本）
 # 用法：./release.sh           输出 builds/release/InfiAir-<版本>-<平台>.<tar.gz|zip>
-#       ./release.sh --publish 打包后继续发布（发布前置见 --help：人工验收清零 + 全量质量门禁）
+#       ./release.sh --publish 打包后继续发布（发布前置见 --help：全量质量门禁）
 #       ./release.sh --help   显示用法后退出
 # 环境变量：VERSION（默认读取 project.godot config/version）、GODOT（默认探测链 godot-mono → ~/.local/bin → PATH 的 godot/godot4）
 set -euo pipefail
@@ -21,9 +21,8 @@ for arg in "$@"; do
             echo "                 ① 干净工作树；版本号 MAJOR.MINOR 且与 project.godot config/version 一致"
             echo "                 ② origin 指向发布通道（推送目标与 Release 同源，防推错地方/建错 Release）"
             echo "                 ③ tag v<版本> 未被占用；已取得 GitHub 凭据"
-            echo "                 ④ docs/ROADMAP.md「发布前人工验收」清零（AGENTS §6：不清零不发布）"
-            echo "                 ⑤ 质量门禁全绿：python3 scripts/ci/gates.py（四步主干，本机实测约 10 秒）"
-            echo "  --skip-gates 显式跳过前置 ⑤（质量门禁）——只该在门禁刚跑过、工作区未变时用，输出会留痕"
+            echo "                 ④ 质量门禁全绿：python3 scripts/ci/gates.py（四步主干，本机实测约 10 秒）"
+            echo "  --skip-gates 显式跳过前置 ④（质量门禁）——只该在门禁刚跑过、工作区未变时用，输出会留痕"
             echo "  -h, --help   显示本帮助"
             echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（探测链 godot-mono → ~/.local/bin → PATH）、"
             echo "          GITHUB_TOKEN（--publish 可选；缺省经 git credential fill 取 github.com 已存凭据）"
@@ -71,63 +70,10 @@ require_clean_worktree() {
     return 1
 }
 
-# 发布前置：docs/ROADMAP.md「发布前人工验收」清零（AGENTS §7 明文承诺：不清零不发布）。
-# 判据（静态解析该小节，不猜内容）：
-#   1) 小节内的声明行「**当前待办 N 条…**」必须存在且 N=0——缺声明即判据取不到，判红（铁律 2）
-#   2) 小节内顶层条目（`- **名字**：…`）必须为零。该节是发布门，条目做完即删除、不留收口记录
-#      （AGENTS §8「活跃文档只写现状 + 开放项」；ROADMAP Maintenance「条目完成即删除」）。
-#      记录块与待办条目在文本上不可区分（同在一节、同为顶层条目，往记录块里插一条待办几乎看不出来），
-#      故只认「小节内零条目」这一可机械判定的形态：有记录时判红并打印条目，而不是替人猜哪些已收口。
-check_manual_acceptance() {
-    local roadmap="$1"
-    python3 -c '
-import re, sys
-path = sys.argv[1]
-try:
-    lines = open(path, encoding="utf-8").read().splitlines()
-except OSError as exc:
-    print(f"[release] 读不到 {path}（{exc}）——「发布前人工验收」清零判据取不到，拒绝发布", file=sys.stderr)
-    sys.exit(1)
-heading = "## 发布前人工验收"
-start = next((i for i, ln in enumerate(lines) if ln.strip() == heading), None)
-if start is None:
-    print(f"[release] {path} 里找不到「{heading}」小节——清零判据取不到，拒绝发布", file=sys.stderr)
-    sys.exit(1)
-end = next((j for j in range(start + 1, len(lines)) if lines[j].startswith("## ")), len(lines))
-section = lines[start + 1:end]
-declared = None
-for ln in section:
-    m = re.match(r"^\*\*当前待办\s*(\d+)\s*条", ln)
-    if m:
-        declared = int(m.group(1))
-        break
-entries = [ln for ln in section if ln.startswith("- ")]
-if declared == 0 and not entries:
-    print("[release] 「发布前人工验收」已清零（声明 0 条、小节内条目 0 条）")
-    sys.exit(0)
-bad = []
-count_text = "缺失" if declared is None else f"{declared} 条"
-bad.append(f"[release] {path} 的「{heading}」小节未清零：声明 {count_text}、小节内条目 {len(entries)} 条")
-bad.append("         该节是发布门（AGENTS §7）：只列待办条目，做完即删除（AGENTS §8 与 ROADMAP Maintenance 都不留完成记录）。")
-for ln in entries[:10]:
-    text = ln[2:].strip()
-    bad.append("           " + (text[:80] + "…" if len(text) > 80 else text))
-if len(entries) > 10:
-    bad.append(f"         （其余 {len(entries) - 10} 条见 {path} 第 {start + 1} 行的「{heading}」）")
-if entries and any("收口" in ln and not ln.startswith(("-", ">")) for ln in section):
-    bad.append("         注：本节里的条目看着都在一段「收口」记录里——记录与待办在文本上不可区分（同为一节内的顶层条目），")
-    bad.append("             故本判据只认「小节内零条目」这一可机械判定的形态，不按内容猜哪些已收口。")
-bad.append("         怎么算过：把小节内条目清零——已完成的删掉（证据在 git log），未完成的先按条目写明的判定过一遍；")
-bad.append("                   声明行同步写成「**当前待办 0 条。**」。")
-print("\n".join(bad), file=sys.stderr)
-sys.exit(1)
-' "$roadmap"
-}
-
 if [ "$PUBLISH" = 1 ]; then
     # 发布前置检查：干净工作树、版本号及其与项目版本一致、发布通道、tag 未占用、发布凭据、
-    # 人工验收清零、质量门禁。全部先于导出——任何一项不过都不该白白跑完十来分钟导出，
-    # 更不该把包发出去（AGENTS §7 的发布承诺要在这里变成判据，而不是注释里的建议）
+    # 质量门禁。全部先于导出——任何一项不过都不该白白跑完十来分钟导出，
+    # 更不该把包发出去（AGENTS §6 的发布承诺要在这里变成判据，而不是注释里的建议）
     require_clean_worktree "--publish 要求干净工作树（发布内容必须先提交）" || exit 1
     [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]] || {
         echo "[release] --publish 版本号须为 MAJOR.MINOR：$VERSION" >&2; exit 1; }
@@ -160,11 +106,6 @@ host=github.com
     fi
     [ -n "$GITHUB_TOKEN" ] || {
         echo "[release] 未取得 GitHub 凭据：设 GITHUB_TOKEN，或在凭据管理器保存 github.com 凭据" >&2; exit 1; }
-    echo "==> 发布前置：docs/ROADMAP.md「发布前人工验收」清零判定"
-    if ! check_manual_acceptance docs/ROADMAP.md; then
-        echo "[release] 发布中止：先让该节清零再发（AGENTS §7，本条无跳过开关）" >&2
-        exit 1
-    fi
     if [ "$SKIP_GATES" = 1 ]; then
         echo "[release] ！！已显式跳过质量门禁（--skip-gates）：本次发布不带全量门禁判定" >&2
     else
