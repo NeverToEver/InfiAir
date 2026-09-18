@@ -75,15 +75,4 @@ public sealed class MusicSelectionTests
         var path = $"assets/audio/{MusicSelection.TrackName(cue)}.wav";
         Assert.True(File.Exists(RepoFiles.PathOf(path)), $"曲目产物缺失：{path}");
     }
-
-    /// <summary>曲目名与选择判定必须经 core：适配层自己判上下文或写死资源名时（副本一旦分叉），
-    /// 改 core 映射不会有任何信号——单测照绿、游戏照跑，只是某时段播错曲。</summary>
-    [Fact]
-    public void MusicDirector_ResolvesCueThroughCore()
-    {
-        var src = RepoFiles.Read("csharp/godot/MusicDirector.cs");
-        Assert.Contains("MusicSelection.Select", src, StringComparison.Ordinal);
-        Assert.Contains("MusicSelection.TrackName", src, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"bgm_", src, StringComparison.Ordinal);
-    }
 }

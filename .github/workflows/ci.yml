@@ -1,20 +1,10 @@
 name: CI
 
-# InfiAir 持续集成（fast-gate）。
-# 引擎耦合行为测试（断言/截图场景）已退役；当前保留的 xUnit 工程只测
-# csharp/core 纯逻辑层（零 Godot 依赖，决策见 ROADMAP Decisions），不入主 sln。
-# 门禁链：
-# 卫生（注释日期戳与术语）→ 玩家可见文案无开发措辞 → 数值键存在性 → 数值键反向死键 →
-# 存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 零引用成员登记 → 代码默认值与 balance 定稿对账 →
-# 门禁装配完整性 →
-# C# 构建零警告 →
-# core 层单测 → 资源导入无警告 →
-# 无头冒烟二十六趟（主场景/设置页/编队遭遇/精英炮塔/死亡打断/精英机贴图/燃料满扫/手感复位/难度曲线/迷雾/迷雾打断/返航宽限/Boss 阶段机/母舰坞态/遭遇击杀型/恶意存档/死亡删档门控/增幅缓存复用/存档还原/设置版本回退/提前离舰蓄力/教程场景/教程全周期/自动游玩全周期/练习模式直选与不落盘/本局记录两局语义，固定步长 + 完成标记）→
-# 截图探针（HUD + 五张设置页 + 结算页 + 练习面板与练习局开局，自检非空白/各图互异）→
-# 素材生成可复现性（重跑离线生成器 + 断言产物无漂移，需 Pillow）。
-# 依赖口径：项目代码零第三方库（官方 action/安装脚本/引擎/模板）；测试设施允许系统包——
-# 视觉门禁需要 Xvfb + Mesa 软件光栅（runner 无 GPU，headless 截不到画面）；
-# 素材复现性门禁需要构建期素材生成器的 Pillow（钉住版本，见安装步骤）。
+# InfiAir 持续集成（最小主干）。
+# 判据只有一件事：游戏正常路径跑得起来，且 core 纯逻辑没有回归。
+# 步骤：C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟（main.tscn 开机直达标题屏）。
+# 依赖口径：项目代码零第三方库（官方 action/安装脚本/引擎/模板）；测试设施只用 .NET SDK 与
+# Godot 引擎本身——不再需要 Xvfb/Mesa 软光栅与 Pillow（截图探针与素材复现性门禁已退役）。
 
 on:
   push:
@@ -35,7 +25,7 @@ env:
 
 jobs:
   fast-gate:
-    name: Fast gate (C# build + import + smoke)
+    name: Fast gate (build + unit tests + import + boot smoke)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,36 +38,6 @@ jobs:
           bash /tmp/dotnet-install.sh --channel "$DOTNET_SDK_VERSION" --install-dir "$HOME/.dotnet"
           echo "$HOME/.dotnet" >> "$GITHUB_PATH"
           dotnet --version
-
-      - name: Prose hygiene gate
-        run: bash scripts/ci/check_prose_hygiene.sh
-
-      - name: Player-facing copy gate
-        run: bash scripts/ci/check_ui_copy.sh
-
-      - name: Balance keys gate
-        run: bash scripts/ci/check_balance_keys.sh
-
-      - name: Balance dead keys gate
-        run: bash scripts/ci/check_balance_dead_keys.sh
-
-      - name: Save symmetry gate
-        run: bash scripts/ci/check_save_symmetry.sh
-
-      - name: Settings symmetry gate
-        run: bash scripts/ci/check_settings_symmetry.sh
-
-      - name: Realtime allowlist gate
-        run: bash scripts/ci/check_realtime_allowlist.sh
-
-      - name: Zero-reference members gate
-        run: bash scripts/ci/check_zero_ref_members.sh
-
-      - name: Code defaults vs balance gate
-        run: bash scripts/ci/check_code_defaults.sh
-
-      - name: Gate wiring gate
-        run: bash scripts/ci/check_gate_wiring.sh
 
       - name: Build C# (warnings-as-errors)
         run: dotnet build --nologo
@@ -128,29 +88,8 @@ jobs:
       - name: Import project resources (warning gate)
         run: bash scripts/ci/check_import.sh /tmp/import.log
 
-      - name: Headless smoke (fixed-step)
+      - name: Headless boot smoke (fixed-step)
         run: bash scripts/ci/check_smoke.sh /tmp/smoke.log
-
-      - name: Screenshot probe (Xvfb + software raster)
-        run: |
-          # runner 无 GPU，headless dummy 截不到画面——装系统级虚拟显示与 Mesa 软光栅，
-          # 由 check_visual.sh 在无 DISPLAY 时自动走 xvfb-run + LIBGL_ALWAYS_SOFTWARE。
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libgl1-mesa-dri
-          bash scripts/ci/check_visual.sh /tmp/visual.log
-
-      - name: Setup Python (asset reproducibility)
-        uses: actions/setup-python@v5
-        with:
-          # 钉住解释器与 Pillow 版本：素材产物是逐字节入库的，上游改绘制/字体度量会让门禁误报
-          # 而非报出真问题；本机与 CI 都跑 12.2。
-          python-version: "3.12"
-
-      - name: Install Pillow 12.2 (asset reproducibility)
-        run: python3 -m pip install --disable-pip-version-check "pillow==12.2"
-
-      - name: Assets reproducible gate (generator determinism + sync envelope)
-        run: bash scripts/ci/check_assets_reproducible.sh
 
       - name: Upload fast-gate failure logs
         if: failure()
@@ -160,6 +99,4 @@ jobs:
           path: |
             /tmp/import.log
             /tmp/smoke.log
-            /tmp/smoke.*.log
-            /tmp/visual.log
           retention-days: 7

@@ -126,7 +126,7 @@ public sealed class TalentTreeTests
     [Fact]
     public void LocalizationKeys_AllPresent()
     {
-        // 键存在性由 check_ui_copy.sh 判玩家侧；这里只钉「结构声明没有空键」
+        // 这里只钉「结构声明没有空键」，玩家侧文案键不在此判定面
         foreach (var cat in TalentTree.Categories)
         {
             Assert.False(string.IsNullOrWhiteSpace(cat.NameKey));

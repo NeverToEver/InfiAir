@@ -21,7 +21,7 @@ public sealed record PracticeSetup
     /// <summary>遭遇选项数：无 / 精英炮塔 / 轰炸编队 / 迷雾。</summary>
     public const int EncounterOptionCount = 4;
 
-    /// <summary>迷雾选项固定取幽灵机群（fake_enemies，与 --fog-probe 同一条 id）：
+    /// <summary>迷雾选项固定取幽灵机群（fake_enemies）：
     /// 它是无伤害无碰撞的纯视觉干扰，练习要练的是「迷雾来了怎么读屏」，不是「被随机事件打死」。</summary>
     public const string FogEncounterId = "fake_enemies";
 

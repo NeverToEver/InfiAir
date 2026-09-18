@@ -194,7 +194,7 @@ public partial class GameState : Node
         _input = new InputBindingsService();
     }
 
-    /// <summary>启动计时基准（autoload 最早生命周期点；--startup-time 时由 ProbeHost 打印开机到首帧的一行耗时）</summary>
+    /// <summary>开机时刻读数（autoload 最早生命周期点）：实机排查启动耗时的观测口，当前无生产读取方</summary>
     public int BootTicksMsec { get; set; } = 0;
 
     /// <summary>母舰召唤窗口（H 蓄力中或机库小窗演出中）。遭遇事件触发门控读取——窗口期玩家

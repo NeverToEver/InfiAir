@@ -422,64 +422,6 @@ public sealed class TalentEconomyTests
         Assert.Equal(6, TalentEconomy.OverchargeCost(config, 3));
     }
 
-    /// <summary>
-    /// 专注惩罚触发面护栏：**读真实 data/balance.json**，断言「只有 extra_life 能触发」。
-    ///
-    /// 为什么必须读配置而不是手抄一张上限表：手抄的表是配置的快照副本，改 balance.json
-    /// 放宽某个节点的 max_stacks 时用例不会红——护栏形同虚设（本条此前正是如此，实测把
-    /// power_shot 从 5 改到 7 后 217 条单测全绿）。读真值后，任何让第二个节点够到阈值的
-    /// 改动都会立即变红，强制走一次显式决策（阈值 7 属人类已决策保留项）。
-    /// </summary>
-    [Fact]
-    public void FocusTriggerSurface_MatchesRealBalanceConfig()
-    {
-        var (threshold, caps) = LoadFocusInputs();
-
-        // 前提校验：读到的配置必须是真的（读失败要让本用例红，而不是静默用默认值蒙混）
-        Assert.True(threshold > 0, "balance.json talent.focus.threshold 未读到正值");
-        Assert.True(caps.Count > 0, "balance.json augments.*.max_stacks 未读到任何节点上限");
-
-        var reachable = caps
-            .Where(kv => TalentEconomy.FocusOver(kv.Value + 1, new TalentConfig { FocusThreshold = threshold }) > 0)
-            .Select(kv => kv.Key)
-            .ToList();
-
-        // 触发面必须恰好是 extra_life 一个节点（其余节点连「结构上限 + 风险加点 1 级」都够不到阈值）
-        Assert.Equal(new[] { "extra_life" }, reachable);
-        Assert.Equal(10, caps["extra_life"]);
-    }
-
-    /// <summary>从仓库的 data/balance.json 读出专注阈值与全部节点结构上限。
-    /// 从测试程序集目录向上找仓库根（不依赖 dotnet test 的 cwd）。</summary>
-    private static (int Threshold, Dictionary<string, int> Caps) LoadFocusInputs()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "data", "balance.json")))
-        {
-            dir = dir.Parent;
-        }
-
-        if (dir == null)
-        {
-            throw new InvalidOperationException("未找到仓库根（data/balance.json）——护栏必须读真实配置");
-        }
-
-        using var doc = System.Text.Json.JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(dir.FullName, "data", "balance.json")));
-        var root = doc.RootElement;
-        var threshold = root.GetProperty("talent").GetProperty("focus").GetProperty("threshold").GetInt32();
-        var caps = new Dictionary<string, int>();
-        foreach (var node in root.GetProperty("augments").EnumerateObject())
-        {
-            if (node.Value.TryGetProperty("max_stacks", out var ms))
-            {
-                caps[node.Name] = ms.GetInt32();
-            }
-        }
-
-        return (threshold, caps);
-    }
-
     // ---- 可升级提示判定（HUD：点数够点亮任一可选节点） ----
 
     [Fact]

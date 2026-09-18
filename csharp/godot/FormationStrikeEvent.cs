@@ -285,8 +285,8 @@ public partial class FormationStrikeEvent : EncounterEventBase
     public override void _Process(double delta)
     {
         // 单帧推进上限（口径单源 FrameCache.MaxStepDelta）：开局巨帧（实测 >1.4s）会让本状态机
-        // 逐帧连跳——入场/转弯/投弹表在一两帧内跑完，编队闪现投完弹即离场（玩家与 event-probe
-        // 冒烟双双看不到过程）。钳后卡顿帧按小步推进，低帧率下事件周期拉长而非被跳过
+        // 逐帧连跳——入场/转弯/投弹表在一两帧内跑完，编队闪现投完弹即离场（玩家看不到过程）。
+        // 钳后卡顿帧按小步推进，低帧率下事件周期拉长而非被跳过
         var d = Mathf.Min((float)delta, FrameCache.MaxStepDelta);
         ProcessPendingBombParks(); // 帧末停放不限事件状态——IDLE 期也可能有待停放的回收弹
         if (_state == State.IDLE)

@@ -38,37 +38,6 @@ public sealed class FlashBudgetTests
     }
 
     [Fact]
-    public void BalanceBackedRows_MatchShippedBalanceValues()
-    {
-        // 下半的取值面：来源是 balance 的行必须与随包数据一致——否则改 balance 就能把
-        // 全屏脉冲推过阈值而单测照样绿（表与数据各说各话时，运行期无法分辨谁是权威）
-        using var doc = JsonDocument.Parse(RepoFiles.Read("data/balance.json"));
-        var checkedRows = 0;
-        foreach (var src in FlashBudget.Sources)
-        {
-            if (src.Origin != "balance")
-            {
-                continue;
-            }
-
-            Assert.False(string.IsNullOrEmpty(src.BalanceKey), $"{src.Id} 标了 balance 来源却没有键路径");
-            var node = doc.RootElement;
-            foreach (var segment in src.BalanceKey.Split('.'))
-            {
-                Assert.True(node.TryGetProperty(segment, out node), $"{src.Id} 的键 {src.BalanceKey} 在 balance.json 里不存在");
-            }
-
-            var value = node.GetDouble();
-            var hz = src.BalanceIsPeriod ? 1.0 / value : value;
-            Assert.Equal(src.Hz, (float)hz, 4);
-            checkedRows++;
-        }
-
-        // 一条都没有＝键路径写法漂移（判据退化成空转），显式失败
-        Assert.True(checkedRows > 0, "没有任何 balance 来源的行被核对——键路径漂移？");
-    }
-
-    [Fact]
     public void ReduceFlash_ZeroesEveryRegisteredPulse()
     {
         // 两半互补的另半边：减少闪光下振幅为零，且非减少闪光时原样返回

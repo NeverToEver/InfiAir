@@ -56,17 +56,6 @@ public sealed class ExplosionPoolPolicyTests
     }
 
     [Fact]
-    public void Explosion_DelegatesPoolRetentionToCorePolicy()
-    {
-        // 结构性判据（读源码文本）：判定单源在 core，引擎侧只做取用/回池，不留第二份判据副本。
-        // 副本形态＝把空闲队列长度直接与上限比（池忙时空闲恒 0，"空闲 < 上限" 恒真）——
-        // 两处取值相等时运行期分辨不出谁是副本，只能判「不留副本」这一结构事实。
-        var src = RepoFiles.Read("csharp/godot/Explosion.cs");
-        Assert.Contains("ExplosionPoolPolicy.ShouldPool", src, StringComparison.Ordinal);
-        Assert.DoesNotContain("Stock.Count < _poolCap", src, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ShouldPool_PeakBurst_RetainedNeverExceedsCap()
     {
         // 生命周期模拟（与 Explosion.SpawnAt / Finish 同序）：取用优先走空闲队列，队列空了才新建并

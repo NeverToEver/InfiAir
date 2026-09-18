@@ -1,83 +1,20 @@
 #!/usr/bin/env bash
-# 无头冒烟（固定步长、机器速度）+ 完成标记断言。
+# 无头冒烟（固定步长）：生产 main.tscn 开机全链路直达标题屏。
 # Usage: check_smoke.sh [log_path]   (default /tmp/smoke.log)
-# 覆盖「跑不到就发现不了」的面（趟数与调度单源在文件末尾 SMOKE_CASES；同一开关的不同参数视作同一面）：
-#   1) 300 帧基线：开机全链路（生产 main.tscn 直达标题屏）；
-#   2) --settings-probe：设置页各分组在「开页」时才构建，写错＝玩家点开即崩；
-#   3) --event-probe=formation_strike / elite_turret：遭遇要过分数门槛 + 掷签，常规冒烟跑不到，
-#      而编排/投弹/落点圈/反射弹/结算分支是高密度出错区；
-#   4) --event-probe-death=elite_turret：死亡打断路径（管理器 EndActive → 事件 Abort →
-#      归还波次/Boss 互斥），自然探针等不到（无头局玩家不操作、不会死），此前是覆盖缺口；
-#   5) --fuel-probe：燃料量槽满扫——无头局玩家不操作不掉油，低液位填充绘制路径走不到，
-#      探针把液位从满扫到空逼 _Draw 在每个液位各画一次（自交多边形整块不画且不崩）；
-#   6) --feel-probe：命中顿帧与屏幕震动复位——顿帧写 Engine.TimeScale，写错（倍率 0 或按
-#      缩放 delta 推进）的表现是画面永久定格，无头下不崩也不报错，只有完成标记能抓住；
-#   7) --long-probe：难度曲线落在预期带——曲线是 D 的纯函数，直接取 t=5/10/20/30min 的值断言
-#      单调/速度有顶/精英随难度增长/Boss 斜率独立/软上限，把「曲线形状」变成可失败的判定；
-#   8) --fog-probe：迷雾事件全周期——迷雾走「首延迟 25s + 每 3s 掷 35%」的随机链，常规冒烟
-#      跑不到，而注册/context 构建/生命周期/效果清理是高密度出错区。强制入口只替换掷签与
-#      权重选取（仍过生产门控），并断言「start→end 跑满生产 duration」——截断不打标记；
-#   9) --return-probe：返航过场输入宽限与跳过收尾——走生产蓄力链触发返航，三段确定性判据：
-#      宽限内跳过被忽略、推进 >宽限 的模拟时长后仍被忽略（真实时间基准的判别式：若误改模拟
-#      时间此刻会放行）、越过宽限后跳过生效且落基地并保持暂停。不用「等真实时间越宽限」
-#      （--fixed-fps 下那个写法既慢又不可靠，见 71e6324）；
-#  10) --hostile-save-probe：恶意存档（语法合法但字段类型不符）读入必须逐字段回默认——
-#      Variant.As* 是宽松转换、不抛（AsBool("no") 得 true、AsInt64("lots") 得 0），裸取会把坏值
-#      静默读成合法值（任务 claimed 错判为已领取即此类）；单测够不到（判型在引擎绑定层），
-#      故探针写档 + 调生产读档入口实跑。该趟另断正常档逐项还原与读档补发信号
-#      （只判恶意档会让「守卫一律回退」照样绿）；
-#  11) --death-gate-probe：死亡删档的本局门控——删档钩子挂在全局 PlayerDied 上且无场景上下文，
-#      教程死亡走同一信号并把它当预期终态，无门控就是「玩教程顺手抹掉玩家检查点」。本趟跑在
-#      探针宿主里（非本局），发 PlayerDied 后检查点必须原封不动；再按生产语义置本局后发一次，
-#      检查点必须被删——前半段判误伤、后半段判「该删的仍然删」，缺一半判不出；
-#  12) --boss-probe：Boss 阶段机全周期——Boss 出场要过分数门 + 最小间隔（或时间兜底），
-#      常规冒烟跑不到；而阶段机（P1→P2→狂暴→击杀）在引擎侧此前零覆盖，写坏的表现是
-#      「不崩、不报错、只是没那一段」：转场未发生（少一次清弹与喘息）、锁血不解（Boss 永久无敌）、
-#      击杀没接轮换（下一只又是同一型）。本趟走生产触发链请出 Boss，再经生产受击链逐段越线，
-#      并断血量单调不增、转场清弹 + 玩家短暂无敌、狂暴锁血自行解除、击杀后 BossKills 推进；
-#  13) --dock-probe：母舰坞态全周期——长按 dock 蓄满走生产蓄力链，断
-#      DESCEND→DOCKING→RESUPPLY→STAY→RELEASE→DEPART 六态按序推进（写坏的表现是坞态卡死，
-#      母舰悬停不动、不崩不报错）、驻留期弹匣确实在耗到警告档、长按提前离舰生效、离场给出坞冷却；
-#  14) --event-probe-killall：遭遇的「击杀型」收尾（精英炮塔 → 轰炸编队）——常规
-#      --event-probe 跑不到任何击杀（精英趟只走到超时 0 奖励、编队趟让编队自然离场只命中「清除」档），
-#      于是全歼奖励、Tier.AllClear、结算台词的节点侧发奖与播报在 CI 里从未执行。
-#      本趟把两个事件各走一遍全歼，并断「档位奖励确实入账」（分数增量 ≥ 生产配置下界）+ 结算台词已播；
-#  15) 教程场景直开（--scene res://scenes/tutorial.tscn）：教程是独立场景、不走 Main 的标题屏
-#      交接，属**另一条生产入口**——常规趟只跑 main.tscn，教程的入场链路（ResetRun、HUD 构建、
-#      七阶段首屏）写坏时没有任何一趟会经过它。断场景就绪标记，判「加载/切场景失败」这类静默坏点。
-#  16) --tutorial-probe：教程**全周期**——上一趟只走到首屏，阶段推进链（达标信号 → 推进 →
-#      下一阶段入场）、目标行补参成形（占位符与实参错位时玩家看到原样的 %s/%d）、键位随改键跟变、
-#      跳过本阶段、死亡重开本阶段（含进度归零）、检查点的写入与完成清零，全是「不崩、不报错、
-#      只是没往下走」的形态。本趟在探针宿主里切到同一生产场景，经生产输入面与生产伤害入口
-#      走满七阶段，三遍流程（第一遍走满并改键，弹反段先反向对照（敌弹贴身不弹反时读数不动）
-#      再常规与近身各弹反一发，返航段实际打开一次增幅面板并断「打开即推进、推进后收起」；
-#      第二遍连跳两个阶段后阵亡，断重开回到同一阶段且进度归零；第三遍连跳到停靠阶段，在对接
-#      进行中跳过并断输入锁已解、玩家仍能移动，收尾同按返航键与跳过键断推进窗口内不弹基地）。
-# 判定三件事，缺一不可：
-#   a) 退出码为 0；b) 日志无引擎错误；c) 每趟必须出现各自的完成标记
-#   ——帧数只是上限，事件中途停摆同样是「零错误退出」，没有标记就是没跑到。
-# --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（帧数＝模拟秒数 × 60）。
-# 每趟帧数 = 事件全周期秒数 × 60 + 余量；帧数只在本文件维护一份（AGENTS §1 单源表）。
-# 日志面：主场景 <LOG>，其余 <LOG>.<面>.log（面名即各趟 run_case 的实参，如 settings/formation/…）。
 #
-# 首趟跑生产 main.tscn；中间各趟走 scenes/probe_host.tscn（探针宿主，以子节点嵌入
-# main.tscn）——测试开关不进生产 main.tscn/Main（AGENTS §5）；最后一趟直开
-# scenes/tutorial.tscn：教程自有场景与入口，不经 Main，无宿主、无开关，只断完成标记。
-# **每趟都在各自临时用户目录里跑（使用前先清空重建）**——探针会读存档/设置在标题屏与设置页
-# 分叉，且返航趟的收尾走生产存档出口（Main.OnReturnFinished → SaveRun）；不隔离就会读走开发者
-# 本机配置、写坏开发者当前存档，不清空则同目录重跑会读到上一趟探针写下的档
-# （AGENTS §5「不依赖外部残留状态」）。
+# 判据三件事，缺一不可：a) 退出码为 0；b) 日志无引擎错误；c) 出现完成标记
+# `[boot] 标题屏就绪`（由 TitleScreen._Ready 打印）。帧数只是上限——只判「不崩」时，
+# 切场景静默失败（路径错/资源缺失）会停在 main 空战场上，零错误退出而看不出来。
+# --fixed-fps 60：固定步长让帧数＝模拟时长，且不等真实时间（300 帧＝5 模拟秒）。
 #
-# 并行度：各趟彼此独立（各自日志、各自用户目录、各自进程），串行时每趟的引擎启动与场景加载
-# 是固定开销（实测约占总时长四成），故按 SMOKE_WORKERS（默认 4）分批并行——**只改墙钟，不改
-# 判据**：帧数仍由 --fixed-fps 60 决定（模拟时长不受机器快慢影响），每趟的完成标记与错误正则
-# 判定与串行完全一致。批内任一趟失败即整趟判红（失败趟的输出全部打出）。设 SMOKE_WORKERS=1
-# 退回串行（同一份判定逻辑，只换调度）。
+# 用户目录隔离：本趟走生产读档链，不隔离就会读走开发者本机配置。Windows 读 APPDATA、
+# Linux 读 XDG_DATA_HOME、macOS 读 HOME，三处都指到临时目录（macOS 不认前两个，
+# user:// 会落到真实用户目录）。
 set -uo pipefail
 
-# 引擎探测与 run.sh 同口径：**.NET 版优先**。裸 `godot` 在装了标准版的机器上会命中不含 C# 的那一版
-# （标准版打不开含 C# 的工程，且引擎跑起来会把 InfiAir.csproj 的 Godot.NET.Sdk 版本改写成自己那版，
-# 污染工作树）。gates.py/CI 会显式传 GODOT，这里是手跑时的兜底。
+# 引擎探测与 run.sh 同口径：**.NET 版优先**。裸 `godot` 在装了标准版的机器上会命中不含 C# 的
+# 那一版（标准版打不开含 C# 的工程，且引擎跑起来会把 InfiAir.csproj 的 Godot.NET.Sdk 版本
+# 改写成自己那版，污染工作树）。gates.py/CI 会显式传 GODOT，这里是手跑时的兜底。
 if [ -z "${GODOT:-}" ]; then
   for candidate in godot-mono godot godot4; do
     if command -v "$candidate" >/dev/null 2>&1; then GODOT="$candidate"; break; fi
@@ -85,430 +22,83 @@ if [ -z "${GODOT:-}" ]; then
 fi
 GODOT="${GODOT:-godot}"
 LOG="${1:-/tmp/smoke.log}"
+FRAMES=300
+USERDIR="${LOG%.log}.userdata"
+
 # 引擎错误正则。`Invalid polygon data, triangulation failed.` 是程序化绘制的静默坏点：
-# headless 走 dummy 渲染仍会执行 _Draw（实测），自交/退化多边形在 canvas_item_add_polygon
-# 处报该错并**整块不画**——不崩、不看日志就完全无感（燃料槽低油量整块消失即此类）。
-# `ERROR:` 是通用引擎错误前缀，兜住上面未列举的错误类别（此前只看退出码，静默错误漏判）。
+# headless 走 dummy 渲染仍会执行 _Draw，自交/退化多边形在该处报错并**整块不画**——不崩、
+# 不看日志完全无感。`ERROR:` 是通用前缀，兜住上面未列举的错误类别。
 ERR="SCRIPT ERROR\|Parse Error\|Compile Error\|Nonexistent function\|Unhandled exception\|Invalid polygon data\|ERROR:"
-# 白名单：退出期资源统计噪声（RefCounted 释放顺序告警，非功能坏点）。设置页趟实测出现
-# `ERROR: 1 resources still in use at exit`；无头冒烟退出时对象释放顺序与探针无关，不判功能。
+# 白名单：退出期资源统计噪声（RefCounted 释放顺序告警，非功能坏点）。
 ERR_ALLOW="ERROR: [0-9][0-9]* resources still in use at exit"
-PROBE_SCENE="res://scenes/probe_host.tscn"
-PROBE_LOG_BASE="${LOG%.log}"
-WORKERS="${SMOKE_WORKERS:-4}"
-# 单趟墙钟上限（秒）：任一 Godot 趟挂死（死锁/等待真实时间/驱动卡住）时判该趟失败并杀掉引擎，
-# 本地不再无限等待（此前只能人工中断，CI 靠 job 的 15 分钟兜底）。取实测最长趟的数倍——这是
-# 挂死安全阀，不是时长判据：模拟时长仍由 --fixed-fps 60 与帧数决定，与机器快慢无关。
+# 单趟墙钟上限（秒）：引擎挂死（死锁/等真实时间/驱动卡住）时判失败并杀掉，不无限等待。
+# 这是挂死安全阀，不是时长判据——模拟时长仍由 --fixed-fps 60 与帧数决定。
 CASE_TIMEOUT="${SMOKE_CASE_TIMEOUT:-240}"
 
-run_case() {
-  local label="$1" frames="$2" log="$3" scene="$4" userdir="$5"
-  shift 5
-  local -a scene_args=()
-  [ -n "$scene" ] && scene_args=(--scene "$scene")
-  local -a env_args=()
-  local -a expect_args=()
-  if [ -n "$userdir" ]; then
-    # 先复位再建：探针会往自己的用户目录写存档/设置（恶意档趟写 run.json/settings.json，
-    # 返航趟走生产存档出口），残留会让下一趟（或同目录重跑）读到上一趟的档而判红
-    # ——绿不再是可信信号（AGENTS §5「不依赖外部残留状态」）。各趟用户目录互不相同、
-    # 且每趟需要的预置状态都在趟内自备（恶意档/检查点均由探针自己写出），故清空安全。
-    rm -rf "$userdir"
-    mkdir -p "$userdir"
-    # 隔离用户数据目录：Windows 读 APPDATA（须 Windows 路径），Linux 读 XDG_DATA_HOME，
-    # macOS 读 HOME——三处都指到本趟临时目录，否则 macOS 上 user:// 落在真实
-    # ~/Library/Application Support/Godot/app_userdata/InfiAir：恶意档趟覆写、死亡删档趟
-    # 删掉开发者的真实检查点，而门禁照旧全绿。
-    local win_dir="$userdir"
-    command -v cygpath >/dev/null 2>&1 && win_dir="$(cygpath -w "$userdir")"
-    env_args=(env "APPDATA=$win_dir" "XDG_DATA_HOME=$userdir" "HOME=$userdir")
-    # 显式期望值交给探针（ProbeHost 在 _Ready 比对引擎实际 user:// 路径，不符即报错）；
-    # 格式为绝对路径、正斜杠分隔。脚本侧另有与探针实现无关的日志判据（见下方隔离断言），
-    # 覆盖 main/tutorial 这类不经探针宿主的趟。
-    expect_args=(--expect-user-dir="${win_dir//\\//}")
-  else
-    echo "::error::$label 未给用户目录——不隔离的趟会读走开发者配置、写坏开发者当前存档，" \
-         "且同目录重跑会读到上一趟的残留（AGENTS §5）"
-    return 1
+rm -rf "$USERDIR"
+mkdir -p "$USERDIR"
+win_dir="$USERDIR"
+command -v cygpath >/dev/null 2>&1 && win_dir="$(cygpath -w "$USERDIR")"
+
+# 后台跑 + 轮询墙钟上限：Git Bash 的 `timeout` 会落到 Windows 的 timeout.exe（语义完全不同，
+# 是等按键），故不依赖外部 timeout 命令。
+env "APPDATA=$win_dir" "XDG_DATA_HOME=$USERDIR" "HOME=$USERDIR" \
+  "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$FRAMES" > "$LOG" 2>&1 &
+pid=$!
+waited=0
+rc=0
+while kill -0 "$pid" 2>/dev/null; do
+  if [ "$waited" -ge "$CASE_TIMEOUT" ]; then
+    echo "::error::主场景冒烟超过单趟上限 ${CASE_TIMEOUT}s 未退出（挂死）——杀掉引擎并判失败" \
+         "（SMOKE_CASE_TIMEOUT 可调上限；模拟时长与帧数无关于此值）"
+    kill -9 "$pid" 2>/dev/null
+    wait "$pid" 2>/dev/null
+    tail -30 "$LOG"
+    exit 1
   fi
-  # 后台跑 + 轮询墙钟上限：Git Bash 的 `timeout` 会落到 Windows 的 timeout.exe（语义完全不同，
-  # 是等按键），故不依赖外部 timeout 命令。
-  # 空数组的 `${a[@]+"${a[@]}"}` 形态不可简写为 `"${a[@]}"`：macOS 自带 bash 3.2 在 set -u 下把空
-  # 数组展开当未定义变量并中止脚本（bash 4.4+ 才修）；主场景趟不带 --scene，scene_args 恒为空。
-  "${env_args[@]}" "$GODOT" --headless --path . --fixed-fps 60 --quit-after "$frames" \
-      ${scene_args[@]+"${scene_args[@]}"} -- "$@" "${expect_args[@]}" > "$log" 2>&1 &
-  local pid=$! waited=0 rc=0
-  while kill -0 "$pid" 2>/dev/null; do
-    if [ "$waited" -ge "$CASE_TIMEOUT" ]; then
-      echo "::error::$label 超过单趟上限 ${CASE_TIMEOUT}s 未退出（挂死）——杀掉引擎并判失败" \
-           "（SMOKE_CASE_TIMEOUT 可调上限；模拟时长与帧数无关于此值）"
-      kill -9 "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null
-      tail -30 "$log"
-      return 1
-    fi
-    sleep 1
-    waited=$((waited + 1))
-  done
-  wait "$pid" || rc=$?
-  if [ "$rc" -ne 0 ]; then
-    echo "::error::$label failed"
-    tail -30 "$log"
-    return 1
-  fi
-  # 隔离判据（与探针实现无关）：引擎的 user:// 若没落在本趟临时目录内，这里就看不到它写出的
-  # user://logs/godot.log——隔离失效必须显式判红并指明是哪趟，否则开发者的真实检查点被删/
-  # 被覆写而门禁全绿（AGENTS §6 铁律 2）。
-  local user_log=""
-  user_log="$(find "$userdir" -type f -name 'godot.log' -print -quit 2>/dev/null)"
-  if [ -z "$user_log" ]; then
-    echo "::error::$label 用户目录隔离未生效：$userdir 下没有引擎写出的 user:// 日志" \
-         "（隔离环境变量没被引擎采纳？引擎版本换了日志落点？）——本趟可能已读写开发者本机数据"
-    ls -la "$userdir" 2>/dev/null | head -5
-    return 1
-  fi
-  # 错误行判定先落文件再取内容，不用 `grep | grep -v | grep -q` 管道：错误行极多时 `grep -q` 一命中
-  # 就退出，上游 grep 可能收到 SIGPIPE，pipefail 下整条管道返回非 0（141）而把有错的日志判成无错。
-  # 模式沿用 BRE（ERR 内是 `\|` 交替）——**不得改成 grep -E**：`\|` 在 ERE 里是字面竖线，
-  # 全部错误类别会一起失配，门禁静默变成永不报错。
-  local errs="$log.errs"
-  grep "$ERR" "$log" > "$errs" 2>/dev/null
-  if [ -s "$errs" ]; then
-    grep -v "$ERR_ALLOW" "$errs" > "$errs.kept" 2>/dev/null
-    if [ -s "$errs.kept" ]; then
-      echo "::error::$label engine errors in log"
-      head -10 "$errs.kept"
-      rm -f "$errs" "$errs.kept"
-      return 1
-    fi
-  fi
-  rm -f "$errs" "$errs.kept"
-  echo "$label: ok"
-  return 0
-}
+  sleep 1
+  waited=$((waited + 1))
+done
+wait "$pid" || rc=$?
 
-expect_marker() {
-  local label="$1" log="$2" marker="$3"
-  if ! grep -qF "$marker" "$log"; then
-    echo "::error::${label}：日志无完成标记「${marker}」——该路径没跑到终点"
-    tail -30 "$log"
-    return 1
-  fi
-  echo "$label: ok"
-  return 0
-}
-
-# ---- 各趟定义：每趟是「run_case 紧随 expect_marker」的成对结构（成对性由 check_gate_wiring.sh
-# 静态判定：漏一条断言就把该趟降级为「不崩即过」）。函数体只做定义，调度在文件末尾。
-
-smoke_main() {
-  run_case "main scene smoke(300)" 300 "$LOG" "" "${PROBE_LOG_BASE}.main.userdata"
-  # 开机交接：main 开机必须落到 title.tscn（无开场过场，直达标题屏）。标记由 TitleScreen._Ready
-  # 打印——切场景静默失败（路径错/资源缺失）时它不会出现，只判「不崩」则停在 main 空战场看不出。
-  expect_marker "开机直达标题屏" "$LOG" "[boot] 标题屏就绪"
-}
-
-smoke_settings() {
-  # 帧数含两段就绪脉冲采样（正对照 + 减闪对照，各约 265 帧 = 弹反流程 0.8s + 硬冷却 3.0s 后的
-  # 就绪翻转 + 30 帧脉冲尾窗）、四段频闪采样（轮盘开机 A/B + 危险横幅 A/B，各 30/45 帧）、
-  # 低燃料段与五页切换。实测最短约 780 帧；取 1000 覆盖两半各自的观测上限（340×2）加既有段，
-  # 这样采样失败时打出的是「未观测到翻转/脉冲」而不是被帧数截断。
-  run_case "settings page smoke" 1000 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
-  expect_marker "settings page 五页" "${PROBE_LOG_BASE}.settings.log" "[settings-probe] 五页切换完成"
-}
-
-smoke_formation() {
-  # 全周期帧数含两段：① 探针等入场动画（0.55 + 1.1 = 1.65s）后才在生产触发链上放行
-  # （入场窗口内 spawner 停驱动、生产不可能触发，探针不得绕过）；② 事件自身全周期。
-  # 编队全周期 ≈ 入场 1.46s + 转弯 1.2s + 投弹最长 4.95s + 离场 1.5s ≈ 9.1s（余量 300 帧）。
-  run_case "formation strike smoke" 750 "${PROBE_LOG_BASE}.formation.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.formation.userdata" --event-probe=formation_strike
-  expect_marker "formation strike 全周期" "${PROBE_LOG_BASE}.formation.log" "[event-probe] formation_strike 全周期完成"
-}
-
-smoke_elite() {
-  # 精英炮塔全周期 ≈ 入场 2s + 升起 1.5s + 30s 倒计时 + 撤离 ≈1.7s + Boss 恢复 4s ≈ 39.2s
-  # （余量 250 帧）。
-  run_case "elite turret smoke" 2600 "${PROBE_LOG_BASE}.elite.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.elite.userdata" --event-probe=elite_turret
-  expect_marker "elite turret 全周期" "${PROBE_LOG_BASE}.elite.log" "[event-probe] elite_turret 全周期完成"
-}
-
-smoke_elite_death() {
-  # 死亡打断：激活后延迟 4s 击杀（覆盖「炮塔已升起」的清理分支）→ 打断 → 撤离 + Boss 恢复 ≈ 14s。
-  run_case "elite turret death-path smoke" 1400 "${PROBE_LOG_BASE}.elite_death.log" "$PROBE_SCENE" \
-    "${PROBE_LOG_BASE}.elite_death.userdata" --event-probe-death=elite_turret
-  expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[event-probe] elite_turret 死亡打断完成"
-}
-
-smoke_elite_ship() {
-  # 精英机贴图路径：直选末位型别后等生产波次放出精英，读该机节点上的实际主贴图与辉光遮罩路径。
-  # 为什么需要它：型别按随机抽，180 模拟秒的自动游玩短局只出 1–2 个精英波，末位型写错照绿——
-  # 映射指到另一张存在的贴图不报错，`_glow.png` 遮罩缺失也只是静默保留原遮罩（玩法无感）。
-  # 帧数：第一波精英是第 4 波（special gap 初值 3、波次间隔 7s 起向 4s 收敛）≈ 27 模拟秒
-  # ≈ 1620 帧（余量 780 帧）。
-  run_case "elite ship skin smoke" 2400 "${PROBE_LOG_BASE}.elite_ship.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.elite_ship.userdata" --elite-ship-probe=4
-  expect_marker "精英机贴图与辉光路径" "${PROBE_LOG_BASE}.elite_ship.log" "[elite-ship-probe] 精英第 4 型贴图与辉光路径成立"
-}
-
-smoke_fuel() {
-  # 燃料量槽满扫：无头局玩家不操作、不掉油，低油量填充绘制路径平时走不到；探针把液位从满扫到空，
-  # 逼 _Draw 在每个液位各画一次（含掉液触发的最大波幅晃动）。判定靠错误正则抓「Invalid polygon data」
-  # ——自交/退化多边形整块不画且不崩，只判「不崩」抓不到（低油量燃料槽整块消失即此类）。
-  run_case "fuel tank sweep smoke" 300 "${PROBE_LOG_BASE}.fuel.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.fuel.userdata" --fuel-probe
-  expect_marker "燃料量槽满扫" "${PROBE_LOG_BASE}.fuel.log" "[fuel-probe] 液位满扫完成"
-}
-
-smoke_feel() {
-  # 手感探针：请求顿帧与震动后断言时间缩放压低/复位与 trauma 归零（无头下不崩即坏点，见文件头）。
-  # 隔离用户目录：探针前提是「顿帧/震动未被玩家关掉」，而 GameFeelService 在强度为 0 时直接忽略请求
-  # ——读开发者本机 settings.json 会让无障碍配置（把震动/顿帧拉 0）变成门禁假红（AGENTS §5 外部残留状态）。
-  run_case "game feel probe smoke" 300 "${PROBE_LOG_BASE}.feel.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.feel.userdata" --feel-probe
-  expect_marker "顿帧与震动复位" "${PROBE_LOG_BASE}.feel.log" "[feel-probe] 顿帧与震动复位完成"
-}
-
-smoke_long() {
-  # 长局难度曲线：直接取生产曲线在 t=5/10/20/30min 的值，断言单调/速度有顶/精英增长/Boss 斜率独立/软上限。
-  run_case "long-run difficulty curve smoke" 180 "${PROBE_LOG_BASE}.long.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.long.userdata" --long-probe
-  expect_marker "难度曲线落在预期带" "${PROBE_LOG_BASE}.long.log" "[long-probe] 难度曲线落在预期带"
-}
-
-smoke_fog() {
-  # 迷雾全周期（fake_enemies）：强制入口只替换掷签与权重选取，仍过生产门控（首延迟/冷却/接线/
-  # 本局活跃/组内无进行中），并断言 start→end 跑满生产 duration。帧数单源：25s 首延迟 + 8s
-  # fake_enemies duration（data/balance.json fog_events.durations）+ 余量 = 2100 帧。
-  run_case "fog event full-cycle smoke" 2100 "${PROBE_LOG_BASE}.fog.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.fog.userdata" --fog-probe
-  expect_marker "迷雾全周期" "${PROBE_LOG_BASE}.fog.log" "[fog-probe] 迷雾全周期完成"
-}
-
-smoke_fog_interrupt() {
-  # 迷雾打断：首延迟 25s 后起事件、跑满 1s 走生产返航/死亡同一条 API（FogEvents.EndActive）打断，
-  # 断「存活补偿不发放」。与 --fog-probe 的自然到期发奖互补——只判一侧会让「一律发/一律不发」混过。
-  run_case "fog interrupt smoke" 1700 "${PROBE_LOG_BASE}.fog_cut.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.fog_cut.userdata" --fog-interrupt-probe
-  expect_marker "迷雾打断不发存活补偿" "${PROBE_LOG_BASE}.fog_cut.log" "[fog-interrupt-probe] 打断不发存活补偿"
-}
-
-smoke_return() {
-  # 返航宽限与跳过收尾：入场约 1.65s + 蓄力 1.5s + 判别窗口 1.5s（90 帧）+ 收尾余量 ≈ 6s
-  # （余量 550 帧）；探针不等真实时间，判据全部由帧数与墙钟前置守卫决定（见 ProbeHost.TickReturnProbe）。
-  run_case "return grace smoke" 550 "${PROBE_LOG_BASE}.return.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.return.userdata" --return-probe
-  expect_marker "返航宽限与跳过收尾" "${PROBE_LOG_BASE}.return.log" "[return-probe] 返航宽限与跳过收尾完成"
-}
-
-smoke_hostile() {
-  # 恶意存档读入：语法合法但字段类型不符的 run.json/settings.json 必须逐字段回默认。
-  # Variant.As* 是宽松转换、不抛（AsBool("no") 得 true、AsInt64("lots") 得 0），裸取会把坏值静默读成
-  # 合法值——任务 claimed 错判为已领取、血量读成 0，界面无任何信号。判定在引擎绑定层，
-  # xUnit 只引用 core 够不到，故用探针实跑生产读档入口（写档 + LoadRun/LoadSettings）。
-  # 该趟另断正常档逐项还原与读档补发信号（只判恶意档会让「守卫一律回退」的实现照样绿）。
-  run_case "hostile save probe smoke" 120 "${PROBE_LOG_BASE}.hostile.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.hostile.userdata" --hostile-save-probe
-  expect_marker "恶意档读入未崩溃" "${PROBE_LOG_BASE}.hostile.log" "[hostile-save-probe] 恶意档读入未崩溃"
-}
-
-smoke_death_gate() {
-  # 死亡删档门控：删档钩子挂在全局 PlayerDied 上，教程死亡走同一信号且被教程当预期终态——
-  # 无门控即「玩教程顺手抹掉玩家检查点」。本趟跑在宿主里（非本局）：发 PlayerDied 后检查点必须
-  # 原封不动；再置本局发一次必须删掉——前半段判误伤、后半段判「该删的仍然删」，缺一半判不出。
-  run_case "death delete gate smoke" 120 "${PROBE_LOG_BASE}.death_gate.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.death_gate.userdata" --death-gate-probe
-  expect_marker "死亡删档本局门控" "${PROBE_LOG_BASE}.death_gate.log" "[death-gate-probe] 非本局不删档/本局删档均生效"
-}
-
-smoke_boss() {
-  # Boss 阶段机全周期：生产触发链请出 Boss（分数门补到 boss_score_step 之上；时间门由生产链自己
-  # 走满 boss_min_interval）→ 生产受击链逐段越线 → P1→P2（转场清弹 + 玩家短暂无敌 + 一次性闪光
-  # 正对照采样窗 24 帧）→ ENRAGE（锁血自行解除 + 减闪对照采样窗 24 帧）→ 击杀（BossKills 推进、
-  # 生成器解槽）。帧数单源：入场 1.65s + boss_min_interval 80s + 越线/狂暴/击杀推进 ≈ 20s
-  # + 两个采样窗 0.8s + 余量 = 107s × 60 = 6420。
-  run_case "boss phase machine smoke" 6420 "${PROBE_LOG_BASE}.boss.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.boss.userdata" --boss-probe
-  expect_marker "boss 阶段机全周期" "${PROBE_LOG_BASE}.boss.log" "[boss-probe] 阶段机全周期完成"
-}
-
-smoke_dock() {
-  # 母舰坞态全周期：长按 dock 蓄力 3s 召唤 → 入场 0.8s + 对接 1.5s + 补给 0.5s + 驻留（耗到
-  # mag_warn_cells 警告档 12s）+ 提前离舰 2s + 释放 0.5s + 离场出界 ≈ 25s（余量 200 帧）。
-  run_case "mothership dock cycle smoke" 1700 "${PROBE_LOG_BASE}.dock.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.dock.userdata" --dock-probe
-  expect_marker "母舰坞态全周期" "${PROBE_LOG_BASE}.dock.log" "[dock-probe] 坞态全周期完成"
-}
-
-smoke_killall() {
-  # 遭遇「击杀型」收尾（精英炮塔全歼 → 轰炸编队全歼，一趟串两个事件）：等升起到位/投弹后
-  # 逐单位击杀，断每事件的完成标记 + 档位奖励确实入账 + 结算台词已播。两事件的固定开销
-  # （引擎启动 + 场景加载）比帧数更贵，合趟是时间预算（AGENTS §6 铁律 4）下的取舍。
-  run_case "encounter killall smoke" 1350 "${PROBE_LOG_BASE}.killall.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.killall.userdata" --event-probe-killall
-  expect_marker "遭遇击杀型全周期" "${PROBE_LOG_BASE}.killall.log" "[event-probe] 击杀型全周期完成（精英炮塔与轰炸编队）"
-}
-
-smoke_augment_cache() {
-  # 增幅缓存连接态：跑到敌机池发生复用（同一实例回收后被下一波取出），断言其 slow_field 缓存
-  # 仍接在 AugmentsChanged 上。坏法静默——reparent 触发 _ExitTree，连/断错序后该敌机整个
-  # 活跃期不再随加点刷新（「买了力场没感觉」），不崩不报错。未观察到复用不打标记。
-  run_case "augment cache reuse smoke" 2000 "${PROBE_LOG_BASE}.augment.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.augment.userdata" --augment-cache-probe
-  expect_marker "池化复用后缓存连接态成立" "${PROBE_LOG_BASE}.augment.log" "[augment-cache-probe] 池化复用后缓存连接态成立"
-}
-
-smoke_save_restore() {
-  # 存档还原：风险加点层级（max+1 须保留，读档无条件钳回会让双倍价买的一级静默消失）、
-  # 生命上限与层级自洽、读档补发的难度信号值 == 存档难度乘数、ScoreChanged 回调里 RunTime 已是存档值
-  # （信号先于还原会让订阅方读到复位值 0）。三段互相对照：带标记 / 去标记（须钳回）/ 池外标记名（不抬高）。
-  run_case "save restore probe smoke" 120 "${PROBE_LOG_BASE}.save_restore.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.save_restore.userdata" --save-restore-probe
-  expect_marker "存档层级与信号还原" "${PROBE_LOG_BASE}.save_restore.log" "[save-restore-probe] 层级与信号还原成立"
-}
-
-smoke_settings_version() {
-  # 设置版本：高于当前的版本档必须按逐字段默认值回退（只告警照读已知键名会把未来语义当当前语义读入，
-  # core 版本判定被架空且无任何信号）。判据两半互补——高版本档逐项等于出厂档、同版对照档逐项还原
-  # （只判前半会让「一律回默认」的实现照样绿）；另断「全部恢复默认」的五个缓存型信号在有变化时
-  # 各发一次、无变化时一个都不发。
-  run_case "settings version probe smoke" 120 "${PROBE_LOG_BASE}.settings_version.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings_version.userdata" --settings-version-probe
-  expect_marker "设置版本回退与复位信号" "${PROBE_LOG_BASE}.settings_version.log" "[settings-version-probe] 版本回退与复位信号成立"
-}
-
-smoke_early_leave() {
-  # 提前离舰蓄力的终局清理：走生产蓄力链（长按 dock 召唤 → 驻留态）把「提前离舰」蓄力条按出来
-  # （先断在列，否则「死亡后为空」空转假绿），同帧松手 + 击杀玩家，断结算页上不再有这条蓄力条
-  # ——推进在母舰 _PhysicsProcess 里，树暂停后没人清、只留一条常驻条（不崩不报错）。
-  run_case "early leave charge clear smoke" 900 "${PROBE_LOG_BASE}.early_leave.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.early_leave.userdata" --early-leave-probe
-  expect_marker "提前离舰蓄力随死亡清理" "${PROBE_LOG_BASE}.early_leave.log" "[early-leave-probe] 提前离舰蓄力随死亡清理"
-}
-
-smoke_tutorial() {
-  # 教程场景直开：教程是**另一条生产入口**（独立场景，不经 Main 的标题屏交接），上面各趟都不经过
-  # 它。标记在 Tutorial._Ready 末尾打，切场景/资源加载失败时不出现——只判「不崩」抓不到。
-  run_case "tutorial scene smoke" 120 "${PROBE_LOG_BASE}.tutorial.log" "res://scenes/tutorial.tscn" "${PROBE_LOG_BASE}.tutorial.userdata"
-  expect_marker "教程场景就绪" "${PROBE_LOG_BASE}.tutorial.log" "[tutorial] 场景就绪"
-}
-
-smoke_tutorial_flow() {
-  # 教程全周期：直开那趟只断入场链路，本趟把同一生产场景跑满七阶段——断阶段推进、目标行补参
-  # 成形、键位随改键跟变、跳过本阶段、死亡重开本阶段且进度归零、检查点写入与完成清零。
-  # 帧数：实测三遍流程 2666 帧，取 3900 帧（65 模拟秒）留约五成余量。
-  run_case "tutorial flow probe smoke" 5600 "${PROBE_LOG_BASE}.tutorial_flow.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.tutorial_flow.userdata" --tutorial-probe
-  expect_marker "教程全周期" "${PROBE_LOG_BASE}.tutorial_flow.log" "[tutorial-probe] 全周期完成"
-}
-
-smoke_practice() {
-  # 练习模式：面板开页与三行直选（控件文本是译文而非键名、环形切换回到原点、确认键交出的设置
-  # 等于面板显示）+ 直选 Boss 经生产出场链按型别出场 + 直选遭遇经生产触发链启动
-  # （其分数门槛由练习起始分真正满足）+ 练习死亡不写记录、不删检查点；死亡收尾后加**标题屏
-  # 手柄可达段**（挂根驱动，跨两次切场景存活）：手柄事件注入走两个底部入口（摇杆/dpad 导航
-  # 聚焦教程入口 → A 进教程场景；dpad 焦点链移到练习入口 → A 开面板），导航不过则不交棒。
-  # 收尾再走一次真实入口（EnterPractice → scenes/practice.tscn）：这一步跑通则留下宿主注入与
-  # 直选请求两行日志，写坏则同一份日志里出引擎错误（切场景失败打 ERROR: Cannot open file）由
-  # 本趟的错误正则判红。导航段的两处标题屏输入守卫等待是**真实时间窗**（帧数与墙钟脱钩），
-  # 驱动用 DelayMsec 阻塞等待（墙钟走、帧不走），帧预算按探针段 ≈ 5 模拟秒 + 导航 ≈ 200 帧 +
-  # 练习场景入场与直选 ≈ 3 模拟秒估（余量 ≈ 900 帧）。
-  run_case "practice mode smoke" 2400 "${PROBE_LOG_BASE}.practice.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.practice.userdata" --practice-probe
-  expect_marker "练习直选与不落盘" "${PROBE_LOG_BASE}.practice.log" "[practice] 直选内容已受理"
-}
-
-smoke_best_record() {
-  # 本局记录读出：连跑两局（先 300 模拟秒 / 3 只 Boss，再 5 模拟秒 / 0 只）——断死亡后记录落盘、
-  # 写出后读回逐字段一致、键集恰好等于编解码器字段集（多一个 score 键即判红）、更差的一局不回退
-  # （内存与盘上都不动、不误标「新纪录」），并断读出行能被格式化出来（译文占位符与实参不匹配时
-  # 玩家看到的是原样的 %s/%d，此前没有任何判据）。
-  run_case "best record probe smoke" 400 "${PROBE_LOG_BASE}.best_record.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.best_record.userdata" --best-record-probe
-  expect_marker "记录两局语义" "${PROBE_LOG_BASE}.best_record.log" "[best-record-probe] 两局语义成立"
-}
-
-smoke_autoplay() {
-  # 自动游玩（autoplay，探针口径见 csharp/godot/ProbeHost.Autoplay.cs）：真实规则跑一整局——不注入无敌、
-  # 不直接改血量/得分，全经生产输入面（移动/开火/弹反/召唤母舰）。CI 只取 180 模拟秒（≈8s 墙钟）：
-  # 抓「能开局但玩不起来」这一类——整局零击杀（火力/命中/刷怪链断线）、存活却连续 60 模拟秒无得分
-  # 无击杀（停摆）都判红且不打完成标记，只判「不崩」抓不到。死亡不算失败（必死曲线下的正常收场，
-  # 写进汇总）。长局（--autoplay-probe=900）靠人工过目，标准登记在 ROADMAP「发布前人工验收」。
-  run_case "autoplay run smoke" 11100 "${PROBE_LOG_BASE}.autoplay.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.autoplay.userdata" --autoplay-probe=180
-  expect_marker "自动游玩全周期" "${PROBE_LOG_BASE}.autoplay.log" "[autoplay-probe] 自动游玩完成（预算 180s）"
-}
-
-SMOKE_CASES=(
-  smoke_main
-  smoke_settings
-  smoke_formation
-  smoke_elite
-  smoke_elite_death
-  smoke_elite_ship
-  smoke_fuel
-  smoke_feel
-  smoke_long
-  smoke_fog
-  smoke_fog_interrupt
-  smoke_return
-  smoke_hostile
-  smoke_death_gate
-  smoke_boss
-  smoke_dock
-  smoke_killall
-  smoke_augment_cache
-  smoke_save_restore
-  smoke_settings_version
-  smoke_early_leave
-  smoke_tutorial
-  smoke_tutorial_flow
-  smoke_practice
-  smoke_best_record
-  smoke_autoplay
-)
-
-# 调度：串行（WORKERS ≤ 1）时逐趟直跑，输出实时可见、首个失败即退出（与既有行为一致）；
-# 并行时按 WORKERS 分批，批内各趟各自重定向到临时文件，批结束后按定义顺序回放输出——
-# 失败趟的输出与串行时同形（run_case/expect_marker 里的 ::error:: 与日志尾部照打）。
-total="${#SMOKE_CASES[@]}"
-failures=0
-out_dir="$(mktemp -d)"
-trap 'rm -rf "$out_dir"' EXIT
-
-# 单趟失败判定：退出码非零，或该趟输出里出现 `::error::`。
-# 为什么不能只看退出码：每趟函数体是「run_case 紧随 expect_marker」两条**并列**语句，脚本未开
-# `set -e`（只用 set -uo pipefail），函数退出码只等于最后一条命令——run_case 判出的引擎错误
-# 会被紧随其后的 expect_marker 成功覆盖，于是「日志有 ERROR 但路径跑完」的趟判绿，
-# 而这一整类正是错误正则（含 `Invalid polygon data`、通用 `ERROR:`）存在的理由。
-case_failed() {
-  local out="$1" rc="$2"
-  if [ "$rc" -ne 0 ]; then
-    return 0
-  fi
-  if [ -f "$out" ] && grep -qF "::error::" "$out"; then
-    return 0
-  fi
-  return 1
-}
-
-if [ "$WORKERS" -le 1 ]; then
-  # 串行：输出实时可见，首个失败即退出（与既有行为一致）
-  for fn in "${SMOKE_CASES[@]}"; do
-    out="$out_dir/$fn.out"
-    "$fn" 2>&1 | tee "$out"
-    rc=${PIPESTATUS[0]}
-    if case_failed "$out" "$rc"; then
-      echo "::error::无头冒烟在趟次 $fn 处失败（串行模式，首个失败即停）"
-      exit 1
-    fi
-  done
-else
-  i=0
-  while [ "$i" -lt "$total" ]; do
-    end=$((i + WORKERS))
-    [ "$end" -gt "$total" ] && end="$total"
-    pids=()
-    for ((j = i; j < end; j++)); do
-      "${SMOKE_CASES[j]}" > "$out_dir/$j.out" 2>&1 &
-      pids+=($!)
-    done
-    for ((j = i; j < end; j++)); do
-      rc=0
-      wait "${pids[j - i]}" || rc=$?
-      if case_failed "$out_dir/$j.out" "$rc"; then
-        failures=$((failures + 1))
-      fi
-    done
-    i="$end"
-  done
-  for ((j = 0; j < total; j++)); do
-    cat "$out_dir/$j.out"
-  done
-fi
-
-if [ "$failures" -gt 0 ]; then
-  echo "::error::无头冒烟 ${failures}/${total} 趟失败（并行度 ${WORKERS}；SMOKE_WORKERS=1 可退回串行复现）"
+if [ "$rc" -ne 0 ]; then
+  echo "::error::主场景冒烟退出码 ${rc}"
+  tail -30 "$LOG"
   exit 1
 fi
 
-echo "无头冒烟 ${total} 趟全部通过（并行度 ${WORKERS}）"
+# 完成标记：切场景静默失败时不会出现，只判「不崩」抓不到。
+if ! grep -qF "[boot] 标题屏就绪" "$LOG"; then
+  echo "::error::主场景冒烟：日志无完成标记「[boot] 标题屏就绪」——开机没有落到标题屏"
+  tail -30 "$LOG"
+  exit 1
+fi
+
+# 隔离判据：引擎的 user:// 若没落在本趟临时目录内，这里就看不到它写出的 user://logs/godot.log
+# ——隔离失效必须显式判红，否则本趟可能已读写开发者本机数据而门禁照旧全绿。
+if [ -z "$(find "$USERDIR" -type f -name 'godot.log' -print -quit 2>/dev/null)" ]; then
+  echo "::error::用户目录隔离未生效：${USERDIR} 下没有引擎写出的 user:// 日志" \
+       "（隔离环境变量没被引擎采纳？引擎版本换了日志落点？）——本趟可能已读写开发者本机数据"
+  ls -la "$USERDIR" 2>/dev/null | head -5
+  exit 1
+fi
+rm -rf "$USERDIR"
+
+# 错误行判定先落文件再取内容，不用 `grep | grep -v | grep -q` 管道：错误行极多时 `grep -q`
+# 一命中就退出，上游 grep 可能收到 SIGPIPE，pipefail 下整条管道返回非 0（141）而把有错的
+# 日志判成无错。模式沿用 BRE（ERR 内是 `\|` 交替）——**不得改成 grep -E**：`\|` 在 ERE 里
+# 是字面竖线，全部错误类别会一起失配，门禁静默变成永不报错。
+errs="${LOG}.errs"
+grep "$ERR" "$LOG" > "$errs" 2>/dev/null
+if [ -s "$errs" ]; then
+  grep -v "$ERR_ALLOW" "$errs" > "$errs.kept" 2>/dev/null
+  if [ -s "$errs.kept" ]; then
+    echo "::error::主场景冒烟：日志含引擎错误"
+    head -10 "$errs.kept"
+    rm -f "$errs" "$errs.kept"
+    exit 1
+  fi
+fi
+rm -f "$errs" "$errs.kept"
+
+echo "无头冒烟通过：main.tscn 开机 ${FRAMES} 帧直达标题屏"

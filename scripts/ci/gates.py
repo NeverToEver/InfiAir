@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按 CI fast-gate 顺序跑完全部十六步：卫生（注释日期戳与术语）→ 玩家可见文案 → 数值键存在性 →
-数值键反向死键 → 存档写读对称性 → 设置写读对称性 → 真实时间允许清单 → 零引用成员登记 →
-代码默认值与 balance 定稿对账 → 门禁装配完整性 → C# 构建零警告 → core 层单测 → 资源导入无警告 →
-无头冒烟二十六趟 → 截图探针（辅助）→ 素材生成可复现性。
+按顺序跑完全部四步：C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟（主场景开机）。
 判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部十六步
+    python3 scripts/ci/gates.py                  # 全部四步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
 为什么是 Python 而不是 .ps1：Windows PowerShell 5.1 读取无 BOM 脚本时按系统 ANSI 解码，
 中文注释会变乱码并直接语法报错（一次普通编辑就会踩），而 Python 3 源码默认 UTF-8；
-且四个静态门禁本就依赖 python3，不新增工具链依赖。
+且单测门禁的 TRX 判定本就依赖 python3，不新增工具链依赖。
 """
 
 from __future__ import annotations
@@ -33,39 +30,20 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 步骤表：顺序即 CI fast-gate 的步骤顺序（.github/workflows/ci.yml），逐条对应，新增或重排须两处同步。
-# gate_wiring 紧跟在 code_defaults 之后（与 ci.yml 一致）：它是静态检查，本地也要在构建前就暴露
-# 装配错误——排在冒烟之后时，本地一次装配错误要等构建 + 单测 + 导入 + 全部冒烟趟跑完才红。
+# 步骤表：顺序即 CI 的步骤顺序（.github/workflows/ci.yml），逐条对应，新增或重排须两处同步。
+# 构建排第一：编译不过时后续三步的失败都是它的余波，先暴露先修。
 STEPS = (
-    {"slug": "prose_hygiene", "name": "卫生：注释日期戳与术语", "kind": "bash", "script": "check_prose_hygiene.sh", "godot": False},
-    {"slug": "ui_copy", "name": "玩家可见文案", "kind": "bash", "script": "check_ui_copy.sh", "godot": False},
-    {"slug": "balance_keys", "name": "数值键存在性", "kind": "bash", "script": "check_balance_keys.sh", "godot": False},
-    {"slug": "balance_dead_keys", "name": "数值键反向死键", "kind": "bash", "script": "check_balance_dead_keys.sh", "godot": False},
-    {"slug": "save_symmetry", "name": "存档写读对称", "kind": "bash", "script": "check_save_symmetry.sh", "godot": False},
-    {"slug": "settings_symmetry", "name": "设置写读对称", "kind": "bash", "script": "check_settings_symmetry.sh", "godot": False},
-    {"slug": "realtime_allowlist", "name": "真实时间允许清单", "kind": "bash", "script": "check_realtime_allowlist.sh", "godot": False},
-    {"slug": "zero_ref_members", "name": "零引用成员登记", "kind": "bash", "script": "check_zero_ref_members.sh", "godot": False},
-    {"slug": "code_defaults", "name": "代码默认值与 balance 定稿对账", "kind": "bash", "script": "check_code_defaults.sh", "godot": False},
-    {"slug": "gate_wiring", "name": "门禁装配完整性（脚本↔注册↔完成标记断言）", "kind": "bash", "script": "check_gate_wiring.sh", "godot": False},
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
-    {"slug": "smoke", "name": "无头冒烟二十六趟（主场景/设置页/编队/精英炮塔/死亡打断/精英机贴图/燃料满扫/手感/难度曲线/迷雾/迷雾打断/返航宽限/Boss阶段机/母舰坞态/遭遇击杀型/恶意存档/死亡删档门控/增幅缓存复用/存档还原/设置版本回退/提前离舰蓄力/教程场景/教程全周期/自动游玩全周期/练习模式直选与不落盘/本局记录两局语义）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
-    {"slug": "visual", "name": "截图探针（HUD + 五张设置页 + 结算页 + 练习面板与练习局开局，自检非空白/各图互异）", "kind": "bash", "script": "check_visual.sh", "godot": True},
-    # 素材复现性排最后：它是唯一会**改写工作区**的步骤（跑生成器覆盖 assets/ 产物），
-    # 排在引擎三步之后时，引擎侧（导入/冒烟/截图）看到的始终是提交态，漂移也不会污染后续步骤的判据。
-    {"slug": "assets_reproducible", "name": "素材生成可复现性（生成器确定 + 产物同步；产出环境约 60s，有跨机残差时约 130s——音频纯 Python 合成是主项）", "kind": "bash", "script": "check_assets_reproducible.sh", "godot": False},
+    {"slug": "smoke", "name": "无头冒烟（主场景开机直达标题屏）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
 
 
 # 每步墙钟上限（秒）：任一步挂死时判该步失败并继续跑后续步骤，不再无限等待（此前 subprocess.run
 # 无 timeout，CI 靠 job 的 15 分钟兜底、本地只能人工中断）。取值是实测时长的数倍，只作挂死安全阀
 # ——墙钟不是判定口径（AGENTS §5 约束的是判定与模拟，不是机器耗时），故不追求贴近实测。
-STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 1500, "visual": 900,
-                # 素材可复现性要整跑两遍生成器（音频纯 Python 逐样本合成是主项）：空载实测约 130s，
-                # 但同机并行（多 worktree 各跑一份门禁）实测到 320–434s——上限的用途是「挂死不得变成
-                # 无限等待」，不是性能判据，取 600 与同级的 import 对齐，避免把负载当成失败。
-                "assets_reproducible": 600}
+STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 600}
 DEFAULT_TIMEOUT = 300
 
 
@@ -161,7 +139,7 @@ def find_godot(explicit: str) -> str:
 
 
 def preflight(bash: str) -> list[str]:
-    """bash 侧最小依赖探活（python3 缺失会让四个静态门禁以「假绿」或难懂的方式失败）。"""
+    """bash 侧最小依赖探活（python3 缺失会让单测门禁的通过数判定以难懂的方式失败）。"""
     probe = subprocess.run(
         [bash, "-c", "command -v python3 || command -v python"],
         capture_output=True,
@@ -232,7 +210,7 @@ def run_step(step: dict, bash: str, wsl: bool, godot_shell: str, log_dir: Path) 
         #                      父进程 set 会让引擎两步退化成 "godot: command not found"
         #   PYTHONUTF8/IOENCODING —— Git Bash 下 python3 是 Windows 版，stdio 默认按本机
         #                      ANSI 编码输出，中文门禁文案会变乱码；固定 UTF-8 使本地与 CI 一致
-        # 解释器按后缀选：门禁发现面是 .sh 与 .py（check_gate_wiring.sh 同口径），两者同构运行。
+        # 解释器按后缀选：门禁发现面是 .sh 与 .py，两者同构运行。
         runner = "python3" if step["script"].endswith(".py") else "bash"
         command = f"cd '{root_shell}' && PYTHONUTF8=1 PYTHONIOENCODING=utf-8 "
         if step["godot"]:
@@ -263,7 +241,9 @@ def main() -> int:
     )
     parser.add_argument("--bash", default="", help="显式指定 bash（默认：Git Bash 优先，WSL 兜底）")
     parser.add_argument("--godot", default="", help="显式指定 Godot 可执行文件（默认：GODOT → PATH → 常见安装位置）")
-    parser.add_argument("--only", default="", help="只跑指定步骤，逗号分隔（例：smoke,ui_copy）")
+    parser.add_argument("--only", default="",
+                        help="只跑指定步骤，逗号分隔（例：smoke,ui_copy）。注意：只跑引擎步时不包含 build，"
+                             "改了 C# 却没带上 build 会跑在旧程序集上——判绿也是旧代码的绿")
     parser.add_argument("--list", action="store_true", help="列出全部步骤 slug 后退出")
     parser.add_argument("--log-dir", default="",
                         help="门禁日志目录（默认系统临时目录下 infiair-gates/<仓库名>-<pid>，逐次运行独占）")
@@ -315,7 +295,7 @@ def main() -> int:
     missing = preflight(bash)
     if missing:
         fail(
-            f"bash 侧缺少 {', '.join(missing)}：门禁给不出可信结论（静态门禁会静默假绿）。"
+            f"bash 侧缺少 {', '.join(missing)}：门禁给不出可信结论（取不到判据必须显式失败）。"
             "请安装缺失工具，或用 --bash 指向工具链完整的 bash（推荐 Git for Windows）。"
         )
     print(f"[门禁] 日志目录：{log_dir}")

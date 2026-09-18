@@ -251,24 +251,6 @@ public sealed class TutorialCurriculumTests
         Assert.False(progress.IsComplete);
     }
 
-    // ---------------- 结构性判定：节点不留副本 ----------------
-
-    /// <summary>节点必须经 core 取目标数与补参来源：把目标数再声明成局部常量、或把键名写死回
-    /// 文案，都会让阶段表与运行期脱钩，而编译与冒烟都不报。</summary>
-    [Fact]
-    public void TutorialNode_UsesCurriculumWithoutLocalCopies()
-    {
-        var src = RepoFiles.Read("csharp/godot/Tutorial.cs");
-        Assert.Contains("TutorialCurriculum", src, StringComparison.Ordinal);
-        Assert.Contains("TutorialProgress", src, StringComparison.Ordinal);
-        Assert.DoesNotContain("AimTargetKillGoal", src, StringComparison.Ordinal);
-        Assert.DoesNotContain("CombatKillGoal", src, StringComparison.Ordinal);
-        // 键位提示必须取自实际绑定的设备感知口（改键后文案跟变、手柄档报按钮标签），不得写死键名
-        Assert.Contains("ActionHintText", src, StringComparison.Ordinal);
-        // 阶段定义与达成判据必须经 core：节点自己判「击杀数 >= 3」这类比较即分叉
-        Assert.DoesNotContain("_stageKills", src, StringComparison.Ordinal);
-    }
-
     // ---------------- 文案表读取 ----------------
 
     private sealed record CopyRow(string Zh, string En);

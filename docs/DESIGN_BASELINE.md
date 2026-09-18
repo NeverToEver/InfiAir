@@ -30,8 +30,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **迷雾事件存活补偿**：四类迷雾是纯负反馈（无奖励、easy/hard 同受），故按其难度给一份存活补偿——
   **扛满整段**（自然到期）给 `fog_events.reward_score`(150) × `KillScoreFactor`，再经 `AddScore` 乘难度档倍率；
   **被打断**（返航/死亡/退出标题，经 `FogEvents.EndActive()`）**不发**——打断＝没扛满，「存活」补偿不该兑现
-  （否则长按 B 蓄力 1.5s 即可命中 6~8s 的窗口白拿一笔）。回归面：`--fog-probe` 断自然到期**金额相等**、
-  `--fog-interrupt-probe` 断打断后增量为 0，两半互补（只判一侧会让「一律发／一律不发」混过）。
+  （否则长按 B 蓄力 1.5s 即可命中 6~8s 的窗口白拿一笔）。自然到期与打断两半互补都要成立（只满足一侧会让「一律发／一律不发」混过）。
 - `GameState.AddScore(v)`: multiplies difficulty (easy ×1 / medium ×2 / hard ×3；玩家文案 易/中/难，配置键 `difficulty.<tier>.score`); all kills route here.
 - **Kill combo**: all kill-score paths (`Enemy.Die` 普通/精英/分裂子机、`FormationStrikeEvent` 编队机) route via `GameState.AddKillScore(base)` — combo+1 + window refresh; kill score × `min(1 + (combo−1)×step, max_mult)` (window **5.0s** / step 0.1 / max ×2.0), then difficulty mult as usual. Break: window timeout (no kill in 5s), player hit (`PlayerDamaged`, DDA same source), `ResetRun`. Boss kills (500×scale via `AddBossKill`) / event rewards do NOT combo；**擦弹吃连击加权**（`graze_combo_weight` 1.0，2026-09-14 起）。 怒首领蜂/虫姬链式得分的温和版: 普通玩家稳态 ×1.2~1.4, 高手封顶 ×2; 受击=降档(DDA)+断连双通道, 均不致命.
 - **遭遇单位同口径**（2026-09-17 裁定）：编队机与精英炮塔的击毁都走 `AddKill()`（计「击杀」数，推进 kill 类任务与进度门）**并且**给一笔击杀分走 `AddKillScore`（吃连击与 `score_amp`）——此前两者都不计击杀数、炮塔连分数都不给，与「所有击杀都经 `AddScore`」冲突。炮塔击杀分取值 `elite_turret_event.turret_score`（**150**，独立于事件档位奖励 `reward_score`）；编队机沿用 `craft_score`（同一处入账，不再由事件编排侧代给）。
@@ -136,8 +135,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   - **触发与互斥**：触发策略（`min_score` / `trigger_chance` / `trigger_interval`）只由 `GameEventManager` 读取与判定，事件自身只报「就绪」（空闲 + 冷却结束 + 母舰不在场）；资格合成与计时推进下沉 core `EncounterTrigger`（可单测：分数门槛、资格不足时计时冻结、到点先复位整段再掷签）。事件**同时占用波次槽与 Boss 槽**：运行期暂停普通波次并冻结 Boss 调度，收场（含返航打断）一并解除并补触发一次期间到期的 Boss。`Abort()` 连同在场炸弹一并清除且无结算（已入账的击坠分与拦截分保留）。
   - **反馈即时性**：逐枚拦截分（`reward_per_intercept`）在拦截当帧入账，与被击落编队机的击杀分同口径；事件结算只发「全数拦截 / 全歼 / 清除」的档位奖励与台词（奖励值可为 0，台词不省——玩家要能分清打光了、拦住了与它自己走了）。结算档位奖励经 `KillScoreFactor` 与难度档倍率（同精英炮塔与 fog 补偿口径）。
 - **Fog events** (light interference, independent of spawner chain): probability roll (`fog_events.trigger_chance`/`check_interval`), `first_delay` opening protection, `min_interval` cooldown, explicit `duration` auto-clear, single-event concurrency; effects via signals to Player + manager-owned visuals. 4 events: fake_enemies (no-damage ghost ships), mental_confusion (input inversion + tint), bullet_malfunction (angle jitter / misfire / fire-interval jitter), direction_shift (periodic forced movement vector). Cleared on return and death; 存活补偿 `fog_events.reward_score` 150 × `KillScoreFactor`（与击杀/事件奖励同口径）.
-- **Priority chain**: Boss → elite turret → formation strike (encounter 组互斥, 触发门控 = spawner processing；互斥判定单源在 `GameEventManager`，事件不再自查 Boss/同类事件); fog 独立触发（不占波次槽、不与 Boss 互斥）。统一注册表在 `GameEventManager`（`GameState.Events`），遭遇启动只走 `StartEncounter`（自动触发与 `--event-probe` 同一入口）。
-- **确定性口径**：遭遇/手感/长局探针一律**关闭迷雾随机事件**（迷雾按概率触发会污染其余探针的模拟态）；迷雾自身由 `--fog-probe` 专趟覆盖，且同样走生产资格/门槛（不绕开 `GameEventManager` 的触发判定）。
+- **Priority chain**: Boss → elite turret → formation strike (encounter 组互斥, 触发门控 = spawner processing；互斥判定单源在 `GameEventManager`，事件不再自查 Boss/同类事件); fog 独立触发（不占波次槽、不与 Boss 互斥）。统一注册表在 `GameEventManager`（`GameState.Events`），遭遇启动只走 `StartEncounter`。
+- **确定性口径**：迷雾按概率触发（首延迟过后每 3s 掷签），会污染同一局里其它系统的模拟态——需要确定性回放的场合要么关掉迷雾的自动触发，要么走可注入的取值源。
 
 ### 1.9 Meta HUD
 - Fullscreen FX CanvasLayer layer=1 (above world, below HUD→layer=2); `meta_health.gdshader` + `hint_screen_texture`.
@@ -174,7 +173,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **进度检查点与续接**：`settings.json` 的 `tutorial_stage` 记录「下次进入从第几阶段开始」，进入阶段时写入、教程完成时清零；标题屏在该值 > 0 时把入口提示换成「继续教程」。完成度 `tutorial_done` 语义不变（不是偏好设置，「全部恢复默认」保留它）。
 - **死亡自动重开本阶段**：教程不设失败死局——死亡后短暂提示并重开**当前**阶段（清场、重置该阶段进度、重刷目标），Esc 随时可退出。此前死亡只把 HUD 换成「任务失败」并要求玩家自己 Esc 退出，再从第一阶段重来。
 - **跳过本阶段**：长按 `give_up`（放弃出击的键位）1 秒跳过当前阶段，屏上常驻「长按 <实际按键> 跳过本阶段」提示。教程是可选内容，卡住的玩家不该被某一步锁住。
-- 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
+- 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面只许 `Spawner` 内部调用。
 - **弹反教学段（阶段 4，2026-09-18 补）**：弹反是本作唯一防御机制，首局玩家没有理由知道它存在——该段插在实战与母舰停靠之间。段内保有固定数射击型靶机（`CanShoot` 只在实战段与该段开），敌弹朝玩家发射、可弹反；玩家在弹反窗口内成功弹反 N 次即过关（N=2，已裁定），沿用实战段锁血口径不判负；靶机被反射弹击落或寿命到期离场即按保有数补刷。判定下沉 core：阶段形态与计数在 `TutorialGoalKind.Parry` / `TutorialProgress`，盾的几何判据在 `core/Combat/ParryShield`（半径与弧边都取等号、两条判据相与）。盾的**逐帧扫描补判**留在 `Player._PhysicsProcess`（引擎事件投递时机无法单测）：`area_entered` 只在进入重叠那一刻投递一次，而重叠自「盾半径＋弹体半径」起算——落在两个半径之间的弹只被拒一次就再无机会；回归面是探针的盾漏判判据（有效窗口内圈内未反射的逼近弹连续超宽限帧即红）。
 - **增幅 / 天赋轻量触点（阶段 6 基地段，2026-09-18 补）**：返航开基地后，目标行点明增幅面板与天赋面板的键（均按实际绑定与当前输入设备取标签），玩家实际打开一次增幅面板即过关。教程内自建同款面板（切角面板列表，读生产增幅数据，开合节奏与基地同款），零新经济链；完整版（真给一次三选一）未做——轻量版已裁定落地，完整版留作后续提议。
 - **按键提示设备感知**：教程目标行与跳过提示的键标签按**最近使用的输入设备**取档（口径见 §1.14「按键提示设备感知」），设备切换时重渲染的是**当前正在显示的那一行**——阶段目标行 / 后续目标行 / 蓄力替换行三分支（一律打回阶段目标行会把已经做过一步的指令重新印给玩家：对接进行中提示「长按 &lt;键&gt; 蓄力召唤母舰」而不报错）。探针在母舰段加一拍钉这条语义。
@@ -230,8 +229,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   边界：**不含战力、不含分数**（计分仍只是隐藏进度引擎，`ScoreService` 不参与记录），故不构成局外成长；与 `run.json` 分区，死亡删档不影响它；读取三态口径同本局存档（无记录 / 损坏隔离 / 暂时不可读）。
   落地：写入时机＝本局终结（死亡 / 放弃重开），仅在实际有改善且盘上记录可读时落盘；字段编解码单源在 core `BestRecordCodec`（写读共用同一批键名，键名分叉在结构上不可能）。
 - **练习模式**：从标题屏与结算页进入，可直选 Boss 型别（4 型）、起始难度档与遭遇事件（精英炮塔 / 轰炸编队 / 迷雾）。
-  边界：**独立于本局**——不写 `run.json`、不写本局记录、不推进里程碑与难度、不影响任何进度门；Boss 与遭遇一律走生产触发链（资格与门槛仍须真正通过，探针口径同 `--event-probe`）。
-  落地：`scenes/practice.tscn` + `GameState.Practice.cs`——三处进度写入点（`SaveRun` / `DeleteRunSave` / `RecordRunResult`）各一条 `PracticeActive` 早退，故「练习不落盘、死亡不删档」是结构性的（死亡删档的本局门控挡不住练习局，它按生产语义活跃）；`--practice-probe` 与冒烟趟断这三条。练习局的 RunTime / 难度 / 里程碑照常在内存里推进（手感必须与正局一致），只是永不落盘。
+  边界：**独立于本局**——不写 `run.json`、不写本局记录、不推进里程碑与难度、不影响任何进度门；Boss 与遭遇一律走生产触发链（资格与门槛仍须真正通过）。
+  落地：`scenes/practice.tscn` + `GameState.Practice.cs`——三处进度写入点（`SaveRun` / `DeleteRunSave` / `RecordRunResult`）各一条 `PracticeActive` 早退，故「练习不落盘、死亡不删档」是结构性的（死亡删档的本局门控挡不住练习局，它按生产语义活跃）。练习局的 RunTime / 难度 / 里程碑照常在内存里推进（手感必须与正局一致），只是永不落盘。
 - **音乐分层**：至少 Boss 战与基地 / 标题各有独立曲目（现状全套只有一首循环）。
   边界：走既有程序化音频管线（零第三方依赖），素材可复现门禁照旧。
   落地：`bgm_boss.wav` / `bgm_base.wav` 两首（同一程序化管线，重跑可复现）；曲目选择下沉 core 并单测钉住，`MusicDirector` 只做播放与淡入淡出适配。**标题屏无 BGM**（`title.tscn` 无音频节点、`MusicDirector` 只在 `Main` 实例化；原「标题屏仍用原曲目」的写法与实现不符，已按实测订正），标题屏只有程序化星空与远景实况战场的画面运动。
@@ -373,7 +372,7 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
 
 ### 2.10 时间基准：模拟时间与真实时间（2026-09-15 立规）
 
-**两套时钟，各管一类量，不得混用。** 模拟时间＝受 `Engine.TimeScale` 缩放的 `delta` / `Engine.GetPhysicsFrames` / `GetProcessFrames`（固定步长下帧数＝模拟时长，可重复）；真实时间＝墙钟 `Time.GetTicksMsec` 等（随机器与真实耗时走）。判定与模拟**一律**模拟时间（AGENTS §5 第 2 条）；真实时间只在下列「引擎之外的现象」上合法，且必须逐点登记在 `scripts/ci/check_realtime_allowlist.sh` 的 `ALLOW` 表（单源，本文件不复述清单）。
+**两套时钟，各管一类量，不得混用。** 模拟时间＝受 `Engine.TimeScale` 缩放的 `delta` / `Engine.GetPhysicsFrames` / `GetProcessFrames`（固定步长下帧数＝模拟时长，可重复）；真实时间＝墙钟 `Time.GetTicksMsec` 等（随机器与真实耗时走）。判定与模拟**一律**模拟时间（AGENTS §4）；真实时间只在「引擎之外的现象」上合法（合法面与划线标准见 AGENTS §4，本文件不复述）。
 
 - **为何要两套而不能只留一套**：把它们统一成模拟时间，会让「人机窗口 / 混音节流 / 性能读数」这类本属现实世界的量，在时间缩放或回调停摆时被拉伸乃至永不结束——返航输入宽限就是这样：`750490b` 为修「实战按住 WASD 秒跳过过场」特意引入 1.2s 常数的真实时间宽限，`71e6324` 又实证了「测试按模拟帧等待会与墙钟宽限脱节致跳过被静默忽略」。反过来把它们统一成真实时间，则判定会依赖机器速度，探针不可复现。**所以是两套，不是一套。**
 - **划线标准（一句话）**：问这个计时点等待 / 限制的是「引擎之外的现实世界」（人的手、输入队列、声波、机器耗时）还是「游戏世界内部已推进多少」——前者真实时间，后者模拟时间。常数若以「人类秒」为单位（1.2s 宽限、0.5s 守卫、250ms 节流），通常就是真实时间的信号。
@@ -383,10 +382,7 @@ trauma 参考振幅 **24**、衰减 **1.5/s**。反转需显式改值（或由�
 
 ### 2.11 数值单源的两道判据（2026-09-15）
 
-balance.json 是数值唯一来源，但一批「表式」数值被手抄进 C# 当 `Cfg(key, 代码内默认值)` 的回退实参——json 完整时读 json，看不出代码默认值已分叉，只有 json 缺失/损坏才回退到错值。两道门禁分工：
-
-- `check_balance_keys.sh` 判**键存在**（键名写错会静默回退默认值）；`check_code_defaults.sh` 判**取值一致**（15 张登记表 256 个缺档默认值 == json 定稿值，含移动策略专属参数与三元素数组）。两侧改一侧不改即红。
-- 登记表逐张声明预期条目数与 `文件:符号`，取不到判据（文件/符号/键缺、条目数不符、零比对）一律红——防「表被改名后零比对静默判 clean」。
+balance.json 是数值唯一来源，但一批「表式」数值被手抄进 C# 当 `Cfg(key, 代码内默认值)` 的回退实参——json 完整时读 json，看不出代码默认值已分叉，只有 json 缺失/损坏才回退到错值。改动任一侧（json 定稿值 / 表内代码默认值）必须**同时**改另一侧，并核对登记表的条目数与 `文件:符号`：登记表被改名后会让比对静默落空。
 - 同一事实的**读取面**也收口：未经 balance 覆盖的默认表（`Spawner.BuildEnemyTypes` / `BuildEliteTypes`）只许 `Spawner` 内部读取，外部直读即红（教程曾如此，是「正局跟随、教程不跟」的根因）。
 
 *玩法设计意图修订唯一入口；历史修订轨迹见 git 历史。*
