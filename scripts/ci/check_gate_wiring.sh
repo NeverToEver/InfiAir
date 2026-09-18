@@ -56,6 +56,10 @@
 #      （那份产物根本没被重写）＝覆盖静默缩小。scripts/tools 下每个 .py 要么被 regenerate_all
 #      调用、要么登记进 TOOLS_IGNORE（独立工具，逐条写理由）、要么是被调用生成器 import 的共享
 #      模块——新生成器忘挂进 regenerate_all 即红。
+#   g) AGENTS.md 的体积预算（AGENTS §6 铁律 4）：该文件每轮注入智能体上下文，膨胀是**静默成本**
+#      ——没有报错、没有日志，只是每轮多付一点，直到读的人开始整段跳过。超预算即红，使「再加
+#      一条规则」必须同时是「先删或先精简」或「显式抬高预算」的有意识决定（改数会出现在 diff 里）；
+#      另判下限：文件被清空 / 截断时只判上限会平凡通过，故两侧都判。
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
 # 趟次为 0、帧数非正整数、配置项找不到、发布包候选枚举为空、生成器集合为空、版本断言解析不出，
 # 一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
@@ -88,9 +92,14 @@ TOOLS_IGNORE = {
 
 errors: list[str] = []
 MISSING = object()
+# 纪律单源文件的体积预算（AGENTS §6 铁律 4）：该文件每轮注入上下文，膨胀是静默成本。
+# 预算只比当前实测略高，取「再加一条规则就会越线」的量级——越线时先删或先精简，或显式抬高本值。
+AGENTS_MD = ROOT / "AGENTS.md"
+AGENTS_MD_BUDGET = 11000
 # 结论行要报的计数（在各自的判定段里填充；取不到判据时对应的错误已另报，结论行只在零错误时打印）
 package_candidates = 0                # e3：发布包候选文件数（被 exclude 覆盖的那些）
 generator_called: set[str] = set()    # f：regenerate_all.sh 实际调用的生成器
+agents_size = 0                       # g：AGENTS.md 字符数
 
 
 def read(path: pathlib.Path):
@@ -968,6 +977,22 @@ if smoke_text is not None:
             "——字符串写错则该断言永不可能通过；只出现在注释或非打印文案里都不算打印点"
         )
 
+# g) 纪律单源文件的体积预算（两侧都判：只判上限时，文件被清空/截断会平凡通过）
+agents_text = read(AGENTS_MD)
+if agents_text is not None:
+    agents_size = len(agents_text)
+    if agents_size > AGENTS_MD_BUDGET:
+        errors.append(
+            f"AGENTS.md 已 {agents_size} 字符，超出预算 {AGENTS_MD_BUDGET}——该文件每轮注入上下文，"
+            "膨胀是静默成本（没有报错、只是每轮多付一点）。先删或先精简既有表述再加；"
+            "确有必要则显式抬高 AGENTS_MD_BUDGET，并在提交正文说明为什么值得"
+        )
+    elif agents_size < AGENTS_MD_BUDGET // 3:
+        errors.append(
+            f"AGENTS.md 只有 {agents_size} 字符（不足预算 {AGENTS_MD_BUDGET} 的三分之一）"
+            "——文件被清空或路径漂移？取不到判据，拒绝判 clean"
+        )
+
 if errors:
     for e in errors:
         print(f"::error::{e}")
@@ -979,6 +1004,7 @@ print(
     f"{len(ci_steps) if ci_steps else 0} 个 CI 步骤无容错属性；另有 {len(HELPER_MODULES)} 个共用模块被门禁 import）；"
     f"冒烟 {len(cases)} 趟各自配对完成标记断言（下限 {MIN_SMOKE_CASES}）、标记均有对应打印点；"
     f"发布包候选 {package_candidates} 个（ProbeHost/探针场景/tests 树）全被 exclude 覆盖；"
+    f"AGENTS.md {agents_size}/{AGENTS_MD_BUDGET} 字符；"
     f"regenerate_all 覆盖 {len(generator_called)} 个生成器"
 )
 PY
