@@ -19,6 +19,7 @@ public class PlayerVisuals
     private static readonly Color AfterimageColor = new(1.0f, 0.72f, 0.34f, 0.5f);
 
     private Sprite2D _sprite = null!;
+    private Vector2 _spriteScaleBase = Vector2.One; // 贴图设计缩放（Init 时捕获），冲刺弹跳的倍增基准
     private GpuParticles2D _thruster = null!;
     private Polygon2D _hitboxDot = null!;
     private Polygon2D _parryArc = null!;
@@ -45,6 +46,31 @@ public class PlayerVisuals
     private float _bankRate = 12.0f;  // effects.motion.player_bank_rate
     private float _recoilPx = 2.5f;   // effects.motion.player_recoil_px（已乘世界缩放与动效强度）
     private float _recoilTau = 0.09f; // effects.motion.player_recoil_tau
+
+    // ---- 机体活性（运动滞后漂移 / 转向跟随 / 悬停浮动 / 冲刺弹跳，DESIGN_BASELINE §2.16）：
+    // 与姿态层同口径——只写贴图节点的 Rotation/Position/Scale，机体根节点与碰撞体不动；
+    // 振幅乘动效强度（fx_intensity），0 = 回到本批之前的画面。
+    private float _lagPx = 4.0f;      // effects.motion.player_lag_px（已乘动效强度）
+    private float _lagRate = 10.0f;   // effects.motion.player_lag_rate
+    private float _lagX;              // 滞后漂移当前偏移（root 本地 x，指数平滑逼近目标）
+    private float _lagY;
+    private float _swayMax = 0.18f;   // effects.motion.player_sway_max_rad（已乘动效强度）
+    private float _swayRate = 10.0f;  // effects.motion.player_sway_rate
+    private float _sway;              // 转向跟随当前角（rad，accumulated + 衰减，钳 ±max）
+    private float _bobPx = 1.6f;      // effects.motion.player_bob_px（已乘动效强度）
+    private float _bobHz = 0.6f;      // effects.motion.player_bob_hz
+    private float _popAmp = 0.06f;    // effects.motion.player_dash_pop_scale（已乘动效强度）
+    private float _popTime = 0.16f;   // effects.motion.player_dash_pop_time
+    private float _popAge = 10.0f;    // 距冲刺置位的秒数（初值出窗：开机无残余弹跳）
+
+    // ---- 尾焰油门平滑（三态档位切换指数过渡 + 升档增亮 kick）：rate 钳 0 = 关闭（直跳旧行为），
+    // kick 幅度/时长为就地 const（§2.8 口径：小动效不新增 balance 键）。
+    private float _thrusterRate = 9.0f; // effects.motion.player_thruster_rate
+    private (float Speed, float Amount, float Alpha) _thrusterCur;
+    private bool _thrusterHasState;     // 首帧直取目标（无上一帧可平滑）
+    private float _thrusterKickAge = 10.0f;
+    private const float ThrusterKickAmp = 0.35f;
+    private const float ThrusterKickTime = 0.15f;
 
     /// <summary>机体底色（暖族提亮，DESIGN_BASELINE §2.1/§2.3 的战术琥珀）：全站唯一一份——
     /// Player._Ready 的初值与 UpdateFrame 的每帧写共用本常量（两份同名常量分叉时，运行时生效的是
@@ -113,6 +139,21 @@ public class PlayerVisuals
         // tau 下限取 0 而非 IntervalFloor：tau=0 是「关闭后坐力」的合法口径（RecoilFactor 对 tau≤0 返回 0），
         // 钳到 0.05 会把「关闭」误变成「极快回弹」。
         _recoilTau = CfgFx.Float("effects.motion.player_recoil_tau", _recoilTau, 0.0f);
+        // 机体活性（§2.16）：振幅乘动效强度（0 = 本批之前画面）；频率/速率不乘（缩振幅不改频率，
+        // §2.12 语义）。贴图基准缩放在 Init 时已被 Player.LoadBalance 写为设计值（0.65×ws），
+        // 冲刺弹跳以它为基准做倍增，避免每帧重算世界缩放。
+        _lagPx = CfgFx.Float("effects.motion.player_lag_px", _lagPx, 0.0f) * fx;
+        _lagRate = CfgFx.Float("effects.motion.player_lag_rate", _lagRate, 0.0f);
+        _swayMax = CfgFx.Float("effects.motion.player_sway_max_rad", _swayMax, 0.0f) * fx;
+        _swayRate = CfgFx.Float("effects.motion.player_sway_rate", _swayRate, 0.0f);
+        _bobPx = CfgFx.Float("effects.motion.player_bob_px", _bobPx, 0.0f) * fx;
+        _bobHz = CfgFx.Float("effects.motion.player_bob_hz", _bobHz, 0.0f);
+        _popAmp = CfgFx.Float("effects.motion.player_dash_pop_scale", _popAmp, 0.0f) * fx;
+        _popTime = CfgFx.Float("effects.motion.player_dash_pop_time", _popTime, 0.0f);
+        _thrusterRate = CfgFx.Float("effects.motion.player_thruster_rate", _thrusterRate, 0.0f);
+        // 弹跳初始即「已出窗」（time+1）：即使误配超长窗（≥10s）也不会在开机时把机体弹一下
+        _popAge = _popTime + 1.0f;
+        _spriteScaleBase = sprite.Scale;
     }
 
     /// <summary>动效强度（0..1）：设置项 fx_intensity 的每帧直读（取值口单源在设置服务）。</summary>
@@ -156,13 +197,37 @@ public class PlayerVisuals
 
     /// <summary>尾焰档位应用（冲刺/加速/巡航/静止五处共用；engine_tint 由 Player 传入——增幅 外观
     /// 写入 Player.EngineTint，公开字段被 PlayerAugmentVisuals 访问，留在 Player 侧）。
-    /// simTime = Player 累计模拟时间（秒），作为喷口抖动相位基准（替代墙钟）。</summary>
-    public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint, float simTime)
+    /// simTime = Player 累计模拟时间（秒），作为喷口抖动相位基准（替代墙钟）。
+    /// delta = 物理帧长（秒）：三态档位切换走指数平滑（油门拉动感）+ 升档瞬间短促增亮；
+    /// rate ≤ 0 或动效强度为 0 时直取目标（= 本批之前的硬切换行为）。</summary>
+    public void SetThruster(float speedScale, float amountRatio, float alpha, Color engineTint, float simTime, float delta)
     {
-        _thruster.SpeedScale = speedScale;
-        _thruster.AmountRatio = amountRatio;
-        _thruster.SelfModulate = new Color(1.0f, 1.0f, 1.0f, alpha) * engineTint;
-        UpdateThrusterFlare(speedScale, alpha, engineTint, simTime);
+        if (!_thrusterHasState || _thrusterRate <= 0.0f || FxIntensity() <= 0.0f)
+        {
+            _thrusterCur = (speedScale, amountRatio, alpha);
+            _thrusterHasState = true;
+        }
+        else
+        {
+            // 升档（目标速度高于当前）置一次增亮 kick；降档不 kick（收油门不该闪光）
+            if (speedScale > _thrusterCur.Speed + 0.01f)
+            {
+                _thrusterKickAge = 0.0f;
+            }
+
+            _thrusterCur = (
+                (float)Core.Visual.BodyPose.Approach(_thrusterCur.Speed, speedScale, _thrusterRate, delta),
+                (float)Core.Visual.BodyPose.Approach(_thrusterCur.Amount, amountRatio, _thrusterRate, delta),
+                (float)Core.Visual.BodyPose.Approach(_thrusterCur.Alpha, alpha, _thrusterRate, delta));
+        }
+
+        _thrusterKickAge += delta;
+        var kick = Mathf.Max(1.0f - _thrusterKickAge / ThrusterKickTime, 0.0f);
+        var kickedAlpha = Mathf.Min(_thrusterCur.Alpha * (1.0f + ThrusterKickAmp * kick), 1.0f);
+        _thruster.SpeedScale = _thrusterCur.Speed;
+        _thruster.AmountRatio = _thrusterCur.Amount;
+        _thruster.SelfModulate = new Color(1.0f, 1.0f, 1.0f, kickedAlpha) * engineTint;
+        UpdateThrusterFlare(_thrusterCur.Speed, kickedAlpha, engineTint, simTime);
     }
 
     /// <summary>核心喷口三层逐帧驱动（SetThruster 逐帧调用）：随速度 Y 向伸缩（外层拉伸更大）+
@@ -247,24 +312,36 @@ public class PlayerVisuals
         }
     }
 
-    /// <summary>机身色调四源（优先级从高到低）：弹反金 tint &gt; 擦弹金色微闪 &gt; 无敌帧闪烁 &gt; 常态基底。
-    /// 擦弹闪光在此递减（原 _physics_process 视觉分支）；无敌倒计时递减留在 player（战斗状态）。
-    /// 受击点光点脉动同帧驱动（常亮低频闪烁，提示实际受击判定位置）。
-    /// simTime = Player 累计模拟时间（秒），脉动相位基准（原墙钟 nowMs；频率等价换算 20/6 rad/s）。
+    /// <summary>机身色调四源 + 受击点脉动 + 姿态/活性（横移侧倾、转向跟随、运动滞后漂移、
+    /// 悬停浮动、开火后坐力）逐帧驱动。擦弹闪光在此递减（原 _physics_process 视觉分支）；
+    /// 无敌倒计时递减留在 player（战斗状态）。
+    /// simTime = Player 累计模拟时间（秒），脉动/浮动的相位基准（无头固定步长可重复）。
     /// lateral01 = 横向速度占比（速度在机体右向量上的投影 ÷ MaxSpeed，Player 归一化后传入，
     /// 加速档可超 1 后由算式钳制），驱动横移侧倾；
-    /// 侧倾与后坐力只写贴图节点的 Rotation/Position（机体根节点与判定几何不动，§2.13）。</summary>
-    public void UpdateFrame(float delta, float parryTint, float invincible, float simTime, float lateral01)
+    /// turnDelta = 本帧机体根节点转向量（rad，已规范到 -π..π），驱动转向跟随角惯性；
+    /// accelLocalX/Y = 机体本地系加速度 ÷ 参考上限（帧间速度差分，Player 换算后传入），
+    /// 驱动运动滞后漂移；
+    /// 以上姿态/活性只写贴图节点的 Rotation/Position（Scale 归冲刺弹跳独占，见 UpdateDashPop），
+    /// 机体根节点与判定几何不动（§2.13/§2.16）。</summary>
+    public void UpdateFrame(float delta, float parryTint, float invincible, float simTime, float lateral01,
+        float turnDelta, float accelLocalX, float accelLocalY)
     {
         // 横移侧倾：目标角按横向占比，指数平滑逼近（机头朝移动方向偏）
         var target = Core.Visual.BodyPose.BankTarget(lateral01, 1.0f, _bankMax);
         _bankAngle = (float)Core.Visual.BodyPose.Approach(_bankAngle, target, _bankRate, delta);
-        _sprite.Rotation = _bankAngle;
+        // 转向跟随：累积本帧转向量后指数衰减（甩准星时贴图短暂落后再追上，静止时回正）
+        _sway = (float)Core.Visual.BodyPose.SwayAfter(_sway, turnDelta, _swayMax, _swayRate, delta);
+        _sprite.Rotation = _bankAngle + _sway;
 
-        // 开火后坐力：贴图沿机尾（本地 +Y，贴图机头朝上）回弹
+        // 运动滞后漂移：贴图朝加速度反方向漂移（加速时被甩在后面），指数平滑回中
+        _lagX = (float)Core.Visual.BodyPose.Approach(_lagX, Core.Visual.BodyPose.LagTargetPx(accelLocalX, _lagPx), _lagRate, delta);
+        _lagY = (float)Core.Visual.BodyPose.Approach(_lagY, Core.Visual.BodyPose.LagTargetPx(accelLocalY, _lagPx), _lagRate, delta);
+
+        // 开火后坐力：贴图沿机尾（本地 +Y，贴图机头朝上）回弹；悬停浮动叠加同一轴向
         _recoilAge += delta;
         var recoil = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _recoilTau) * _recoilPx;
-        _sprite.Position = new Vector2(0.0f, recoil);
+        var bob = (float)Core.Visual.BodyPose.BobOffsetPx(simTime, _bobHz, _bobPx);
+        _sprite.Position = new Vector2(_lagX, _lagY + recoil + bob);
 
         if (parryTint > 0.0f)
         {
@@ -293,6 +370,24 @@ public class PlayerVisuals
 
     /// <summary>擦弹机身金色短闪置位（_on_graze_entered 反馈三件套之一；时长 balance player.graze.flash_time）。</summary>
     public void SetGrazeFlash(float time) => _grazeFlash = time;
+
+    /// <summary>冲刺弹跳置位（Player 冲刺成功启动的两处调用点）：贴图缩放自 1 过冲回拉
+    /// （抛物线包络，峰值 1+amp）；渲染帧推进（_Process），物理早退的冲刺期也在走。</summary>
+    public void NotifyDashPop() => _popAge = 0.0f;
+
+    /// <summary>冲刺弹跳逐渲染帧推进：写贴图 Scale（Init 捕获的设计缩放 × 弹跳系数）。
+    /// 弹跳窗外的写是幂等回位（上一帧残留在窗内值时归位），出窗后零开销早退。</summary>
+    public void UpdateDashPop(float delta)
+    {
+        if (_popAge >= _popTime)
+        {
+            return;
+        }
+
+        _popAge += delta;
+        var pop = (float)Core.Visual.BodyPose.PopScale(_popAge, _popTime, _popAmp);
+        _sprite.Scale = _spriteScaleBase * pop;
+    }
 
     /// <summary>弹反命中闪光置位（Player 盾区反射成功时调用）：边缘白金色提亮 + 外扩脉冲。</summary>
     public void SetParryFlash() => _parryFlash = ParryFlashTime;

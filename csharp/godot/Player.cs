@@ -221,6 +221,12 @@ public partial class Player : CharacterBody2D
     /// 相位基准（取代墙钟——表现层相位不该受帧率与机器性能影响，无头固定步长下也可重复）。</summary>
     private float _simTime;
 
+    // 机体活性差分缓存（转向跟随/滞后漂移的上一帧量；首帧差分跳过，防开机假脉冲）
+    private float _prevRotation;
+    private bool _hasPrevRotation;
+    private Vector2 _prevVelocity;
+    private bool _hasPrevVelocity;
+
     // 迷雾事件效果状态（FogEventManager 信号驱动）
     private bool _fogInvertInput;
     private float _fogBulletJitterDeg;
@@ -416,10 +422,11 @@ public partial class Player : CharacterBody2D
         ShipEnergyFx.SetSweep(_energyLayer, EventSweep.Progress01(_sweepElapsed, _sweepTime), _sweepAmp);
     }
 
-    /// <summary>残影逐帧淡出（渲染帧）——委托 PlayerVisuals。</summary>
+    /// <summary>残影逐帧淡出 + 冲刺弹跳推进（渲染帧）——委托 PlayerVisuals。</summary>
     public override void _Process(double delta)
     {
         _visuals.UpdateAfterimages((float)delta);
+        _visuals.UpdateDashPop((float)delta);
         UpdateDamageFrame();
         // 枪口辉光指数衰减（半衰 ~60ms，急促闪光感）
         if (_muzzleGlowA > 0.01f && _muzzleGlow != null)
@@ -1075,9 +1082,10 @@ public partial class Player : CharacterBody2D
 
     public float FuelRegenRate() => _fuelRegenRate;
 
-    /// <summary>推进器状态下发（统一注入 EngineTint；入场冲刺 ×2.0 强度为一次性演出，不走三态表）。</summary>
-    private void ApplyThruster((float Speed, float Amount, float Alpha) state)
-        => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint, _simTime);
+    /// <summary>推进器状态下发（统一注入 EngineTint；入场冲刺 ×2.0 强度为一次性演出，不走三态表）。
+    /// delta = 本物理帧长（油门平滑用）；无帧上下文的一次性下发传 0＝直取目标。</summary>
+    private void ApplyThruster((float Speed, float Amount, float Alpha) state, float delta)
+        => _visuals.SetThruster(state.Speed, state.Amount, state.Alpha, EngineTint, _simTime, delta);
 
     /// <summary>尾焰色阶：白热芯 → 琥珀 → 暗橙熄灭（GradientTexture1D 一次性构建，随粒子寿命采样）。</summary>
     private static GradientTexture1D ThrusterRamp()
@@ -1206,6 +1214,7 @@ public partial class Player : CharacterBody2D
             {
                 _dash.Start(inputDir, this);
                 CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
+                _visuals.NotifyDashPop();
             }
             else if (_fuel >= DashFuelCost())
             {
@@ -1232,13 +1241,14 @@ public partial class Player : CharacterBody2D
         {
             _dash.Start(inputDir, this);
             CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
+            _visuals.NotifyDashPop();
         }
         _dashBuffer.Tick(d);
 
         if (_dash.IsDashing())
         {
             _dash.UpdateMove(d, this);
-            ApplyThruster(ThrusterBoost);
+            ApplyThruster(ThrusterBoost, d);
             TickDashStrike(d);
             return;
         }
@@ -1287,15 +1297,15 @@ public partial class Player : CharacterBody2D
 
         if (boosting && inputDir != Vector2.Zero)
         {
-            ApplyThruster(ThrusterBoost);
+            ApplyThruster(ThrusterBoost, d);
         }
         else if (inputDir != Vector2.Zero)
         {
-            ApplyThruster(ThrusterCruise);
+            ApplyThruster(ThrusterCruise, d);
         }
         else
         {
-            ApplyThruster(ThrusterIdle);
+            ApplyThruster(ThrusterIdle, d);
         }
 
         var aim = AimPoint() - GlobalPosition;
@@ -1336,7 +1346,8 @@ public partial class Player : CharacterBody2D
             _fireCooldown = Mathf.Max(interval, 0.01f);
         }
 
-        // 机身色调四源 + 受击点脉动 + 姿态（横移侧倾/开火后坐力，委托 PlayerVisuals）
+        // 机身色调四源 + 受击点脉动 + 姿态/活性（横移侧倾、转向跟随、滞后漂移、悬停浮动、
+        // 开火后坐力，委托 PlayerVisuals）
         if (Invincible > 0.0f)
         {
             Invincible -= d;
@@ -1345,7 +1356,22 @@ public partial class Player : CharacterBody2D
         // 横向速度占比（机体右向量 = 本帧瞄准角旋转后的 (cos, sin)），驱动贴图 banking
         var right = new Vector2(Mathf.Cos(Rotation), Mathf.Sin(Rotation));
         var lateral01 = Velocity.Dot(right) / Mathf.Max(MaxSpeed, 1.0f);
-        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime, lateral01);
+        // 横向速度占比（机体右向量 = 本帧瞄准角旋转后的 (cos, sin)），驱动贴图 banking；
+        // 本帧转向量（规范到 -π..π）驱动贴图转向跟随；机体本地系加速度（帧间速度差分，
+        // 参考上限取加速/减速的大者）驱动贴图运动滞后漂移——三者都是贴图本地表现量
+        var turnDelta = _hasPrevRotation ? Mathf.Wrap(Rotation - _prevRotation, -Mathf.Pi, Mathf.Pi) : 0.0f;
+        _prevRotation = Rotation;
+        _hasPrevRotation = true;
+        var accelRef = Mathf.Max(Mathf.Max(Accel, Decel), 1.0f);
+        var accelLocal = Vector2.Zero;
+        if (_hasPrevVelocity && d > 0.0f)
+        {
+            accelLocal = ((Velocity - _prevVelocity) / d / accelRef).Rotated(-Rotation);
+        }
+
+        _prevVelocity = Velocity;
+        _hasPrevVelocity = true;
+        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime, lateral01, turnDelta, accelLocal.X, accelLocal.Y);
         // 回血（委托 PlayerDamage）
         _damage.HealTick(d);
     }
@@ -1543,7 +1569,7 @@ public partial class Player : CharacterBody2D
         _entryPrevFireGate = _fireGateEnabled;
         _fireGateEnabled = false;
         Position = new Vector2(rect.GetCenter().X, rect.End.Y + EntrySpawnClearance);
-        _visuals.SetThruster(2.0f, 1.0f, 1.0f, EngineTint, _simTime);
+        _visuals.SetThruster(2.0f, 1.0f, 1.0f, EngineTint, _simTime, 0.0f);
         _entryTween = CreateTween();
         _entryTween.TweenProperty(this, "position:y", landY, EntryRushTime)
             .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);

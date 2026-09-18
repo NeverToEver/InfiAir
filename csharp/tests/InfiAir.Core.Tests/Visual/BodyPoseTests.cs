@@ -135,4 +135,112 @@ public sealed class BodyPoseTests
             Assert.True(double.IsFinite(target));
         }
     }
+
+    // ---------------- LagTargetPx（§2.16 运动滞后漂移） ----------------
+
+    [Fact]
+    public void LagTargetPx_OpposesAcceleration_AndClampsToMax()
+    {
+        const double maxPx = 4.0;
+        // 满加速度反向漂满幅；半加速半幅；反向加速取反
+        Assert.Equal(-maxPx, BodyPose.LagTargetPx(1.0, maxPx), 9);
+        Assert.Equal(-maxPx / 2.0, BodyPose.LagTargetPx(0.5, maxPx), 9);
+        Assert.Equal(maxPx, BodyPose.LagTargetPx(-1.0, maxPx), 9);
+        // 超界钳制（帧间速度差在方向反转时会瞬时超参考上限）
+        Assert.Equal(-maxPx, BodyPose.LagTargetPx(3.0, maxPx), 9);
+        Assert.Equal(maxPx, BodyPose.LagTargetPx(-3.0, maxPx), 9);
+        // 零加速度不漂
+        Assert.Equal(0.0, BodyPose.LagTargetPx(0.0, maxPx), 9);
+    }
+
+    [Fact]
+    public void LagTargetPx_InvalidInputs_ReturnZero()
+    {
+        Assert.Equal(0.0, BodyPose.LagTargetPx(double.NaN, 4.0));
+        Assert.Equal(0.0, BodyPose.LagTargetPx(1.0, double.NaN));
+        Assert.Equal(0.0, BodyPose.LagTargetPx(1.0, 0.0));
+        Assert.Equal(0.0, BodyPose.LagTargetPx(1.0, -4.0));
+        Assert.Equal(0.0, BodyPose.LagTargetPx(double.PositiveInfinity, 4.0));
+    }
+
+    // ---------------- SwayAfter（§2.16 转向跟随） ----------------
+
+    [Fact]
+    public void SwayAfter_AccumulatesTurn_ThenDecaysTowardZero()
+    {
+        const double maxRad = 0.18;
+        // 一帧大甩角被钳在上限内
+        var s = BodyPose.SwayAfter(0.0, 1.0, maxRad, 10.0, 1.0 / 60.0);
+        Assert.InRange(s, 0.0, maxRad);
+        Assert.True(s < 1.0); // 衰减已经生效，不是原样累积
+        // 瞄准静止（turnDelta=0）时逐帧指数衰减回 0
+        var decayed = BodyPose.SwayAfter(s, 0.0, maxRad, 10.0, 1.0 / 60.0);
+        Assert.True(decayed < s);
+        Assert.Equal(s * Math.Exp(-10.0 / 60.0), decayed, 9);
+        // 负转向对称
+        Assert.True(BodyPose.SwayAfter(0.0, -1.0, maxRad, 10.0, 1.0 / 60.0) < 0.0);
+    }
+
+    [Fact]
+    public void SwayAfter_InvalidInputs_KeepFiniteCurrent_ElseZero()
+    {
+        // maxRad 非有限：保持现状免钳（Clamp 的 NaN 界会抛）
+        Assert.Equal(0.05, BodyPose.SwayAfter(0.05, 1.0, double.NaN, 10.0, 1.0 / 60.0), 9);
+        // current 非有限：自愈为 0 起步（一次坏值不永久污染），本帧转向量照常累积后钳制
+        var healed = BodyPose.SwayAfter(double.NaN, 1.0, 0.18, 10.0, 1.0 / 60.0);
+        Assert.True(double.IsFinite(healed));
+        Assert.InRange(healed, 0.0, 0.18);
+        // turnDelta 非有限按 0：只衰减不污染
+        var s = BodyPose.SwayAfter(0.0, 0.06, 0.18, 0.0, 1.0 / 60.0);
+        Assert.Equal(0.06, BodyPose.SwayAfter(s, double.NaN, 0.18, 0.0, 1.0 / 60.0), 9);
+        Assert.Equal(0.06, BodyPose.SwayAfter(0.06, 0.06, 0.18, 10.0, 0.0), 9); // delta=0 保持现状
+    }
+
+    // ---------------- PopScale（§2.16 冲刺弹跳） ----------------
+
+    [Fact]
+    public void PopScale_ParabolicOvershoot_PeaksMidwayAndRestsOutside()
+    {
+        const double amp = 0.06;
+        const double time = 0.16;
+        Assert.Equal(1.0, BodyPose.PopScale(0.0, time, amp), 9);
+        Assert.Equal(1.0 + amp, BodyPose.PopScale(time / 2.0, time, amp), 9);
+        Assert.Equal(1.0, BodyPose.PopScale(time, time, amp), 9);
+        Assert.Equal(1.0, BodyPose.PopScale(time + 1.0, time, amp), 9);
+        Assert.Equal(1.0, BodyPose.PopScale(-0.01, time, amp), 9);
+        // 对称性：半程两侧等高
+        Assert.Equal(BodyPose.PopScale(time * 0.25, time, amp), BodyPose.PopScale(time * 0.75, time, amp), 9);
+    }
+
+    [Fact]
+    public void PopScale_InvalidInputs_ReturnUnity()
+    {
+        Assert.Equal(1.0, BodyPose.PopScale(0.08, 0.0, 0.06));
+        Assert.Equal(1.0, BodyPose.PopScale(0.08, 0.16, 0.0));
+        Assert.Equal(1.0, BodyPose.PopScale(0.08, 0.16, -0.06));
+        Assert.Equal(1.0, BodyPose.PopScale(double.NaN, 0.16, 0.06));
+    }
+
+    // ---------------- BobOffsetPx（§2.16 悬停浮动） ----------------
+
+    [Fact]
+    public void BobOffsetPx_SineFloat_AmplitudeAndPeriod()
+    {
+        const double amp = 1.6;
+        const double hz = 0.6;
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(0.0, hz, amp), 9);
+        Assert.Equal(amp, BodyPose.BobOffsetPx(1.0 / (4.0 * hz), hz, amp), 9); // 四分之一周期到峰
+        Assert.Equal(-amp, BodyPose.BobOffsetPx(3.0 / (4.0 * hz), hz, amp), 9);
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0 / hz, hz, amp), 9); // 整周期回零
+    }
+
+    [Fact]
+    public void BobOffsetPx_InvalidInputs_ReturnZero()
+    {
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, 0.0, 1.6));
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, -0.6, 1.6));
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(double.NaN, 0.6, 1.6));
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, double.NaN, 1.6));
+        Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, 0.6, double.NaN));
+    }
 }

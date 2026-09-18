@@ -91,6 +91,69 @@ public static class BodyPose
         return Math.Clamp(NormalizeSigned(angle), -maxRad, maxRad) * strength;
     }
 
+    /// <summary>运动滞后单轴目标偏移（px）：accel01 是该轴加速度 ÷ 参考上限（-1..1，超界钳制），
+    /// 贴图朝**加速度反方向**漂移（加速时被甩在后面）——符号取负。非有限入参或 maxPx ≤ 0 返回 0
+    /// （这一帧不漂）。逐轴调用；随后的时间平滑由消费方走 <see cref="Approach"/>。</summary>
+    public static double LagTargetPx(double accel01, double maxPx)
+    {
+        if (!double.IsFinite(accel01) || !double.IsFinite(maxPx) || maxPx <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return -Math.Clamp(accel01, -1.0, 1.0) * maxPx;
+    }
+
+    /// <summary>转向跟随角（rad，贴图本地）：贴图旋转相对瞄准角的可回弹角惯性——accumulate
+    /// 本帧转向量再指数衰减（rate 是每秒保留比例的指数系数），钳 ±maxRad。瞄准甩动时贴图短暂
+    /// 落后再追上；瞄准静止时逐帧衰减回 0（贴图追平机体）。delta ≤ 0、rate/maxRad 非有限时
+    /// 保持现状（maxRad 非有限时免钳——Clamp 的 NaN 界会抛）；current 非有限自愈为 0 起步；
+    /// turnDelta 非有限按 0（只衰减不污染）。</summary>
+    public static double SwayAfter(double current, double turnDelta, double maxRad, double rate, double delta)
+    {
+        if (!double.IsFinite(rate) || !double.IsFinite(delta) || delta <= 0.0 || !double.IsFinite(maxRad))
+        {
+            if (!double.IsFinite(current))
+            {
+                return 0.0;
+            }
+
+            return double.IsFinite(maxRad) ? Math.Clamp(current, -maxRad, maxRad) : current;
+        }
+
+        var c = double.IsFinite(current) ? current : 0.0;
+        var t = double.IsFinite(turnDelta) ? turnDelta : 0.0;
+        var next = (c + t) * Math.Exp(-Math.Max(rate, 0.0) * delta);
+        return Math.Clamp(next, -maxRad, maxRad);
+    }
+
+    /// <summary>冲刺弹跳缩放系数（0..1 倍增）：elapsed ∈ [0, time) 内走抛物线过冲
+    /// 1 + amp·4t(1-t)（t=0.5 处峰值 1+amp，两端 1）——「过冲再回拉」的一次性入出场；
+    /// elapsed 出窗、time/amp ≤ 0 或任一非有限返回 1（不缩放）。</summary>
+    public static double PopScale(double elapsedSeconds, double time, double amp)
+    {
+        if (!double.IsFinite(elapsedSeconds) || !double.IsFinite(time) || !double.IsFinite(amp)
+            || time <= 0.0 || amp <= 0.0 || elapsedSeconds <= 0.0 || elapsedSeconds >= time)
+        {
+            return 1.0;
+        }
+
+        var t = elapsedSeconds / time;
+        return 1.0 + amp * 4.0 * t * (1.0 - t);
+    }
+
+    /// <summary>悬停浮动偏移（px）：simTime 秒相位上的慢速正弦沉浮（引擎悬浮感；频率 hz ≤ 0
+    /// 或任一入参非有限返回 0——「这一帧不动」）。</summary>
+    public static double BobOffsetPx(double simTimeSeconds, double hz, double ampPx)
+    {
+        if (!double.IsFinite(simTimeSeconds) || !double.IsFinite(hz) || !double.IsFinite(ampPx) || hz <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return ampPx * Math.Sin(2.0 * Math.PI * hz * simTimeSeconds);
+    }
+
     /// <summary>把任意角规范到 (-π, π]（供钳制上限语义用；消费方若用连续逼近，不必先规范）。</summary>
     private static double NormalizeSigned(double angle)
     {
