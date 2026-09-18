@@ -101,22 +101,12 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
   - **弱追踪覆盖全部敌机**：`NearestConeTarget` 不按 `aim_marked` 过滤——标记只决定**框显示**与**框内强追踪**，不是弱追踪的准入门槛。锥角/强度随档位（low 6°/0.42、medium 8°/0.52、high 10°/0.62）。
   - **遭遇单位同属瞄准面**（2026-09-17 裁定）：编队机与精英炮塔实现同一个「可瞄准目标」契约（存活 / 世界位置 / 框半宽 / 是否标记），弱追踪、框内强追踪、磁吸、标记框**一律覆盖**；遭遇单位恒为标记目标（框恒显）。理由：遭遇期间它们是屏上唯一可打目标，按类名排除会让瞄准手感随目标类型漂移。框半宽沿用普通敌机的「碰撞半径 + 同一 pad」口径，不另造一套。**Boss 不参与辅助瞄准**（既有例外，刻意留在契约外）。
   - 玩家弹速 `player.bullet_speed`（**2600**，定稿）：纵向 1080 设计高约 0.42s、横向 1920 宽约 0.74s 横穿，远距离目标不必再「等弹到」。
-  - **准星交战反馈（2026-09-18）**：准星本体三层状态语言——常态琥珀；准星**盖住**敌机（准星方域与碰撞圆相交即算，不必准心点入圆；未标记敌机同样算）→ 红粉变色（与敌弹/敌机轮廓同族）；入标记目标**框**（强追踪已生效）→ 金热色 + 一次性整圈旋转 + 括角收拢锁定框，出框淡出。变色之外旋转/收拢是两路非颜色线索（颜色不是唯一通道）；时长键 `effects.crosshair.*`，状态机单源 core `CrosshairState`，Boss 不参与（同辅助瞄准既有例外）。
-- **准星-光标绑定（2026-09-10 重设计）**：键鼠/手柄下准星 ≡ 系统光标逐像素绑定——`Player.AimPoint()` 物理增量（raw − lastRaw）全量通过；粘滞（stick_factor）/磁吸/右摇杆偏移经 `Viewport.WarpMouse` 反写真实光标（手感 = 光标被阻滞/轻推，世界坐标 → `GetCanvasTransform()` → 视口坐标），下一帧 raw 即新锚点，准星永不与光标脱钩；目标点钳制在可视世界域内（`ViewWorldRect` + 4px 内边距，视角档自适应），光标顶到屏幕边缘不再失控、也不出窗。瞄准只有这一条路径（触屏差值累积随输入退役已删除，`AimPoint` 无第二分支）。
-
-### 1.6 Bosses
-- **攻击密度随难度乘数 D 增长（2026-09-14）**：档位分档照旧只表达「选哪档开局」，D 另追加弹数
-  每 **3.0** D +1（上限 **4**），作用于多弹道攻击（扇射/追踪/环弹/齐射/弹幕墙）；单体狙击与蓄力炮
-  等「少而准」的攻击语义不受影响。判定在 core `DifficultyScaling.BossDensityBonus`。
-  目的：弹幕系后期压靠密度/模式，只堆数值会让弹幕「不更密、只更痛」。
-- Rotation: Nth boss = type `(N-1)%4+1` via `Spawner.SpawnBossInternal()`.
-- Phase tables P1/P2/ENRAGE (`boss.phases.typeN` + telegraph); 4-type enrage (`boss.enrage.type_*`, player slow ×0.35, no freeze); difficulty tiers × once in `_Ready()` (`boss.difficulty_scaling`: count/interval/speed).
-- Anchor: `FightY` = offset from view top; all via `FightAnchorY()`.
-- Escape: 50s timeout flee; fleeing **no rotation advance, no rest**; bar hidden + reorder.
-- Structure: facade `Boss` + `BossFire` (danmaku)/`BossAttacks` (FSM)/`BossMovement` (+P1 press-down)/`EnrageSequence`.
-
-### 1.7 Mothership & Return
-- Summon (`dock` H charge): run not paused, input locked + event invincibility. Hanger window → warp gate → DESCEND decelerate → dual-ring slow zone → DOCKING pod (`EnterPod()`) → resupply → RELEASE (`ExitPod()`) → loiter/leave. Values `effects.mothership_summon`.
+  - **准星自定义系统（2026-09-18，人类委托）**：准星样式从写死常量升级为**玩家档案**。档案字段（范围与默认即定稿；非法读值一律钳回范围内，不入界整档回默认）：
+    `shape`＝bracket（默认）/ cross / circle / dot 四档；`size` 0.5–3.0（默认 1.0，bracket 外接半宽基准 14px、circle 半径基准 12px、cross 线长基准 12px）；`thickness` 1–6px（默认 2）；`gap` 0–20px（默认 0；cross 内端距心、bracket 外推）；`alpha` 0.2–1.0（默认 0.95）；`rotation` 0–90° 步 15（默认 0；bracket/cross 专用，45° 即 X 形；绘制层旋转，与锁定自转叠加、不影响其四分圈回正）；`center_dot`（默认 true）+ `dot_size` 1–6px（默认 2）；`t_shape`（默认 false，cross 专用去顶线）；`outline`（默认 false，暖黑描边 +2px 提高亮底可读）；`state_tint`（默认 true，关闭后交战变色不再换色、旋转/收拢等非颜色线索保留）；`color` RGBA（默认 255,194,77,242＝主题琥珀）。
+    交战反馈与自定义的合成：可攻击/锁定混合的**目标色**仍是主题定稿色（用户色只替换常态基色，state_tint=false 则全程用户色）；交战时长键 `effects.crosshair.*` 是全局手感不随档案走。
+    **持久化**（settings.json，两键）：`crosshair_profiles`＝档案字典数组（键＝字段名 snake_case，缺键回默认），`crosshair_active`＝索引（越界/负回 0）。旧档缺两键→种子 4 预设（默认括角/经典十字/圆环/净点，命名走文案键）；**不抬 SettingsMigration.CurrentVersion**——新键缺失即默认、老代码忽略新键，双向兼容。设置「全部恢复默认」＝重建种子档案并激活 0（玩家自建档不保留，与出厂语义一致）。
+    **准星码**：`INF1-` + 20 个 Crockford Base32 字符（5 字符 ×4 组）。载荷 12 字节＝b0 版本(=1)、b1 标志（bit0 t_shape/bit1 center_dot/bit2 outline/bit3 state_tint/bit4-5 shape）、b2 size×100、b3 低半字节 thickness−1 高半字节 dot_size−1、b4 gap、b5 alpha×100、b6 rotation/15、b7-b10 RGBA、b11 CRC-8（poly 0x07）校验 b0-b10；后补 4 个零位凑 100 位再编码。编解码与校验单源 core（`CrosshairCode`）；导入校验失败（前缀/字符集/校验和/版本过新/域界）明确报错不落档；成功＝新建档案并激活，名字不入码。
+    设置页新增「准星」页：实时预览 + 形状/参数控件 + 档案管理（切换单选/新建副本/重命名/删除，至少保留 1 档）+ 准星码导出（复制到剪贴板）/导入。
   - **机库小窗升级（2026-09-14）**：`MothershipSummonWindow` 补实况屏铬件——抬头右端实况标记（闪烁点 + 已播秒数 `MS_SEQ_FEED_FMT`）、底部**相位轨**（充能/脱锁/弹射三节点，`MS_RAIL_*` 短标签，随镜头推进点亮）、机库区**扫描线 + 纵向缓移亮带**（`SummonScanlines` 自绘 1 draw call）。扫描线/亮带挂 `_panel` 且经 `MoveChild` 插在机库底色之后——挂 `_stage` 会被后建的不透明底完全盖住（实测）。`ReduceFlash` 下亮带停中位、实况点不闪。
 - Fire platform: GATLING/MISSILE during loiter.
 - Return: hold B (`homecoming`, `effects.home_charge_time`) → input lock → spawner stop → recall → `starfield.Warp(18)` → cinematic → base UI (tree paused).

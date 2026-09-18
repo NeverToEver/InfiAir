@@ -118,6 +118,21 @@
 | **「规则必须自己挣得起成本」**：Google 用 **effective false positive**（工程师看到告警后没采取任何正向行动即算）衡量静态分析是否值得保留；豁免申请频发被视为「该规则需要澄清或修订」的信号；SWE Book 另称「CI 100% 绿和 100% 可用率一样昂贵」，反对「CI 不绿不许提交」的硬政策 | 本仓已落地配对机制：`docs/GATE_LEDGER.md` 记每道门禁「最近一次拦到真缺陷」，与 §6 准入门槛要求的**退役条件**配对使用（行集由门禁断言，缺行即红）；台账明写「没有命中记录不等于可删」，低频高价值面按风险保留 |
 | **文档生命周期**：Google 给文档挂 freshness date（记录 owner 与最近复审，超期当 bug 跟踪），主张「文档无用就移除或显式标注过期并指向新处」；GitLab 明文规则 **「Delete instead of hiding documentation」**（隐藏会过期、会留孤儿，该删就删、靠 Git 历史回捞）；ADR 的 accepted 条目不改写、只被新条目取代（单页为宜） | 本仓同族纪律（活跃文档只写现状 + 开放项、修完直接删条目、反悔留痕不改旧条目）已补上缺口：`ROADMAP` 决策史按周期分层（当前周期留正文、更早原文进 `docs/DECISIONS_ARCHIVE.md`），且 `ROADMAP` 与 `AGENTS.md` 都有体积预算，**超预算即触发归档**而非放宽容忍 |
 
+### 4.6 准星自定义选项与分享码（2026-09-18 调研）
+
+背景：人类委托给准星引入成熟的自定义系统（大小/颜色/范围/形状 + 多档案持久化 + 跨设备复刻的准星码），要求先查业内主流可调选项。
+
+| 实践 | 本项目采纳 |
+| --- | --- |
+| **Valorant 的选项面**是「颜色（预设 + 自定义 RGB）+ 内/外四线（显隐/长度/粗细/间距/不透明度）+ 中心点（显隐/大小）」；职业玩家几乎只调内线 | 采纳为核心参数面：size/thickness/gap/alpha/中心点（含大小）；「外线随射击误差移动」类动态项不采纳（本作无后坐力弹散，交战反馈走交战状态机） |
+| **CS2 的选项面**在此基础上多出：风格档（静态/动态）、T 形（去一段线）、描边（drawoutline + 粗细）、整体 alpha、负间距 | 采纳 T 形、描边、alpha、gap 全值；「动态扩散」不采纳（无弹散误差可表达） |
+| **形状语汇**：主流 FPS 是四线十字 + 中心点/圆点；本作原生语汇是四角 bracket（军事 FUI 族） | 形状档 = bracket（默认，守 FUI 语汇）/ cross（经典）/ circle / dot 四档；bracket/cross 支持旋转档（45° 即 X 形），circle/dot 旋转无意义 |
+| **分享码**：CS2 `CSGO-xxxxx-xxxxx-…`＝base64 编码的全部准星设置，设置页内「Share or Import」粘贴互导 | 采纳同构交互：`INF1-` 前缀 + Crockford Base32 载荷 + CRC-8 校验 + 版本字节；格式规格见 `DESIGN_BASELINE`（本文档不复制） |
+| **多档案**：CS2/Valorant 均为单套配置 + 分享码备份；「多档案并存」见于社区准星生成器与部分竞技游戏配置档 | 人类明确要多档案：本地档案簿（种子 4 预设 + 玩家自建），active 索引切换；名字不入码（跨设备复刻样式，名字本地化） |
+
+来源：`ign.com/wikis/valorant/The_Best_Valorant_Crosshair_Guide`、`redbull.com`（Valorant 职业准星 11 项）、`totalcsgo.com`（cl_crosshair 命令全集与生成器）、`cybershoke.net`、`xplay.gg`、`dmarket.com`（CS2 分享码导入与 dot/gap 负间距实践）、`prosettings.net`（职业配置库）
+
+
 ## 5 参考来源（本次实际可访问）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`、`wiki.creativecommons.org/wiki/Recommended_practices_for_attribution`
