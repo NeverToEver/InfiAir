@@ -135,6 +135,22 @@ public partial class ChamferedPanel : Control
         }
     }
 
+    /// <summary>全息发光边缘（opt-in，虚影面板族）：切角轮廓多层外晕 + 内缘体积亮线，
+    /// 并以「自发光投影」语汇取代钢板受光/阴影线（顶缘受光带、拼板缝、暗色 keyline、
+    /// 铆钉都是受光金属的标记，自发光面上是语义冲突的）。默认关——钢板面板外观不变。</summary>
+    private bool _holoEdge;
+
+    [Export]
+    public bool HoloEdge
+    {
+        get => _holoEdge;
+        set
+        {
+            _holoEdge = value;
+            QueueRedraw();
+        }
+    }
+
     /// <summary>四角琥珀短线（"目标锁定"角标）：切角内侧的 L 形短刻度，尺寸足够才绘制；
     /// 默认开——全站面板统一得到受激边缘的精密仪表感（战术琥珀视觉语言）。</summary>
     private bool _cornerTicks = true;
@@ -174,8 +190,10 @@ public partial class ChamferedPanel : Control
         TextureRepeat = TextureRepeatEnum.Enabled;
     }
 
-    // 切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配）
-    private Vector2[] _cachedPts = System.Array.Empty<Vector2>();
+    // 切角几何缓存（尺寸/chamfer 不变即复用，避免布局变化时的重复构建与分配；
+    // 点序唯一来源是 UITheme.FillChamferPoints，本类不另写一份）
+    private readonly Vector2[] _cachedPts = new Vector2[8];
+    private readonly Vector2[] _cachedLoop = new Vector2[9]; // 闭合轮廓（首点收尾，供发光 halo 的 DrawPolyline 用）
     private float _cachedKeyW = -1.0f;
     private float _cachedKeyH = -1.0f;
     private float _cachedKeyC = -1.0f;
@@ -240,20 +258,20 @@ public partial class ChamferedPanel : Control
             return;
         }
 
-        // 几何缓存——尺寸/chamfer 未变直接复用上次数组
-        if (_cachedPts.Length == 0 || w != _cachedKeyW || h != _cachedKeyH || c != _cachedKeyC)
+        // 几何缓存——尺寸/chamfer 未变直接复用上次数组；点序与全站方形构件同源（UITheme）
+        if (_cachedKeyW < 0.0f || w != _cachedKeyW || h != _cachedKeyH || c != _cachedKeyC)
         {
-            _cachedPts = new Vector2[]
+            if (!UITheme.FillChamferPoints(_cachedPts, Size, c))
             {
-                new(c, 0.0f),
-                new(w - c, 0.0f),
-                new(w, c),
-                new(w, h - c),
-                new(w - c, h),
-                new(c, h),
-                new(0.0f, h - c),
-                new(0.0f, c),
-            };
+                return;
+            }
+
+            for (var i = 0; i < _cachedPts.Length; i++)
+            {
+                _cachedLoop[i] = _cachedPts[i];
+            }
+
+            _cachedLoop[_cachedPts.Length] = _cachedPts[0]; // DrawPolyline 不自动闭合
             _cachedKeyW = w;
             _cachedKeyH = h;
             _cachedKeyC = c;
@@ -293,19 +311,38 @@ public partial class ChamferedPanel : Control
             DrawPolygon(_cachedPts, vertColors);
         }
 
-        // 倒角受光逻辑（光来自上偏左，与按钮钢板贴图一致）：顶缘双线受光带托出面板，底/侧缘内阴影沉入底面
-        // 顶缘主受光线取全 BorderColor（琥珀受激），读作面板被顶部光源打亮
-        DrawLine(new Vector2(c + 3.0f, 1.5f), new Vector2(w - c - 3.0f, 1.5f), BorderColor, 1.0f, true);
-        DrawLine(new Vector2(c + 5.0f, 2.5f), new Vector2(w - c - 5.0f, 2.5f), new Color(BorderColor, BorderColor.A * 0.22f), 1.0f, true);
-        DrawLine(new Vector2(c + 3.0f, h - 1.5f), new Vector2(w - c - 3.0f, h - 1.5f), new Color(0.0f, 0.0f, 0.0f, 0.55f), 1.0f, true);
-        DrawLine(new Vector2(1.5f, c + 3.0f), new Vector2(1.5f, h - c - 3.0f), new Color(0.0f, 0.0f, 0.0f, 0.30f), 1.0f, true);
-        DrawLine(new Vector2(w - 1.5f, c + 3.0f), new Vector2(w - 1.5f, h - c - 3.0f), new Color(0.0f, 0.0f, 0.0f, 0.30f), 1.0f, true);
-        // 板金拼板缝（大面板自动）：中位暗缝 + 下缘受光棱线，钢板拼接结构感
-        if (w >= 320.0f && h >= 240.0f)
+        if (HoloEdge)
         {
-            var sy = h * 0.5f;
-            DrawLine(new Vector2(c + 12.0f, sy), new Vector2(w - c - 12.0f, sy), new Color(0.0f, 0.0f, 0.0f, 0.32f), 1.0f, true);
-            DrawLine(new Vector2(c + 12.0f, sy + 1.5f), new Vector2(w - c - 12.0f, sy + 1.5f), new Color(1.0f, 1.0f, 1.0f, 0.09f), 1.0f, true);
+            // 全息发光边缘：宽窄两层外晕沿切角轮廓包边（自发光读感），核心亮线由下方公共边框承担。
+            // halo 外溢 ~4px 出矩形：面板间距 ≥4px，不会蹭到邻件。
+            DrawPolyline(_cachedLoop, new Color(BorderColor, BorderColor.A * 0.14f), 8.0f, true);
+            DrawPolyline(_cachedLoop, new Color(BorderColor, BorderColor.A * 0.30f), 4.0f, true);
+            // 内缘体积亮线：投影体内缘更亮（菲涅尔式读感），几何同钢板 keyline 但取暖亮色
+            if (w >= 48.0f && h >= 32.0f)
+            {
+                var d = 2.5f;
+                foreach (var line in InsetLoopPoints(Size, Chamfer, d))
+                {
+                    DrawLine(line.from, line.to, new Color(BorderColor, BorderColor.A * 0.22f), 1.0f, true);
+                }
+            }
+        }
+        else
+        {
+            // 倒角受光逻辑（光来自上偏左，与按钮钢板贴图一致）：顶缘双线受光带托出面板，底/侧缘内阴影沉入底面
+            // 顶缘主受光线取全 BorderColor（琥珀受激），读作面板被顶部光源打亮
+            DrawLine(new Vector2(c + 3.0f, 1.5f), new Vector2(w - c - 3.0f, 1.5f), BorderColor, 1.0f, true);
+            DrawLine(new Vector2(c + 5.0f, 2.5f), new Vector2(w - c - 5.0f, 2.5f), new Color(BorderColor, BorderColor.A * 0.22f), 1.0f, true);
+            DrawLine(new Vector2(c + 3.0f, h - 1.5f), new Vector2(w - c - 3.0f, h - 1.5f), new Color(0.0f, 0.0f, 0.0f, 0.55f), 1.0f, true);
+            DrawLine(new Vector2(1.5f, c + 3.0f), new Vector2(1.5f, h - c - 3.0f), new Color(0.0f, 0.0f, 0.0f, 0.30f), 1.0f, true);
+            DrawLine(new Vector2(w - 1.5f, c + 3.0f), new Vector2(w - 1.5f, h - c - 3.0f), new Color(0.0f, 0.0f, 0.0f, 0.30f), 1.0f, true);
+            // 板金拼板缝（大面板自动）：中位暗缝 + 下缘受光棱线，钢板拼接结构感
+            if (w >= 320.0f && h >= 240.0f)
+            {
+                var sy = h * 0.5f;
+                DrawLine(new Vector2(c + 12.0f, sy), new Vector2(w - c - 12.0f, sy), new Color(0.0f, 0.0f, 0.0f, 0.32f), 1.0f, true);
+                DrawLine(new Vector2(c + 12.0f, sy + 1.5f), new Vector2(w - c - 12.0f, sy + 1.5f), new Color(1.0f, 1.0f, 1.0f, 0.09f), 1.0f, true);
+            }
         }
 
         // 四角琥珀刻度：切角之后的直边短标（受激边缘，战术仪表角标）——尺寸不足时不画
@@ -324,25 +361,13 @@ public partial class ChamferedPanel : Control
             DrawLine(new Vector2(w - 2.5f, o), new Vector2(w - 2.5f, o + t), tickCol, 1.5f, true);
             DrawLine(new Vector2(w - 2.5f, h - o - t), new Vector2(w - 2.5f, h - o), tickCol, 1.5f, true);
         }
-        // 板金拼缝：外轮廓内缩 2.5px 的暗色 keyline（socket 类 InnerFrame 已有自己的内框则跳过，避免双线打架）
-        if (!InnerFrame && w >= 48.0f && h >= 32.0f)
+        // 板金拼缝：外轮廓内缩 2.5px 的暗色 keyline（socket 类 InnerFrame 已有自己的内框则跳过，避免双线打架；
+        // 全息面板走 HoloEdge 分支的内缘亮线，暗缝是受光金属的标记）
+        if (!HoloEdge && !InnerFrame && w >= 48.0f && h >= 32.0f)
         {
-            var d = 2.5f;
-            var kc = Mathf.Max(c - d, 2.0f);
-            var kpts = new Vector2[]
+            foreach (var (from, to) in InsetLoopPoints(Size, Chamfer, 2.5f))
             {
-                new(d + kc, d),
-                new(w - d - kc, d),
-                new(w - d, d + kc),
-                new(w - d, h - d - kc),
-                new(w - d - kc, h - d),
-                new(d + kc, h - d),
-                new(d, h - d - kc),
-                new(d, d + kc),
-            };
-            for (var i = 0; i < kpts.Length; i++)
-            {
-                DrawLine(kpts[i], kpts[(i + 1) % kpts.Length], new Color(0.0f, 0.0f, 0.0f, 0.26f), 1.0f, true);
+                DrawLine(from, to, new Color(0.0f, 0.0f, 0.0f, 0.26f), 1.0f, true);
             }
         }
 
@@ -376,25 +401,14 @@ public partial class ChamferedPanel : Control
             if (w >= (d + ic) * 2.0f && h >= (d + ic) * 2.0f)
             {
                 var col = InnerFrameColor.A > 0.0f ? InnerFrameColor : new Color(BorderColor, BorderColor.A * 0.5f);
-                var ipts = new Vector2[]
+                foreach (var (from, to) in InsetLoopPoints(Size, Chamfer, d))
                 {
-                    new(d + ic, d),
-                    new(w - d - ic, d),
-                    new(w - d, d + ic),
-                    new(w - d, h - d - ic),
-                    new(w - d - ic, h - d),
-                    new(d + ic, h - d),
-                    new(d, h - d - ic),
-                    new(d, d + ic),
-                };
-                for (var i = 0; i < ipts.Length; i++)
-                {
-                    DrawLine(ipts[i], ipts[(i + 1) % ipts.Length], col, 1.0f, true);
+                    DrawLine(from, to, col, 1.0f, true);
                 }
             }
         }
 
-        if (EdgeRivets && w >= 150.0f && h >= 40.0f)
+        if (EdgeRivets && !HoloEdge && w >= 150.0f && h >= 40.0f)
         {
             var rx0 = w * 0.14f;
             var rx1 = w * 0.86f;
@@ -403,6 +417,33 @@ public partial class ChamferedPanel : Control
             DrawRivet(new Vector2(rx0, h - 9.0f));
             DrawRivet(new Vector2(rx1, h - 9.0f));
         }
+    }
+
+    /// <summary>外轮廓内缩 inset px 的闭合环（8 条线段端点对）：钢板 keyline / 全息内缘线 /
+    /// 嵌套内框共用同一份内缩几何——切角随内缩收小，太小处钳到 2px。</summary>
+    private static (Vector2 from, Vector2 to)[] InsetLoopPoints(Vector2 size, float chamfer, float inset)
+    {
+        var w = size.X;
+        var h = size.Y;
+        var ic = Mathf.Max(chamfer - inset, 2.0f);
+        Vector2[] pts =
+        {
+            new(inset + ic, inset),
+            new(w - inset - ic, inset),
+            new(w - inset, inset + ic),
+            new(w - inset, h - inset - ic),
+            new(w - inset - ic, h - inset),
+            new(inset + ic, h - inset),
+            new(inset, h - inset - ic),
+            new(inset, inset + ic),
+        };
+        var lines = new (Vector2 from, Vector2 to)[8];
+        for (var i = 0; i < 8; i++)
+        {
+            lines[i] = (pts[i], pts[(i + 1) % 8]);
+        }
+
+        return lines;
     }
 
     /// <summary>钢板铆钉：暗钢头 + 左上受光弧 / 右下背光弧（与全站「上偏左」受光一致）。</summary>

@@ -163,9 +163,11 @@ public partial class MothershipSummonWindow : CanvasLayer
     private void BuildPanel()
     {
         _panel = new ChamferedPanel();
-        // 左侧竖长：贴左缘垂直居中（1920×1080 设计坐标）
+        // 左侧竖长：贴左缘垂直居中（1920×1080 设计坐标）；全息实况屏与基地页板同一发光边缘语汇
         _panel.Position = new Vector2(24.0f, (1080.0f - PanelSize.Y) * 0.5f);
         _panel.Size = PanelSize;
+        _panel.MetalFill = false;
+        _panel.HoloEdge = true;
         _panel.BgColor = UITheme.BgDeepest;
         _panel.BorderColor = new Color(UITheme.Accent, 0.7f);
         _panel.BracketColor = UITheme.Accent;

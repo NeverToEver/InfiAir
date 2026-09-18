@@ -439,9 +439,13 @@ public partial class UITheme : RefCounted
         AttachButtonSfx(button);
     }
 
-    /// <summary>虚影面板材质（§3.2）：更透的全息底 + 亮一档边框（仅基地控制台使用）。</summary>
+    /// <summary>虚影面板材质（§3.2，全息投影语汇）：更透的全息底（关拉丝钢——投影是光不是金属面）
+    /// + HoloEdge 自发光边缘 + 裁剪内容（开机显影扫描带限制在面板内）。仅基地控制台使用。</summary>
     public static void ApplyPhantomPanel(ChamferedPanel panel)
     {
+        panel.MetalFill = false;
+        panel.HoloEdge = true;
+        panel.ClipContents = true;
         panel.BgColor = PhantomPanelBg;
         panel.BorderColor = PhantomBorder;
     }

@@ -25,10 +25,13 @@ public partial class BaseConsole : RadialMenuLayer
     private static readonly string[] CategoryIds = { "hangar", "supply", "routes", "missions" };
 
     private readonly Callable _localeChanged;
+    private readonly Callable _reduceFlashChanged;
 
     public BaseConsole()
     {
         _localeChanged = Callable.From(OnLocaleChanged);
+        // ReduceFlashChanged 带 bool 载荷——Callable.From(Action) 会以「参数计数不符」在运行期炸
+        _reduceFlashChanged = Callable.From<bool>(OnReduceFlashChanged);
     }
 
     private Label _rpLabel = null!;
@@ -96,21 +99,28 @@ public partial class BaseConsole : RadialMenuLayer
         tween.TweenProperty(label, "position:x", 1.0f, 0.03);
         tween.TweenInterval(0.03);
         tween.TweenProperty(label, "position:x", 0.0f, 0.0);
-        _dataFlickerTweens.Add(tween);
+        _dataFlickerTweens.Add((tween, label));
     }
 
     /// <summary>永续装饰 tween 缓存（页面隐藏期间暂停，防关页空转）。
     /// flicker 每分类页一条（BuildPages 时 MakePanel×4 各建一条），单字段装不下会漏出
-    /// 三条不受暂停控制的孤儿循环 tween，故收进列表与 _scanTween 一并接管。</summary>
-    private readonly List<Tween> _dataFlickerTweens = new();
+    /// 三条不受暂停控制的孤儿循环 tween，故收进列表与 _scanTween 一并接管；
+    /// 配对记录宿主标签——停播时把标签复位到全亮原位（停在半程的暗标签会被读成渲染坏点）。</summary>
+    private readonly List<(Tween Tween, Label Label)> _dataFlickerTweens = new();
     private Tween? _scanTween;
+    private ColorRect? _slowScan; // 屏幕慢扫描带（抑制/隐藏时收回屏外）
+    private readonly List<HoloPanelFx> _panelFx = new();
 
-    /// <summary>暂停装饰 tween（隐藏时）或恢复（可见时）；树暂停期间照常播放
-    /// （process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。
-    /// 由 ShowBase / OnResumePressed / _Ready 手工调用——本层未订阅 VisibilityChanged，
-    /// 新增隐藏路径须同步补调（见 <see cref="ApplyDataFlicker"/>）。</summary>
+    /// <summary>暂停装饰 tween（隐藏或减少闪光时）或恢复（可见且未减少闪光）；
+    /// 树暂停期间照常播放（process_mode=Always，基地页本身开着时树就是暂停的，装饰语义不变）。
+    /// 由 ShowBase / OnResumePressed / _Ready / 减少闪光切换手工调用——本层未订阅
+    /// VisibilityChanged，新增隐藏路径须同步补调（见 <see cref="ApplyDataFlicker"/>）。
+    /// 停播同时把装饰复位到静息态：抖动标签回全亮原位、慢扫描带收回屏外并倒回起点——
+    /// 冻在半程的暗标签/悬空亮带会被读成故障；恢复时从静息态重启，不跳变。</summary>
     private void OnVisibleChangedForFx()
     {
+        var run = Visible && !GameState.Instance.ReduceFlash;
+
         void Apply(Tween? tween)
         {
             if (tween == null || !tween.IsValid())
@@ -118,7 +128,7 @@ public partial class BaseConsole : RadialMenuLayer
                 return;
             }
 
-            if (Visible)
+            if (run)
             {
                 tween.Play();
             }
@@ -128,12 +138,56 @@ public partial class BaseConsole : RadialMenuLayer
             }
         }
 
-        foreach (var flicker in _dataFlickerTweens)
+        foreach (var (tween, _) in _dataFlickerTweens)
         {
-            Apply(flicker);
+            Apply(tween);
         }
 
-        Apply(_scanTween);
+        // 慢扫描带：停播即杀掉并收回屏外（Godot 4 tween 无 seek，复位＝重建，见 StartSlowScan）
+        if (_scanTween != null && _scanTween.IsValid())
+        {
+            _scanTween.Kill();
+        }
+
+        _scanTween = null;
+        if (_slowScan != null && !run)
+        {
+            _slowScan.Position = new Vector2(_slowScan.Position.X, -_slowScan.Size.Y); // 收回屏外起点
+        }
+        else if (_slowScan != null && run)
+        {
+            StartSlowScan();
+        }
+
+        if (!run)
+        {
+            foreach (var (_, label) in _dataFlickerTweens)
+            {
+                label.Modulate = new Color(label.Modulate, 1.0f);
+                label.Position = new Vector2(0.0f, label.Position.Y); // 容器管理布局时会覆盖回排布位
+            }
+        }
+
+        foreach (var fx in _panelFx)
+        {
+            fx.SetRunning(Visible);
+            fx.SetFxSuppressed(GameState.Instance.ReduceFlash);
+        }
+    }
+
+    /// <summary>重建屏幕慢扫描带的循环 tween（从屏外起点整程重启；隐藏/抑制期不留半程空转）。</summary>
+    private void StartSlowScan()
+    {
+        if (_slowScan == null)
+        {
+            return;
+        }
+
+        _slowScan.Position = new Vector2(_slowScan.Position.X, -_slowScan.Size.Y);
+        var scanTween = CreateTween().SetLoops();
+        _scanTween = scanTween;
+        scanTween.TweenProperty(_slowScan, "position:y", GetViewport().GetVisibleRect().Size.Y, 8.0).SetTrans(Tween.TransitionType.Linear);
+        scanTween.TweenProperty(_slowScan, "position:y", -_slowScan.Size.Y, 0.0);
     }
 
     public override void _Ready()
@@ -144,6 +198,11 @@ public partial class BaseConsole : RadialMenuLayer
         if (!gs.IsConnected(GameState.SignalName.LocaleChanged, _localeChanged))
         {
             gs.Connect(GameState.SignalName.LocaleChanged, _localeChanged);
+        }
+
+        if (!gs.IsConnected(GameState.SignalName.ReduceFlashChanged, _reduceFlashChanged))
+        {
+            gs.Connect(GameState.SignalName.ReduceFlashChanged, _reduceFlashChanged);
         }
 
         BuildChrome();
@@ -173,7 +232,16 @@ public partial class BaseConsole : RadialMenuLayer
         {
             gs.Disconnect(GameState.SignalName.LocaleChanged, _localeChanged);
         }
+
+        if (gs.IsConnected(GameState.SignalName.ReduceFlashChanged, _reduceFlashChanged))
+        {
+            gs.Disconnect(GameState.SignalName.ReduceFlashChanged, _reduceFlashChanged);
+        }
     }
+
+    /// <summary>减少闪光切换：装饰 tween 的播放口径统一在 <see cref="OnVisibleChangedForFx"/>，
+    /// 面板亮带的抑制在 <see cref="HoloPanelFx.SetFxSuppressed"/>——此处只做转发。</summary>
+    private void OnReduceFlashChanged(bool enabled) => OnVisibleChangedForFx();
 
     /// <summary>虚影站内部概念背景层：PHANTOM 站体 + 全屏慢扫描带（绘制序在 dim 之后、内容之前）。</summary>
     private void BuildBackdrop()
@@ -188,7 +256,8 @@ public partial class BaseConsole : RadialMenuLayer
         station.Position = new Vector2(960.0f, 540.0f);
         station.Scale = Vector2.One * 2.0f;
         bgWrap.AddChild(station);
-        // 慢扫描带（纯装饰）：尺寸/行程取 viewport 可见区
+        // 慢扫描带（纯装饰）：尺寸/行程取 viewport 可见区；循环 tween 由 StartSlowScan 统一管理
+        // （隐藏/减少闪光时杀掉收屏外，恢复时整程重启——见 OnVisibleChangedForFx）
         var viewportSize = GetViewport().GetVisibleRect().Size;
         var scanH = 140.0f;
         var slowScan = new ColorRect { Color = UITheme.PhantomScan };
@@ -196,10 +265,7 @@ public partial class BaseConsole : RadialMenuLayer
         slowScan.Size = new Vector2(viewportSize.X, scanH);
         slowScan.Position = new Vector2(0.0f, -scanH);
         AddChild(slowScan);
-        var scanTween = CreateTween().SetLoops();
-        _scanTween = scanTween;
-        scanTween.TweenProperty(slowScan, "position:y", viewportSize.Y, 8.0).SetTrans(Tween.TransitionType.Linear);
-        scanTween.TweenProperty(slowScan, "position:y", -scanH, 0.0);
+        _slowScan = slowScan;
     }
 
     /// <summary>右区：标题 + RP 余额 + 分类芯片行 + 当前分类标题 + 面板容器。</summary>
@@ -280,10 +346,11 @@ public partial class BaseConsole : RadialMenuLayer
         };
         glow.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         panel.AddChild(glow);
-        // 扫描线叠加层：绘于面板底之上、内容之下
-        var scan = new BaseConsoleScanlines();
-        scan.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        panel.AddChild(scan);
+        // 全息叠加层：静态扫描线 + 周期扫掠亮带，绘于面板底之上、内容之下
+        var fx = new HoloPanelFx();
+        fx.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        panel.AddChild(fx);
+        _panelFx.Add(fx);
         var vbox = new VBoxContainer { Name = "Body" };
         vbox.AddThemeConstantOverride("separation", 8);
         vbox.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -580,7 +647,8 @@ public partial class BaseConsole : RadialMenuLayer
         HoloBoot();
     }
 
-    /// <summary>全息启动：当前面板 α0 + scale 0.98→1.0；pivot 设为中心（否则从左上角缩放）。</summary>
+    /// <summary>全息启动：当前面板 α0 + scale 0.98→1.0；pivot 设为中心（否则从左上角缩放）。
+    /// 减少闪光关闭时叠一条投影显影扫描带（自顶向底一次），开启时只走普通淡入。</summary>
     private void HoloBoot()
     {
         if (!_pages.TryGetValue(_currentCategory, out var panel))
@@ -596,6 +664,33 @@ public partial class BaseConsole : RadialMenuLayer
         var tween = CreateTween();
         tween.TweenProperty(panel, "modulate:a", 1.0f, 0.25);
         tween.Parallel().TweenProperty(panel, "scale", Vector2.One, 0.25);
+        if (!GameState.Instance.ReduceFlash)
+        {
+            PlayBootScan(panel);
+        }
+    }
+
+    /// <summary>投影显影：柔边亮带 0.32s 自顶向底扫过面板（与淡入同步），扫完自清。
+    /// 亮度高于常态扫掠亮带（一次性事件而非环境噪声），盖在内容之上只占半场的瞬间。</summary>
+    private void PlayBootScan(ChamferedPanel panel)
+    {
+        var bandH = Mathf.Clamp(panel.Size.Y * 0.06f, 24.0f, 48.0f);
+        var band = new TextureRect
+        {
+            Texture = HoloPanelFx.MakeBandTexture(0.35f),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.Scale,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Size = new Vector2(panel.Size.X, bandH),
+            Position = new Vector2(0.0f, -bandH),
+            Modulate = new Color(1.0f, 1.0f, 1.0f, 0.9f),
+        };
+        panel.AddChild(band);
+        panel.MoveChild(band, panel.GetChildCount() - 1);
+        var tween = panel.CreateTween();
+        tween.TweenProperty(band, "position:y", panel.Size.Y, 0.32).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.In);
+        tween.Parallel().TweenProperty(band, "modulate:a", 0.0f, 0.32).SetDelay(0.12);
+        tween.TweenCallback(Callable.From(() => band.QueueFree()));
     }
 
     private void Refresh()
@@ -964,27 +1059,7 @@ public partial class BaseConsole : RadialMenuLayer
         _pages.TryGetValue(_currentCategory, out var page) ? page : _pageHolder;
 }
 
-/// <summary>面板扫描线叠加层：单节点自绘每 4px 一条 1px 横线，1 draw call。</summary>
-public partial class BaseConsoleScanlines : Control
-{
-    public override void _Ready()
-    {
-        MouseFilter = Control.MouseFilterEnum.Ignore;
-        Resized += QueueRedraw;
-    }
-
-    public override void _Draw()
-    {
-        var y = 2.0f;
-        while (y < Size.Y)
-        {
-            DrawLine(new Vector2(0.0f, y), new Vector2(Size.X, y), UITheme.PhantomScan, 1.0f);
-            y += 4.0f;
-        }
-    }
-}
-
-/// <summary>16×16 程序化线性发光图标：极简折线，青色双层描边模拟辉光。</summary>
+/// <summary>16×16 程序化线性发光图标：极简折线，全息琥珀双层描边模拟辉光。</summary>
 public partial class BaseConsoleGlyphIcon : Control
 {
     public Vector2[][] Strokes { get; set; } = System.Array.Empty<Vector2[]>();
@@ -1000,12 +1075,12 @@ public partial class BaseConsoleGlyphIcon : Control
     {
         foreach (var stroke in Strokes)
         {
-            DrawPolyline(stroke, new Color(UITheme.Accent, 0.3f), 3.0f, true);
+            DrawPolyline(stroke, new Color(UITheme.Holo, 0.3f), 3.0f, true);
         }
 
         foreach (var stroke in Strokes)
         {
-            DrawPolyline(stroke, UITheme.Accent, 1.5f, true);
+            DrawPolyline(stroke, UITheme.Holo, 1.5f, true);
         }
     }
 }
