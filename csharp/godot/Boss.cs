@@ -353,6 +353,13 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>贴图有效尺寸（_ready 实测更新，算轨道半径）。</summary>
     private Vector2 _bossSize = new(328.0f, 328.0f);
     private Sprite2D _sprite = null!;
+
+    // ---- 横移侧倾（§2.13）：只写贴图本地 Rotation，判定几何不动；速度走 X 帧间差分。
+    private float _bankMaxRad = 0.06f;    // effects.motion.boss_bank_max_rad
+    private float _bankRate = 3.0f;       // effects.motion.boss_bank_rate（缓慢，巨物惯性）
+    private float _bankRefSpeed = 120.0f; // effects.motion.boss_bank_ref_speed（满角参考横速）
+    private float _prevPosX;
+    private float _bankAngle;
     // 机体背光轮廓（阵营染色加法剪影；贴图随 Boss 类型/P2 换帧刷新，故单独维护）
     private static readonly Color RimGlowColor = new(1.0f, 0.32f, 0.48f, 0.30f);
     private Sprite2D? _rimGlow;
@@ -405,6 +412,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         // Configure 参数已 typed（BossFire）——直调发射器，原「注入本类并转发」桥删除
         _attacks.Configure(_fire, _ws);
         _enrageSequence.Configure(_fire, _attacks, _ws);
+        // 横移侧倾（§2.13）：贴图本地角随横向速度，机头朝下（根转 π）故向右移取负角
+        _bankMaxRad = CfgFx.Float("effects.motion.boss_bank_max_rad", _bankMaxRad, 0.0f);
+        _bankRate = CfgFx.Float("effects.motion.boss_bank_rate", _bankRate, 0.0f);
+        _bankRefSpeed = CfgFx.Float("effects.motion.boss_bank_ref_speed", _bankRefSpeed, 1.0f);
+        _prevPosX = Position.X;
         // 数值配置缓存（启动一次读入）
         LoadBalance();
     }
@@ -967,6 +979,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     {
         var d = (float)delta;
         UpdateFlash(d);
+        UpdateBank(d);
         if (_summonSlowTimer > 0.0f)
         {
             _summonSlowTimer -= d;
@@ -1406,6 +1419,21 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         }
 
         FlashFx.Update(_sprite, ref _flashTimer, delta, _flashTotal, BaseModulate(), ref _flashBaseScale);
+    }
+
+    /// <summary>横移侧倾（§2.13）：横向速度（X 帧间差分）超参考横速时贴图缓慢倾斜、
+    /// 机头朝移动方向偏。Boss 根节点 rotation=π（机头朝下），向右移（vx&gt;0）的机头右偏
+    /// 对应贴图本地**负**角，故目标角取 BankTarget 的相反数（符号语义与玩家机相反）。
+    /// 只写 Sprite2D 的 Rotation，判定几何不动；动效强度 0 当帧回正（判据 6）。</summary>
+    private void UpdateBank(float d)
+    {
+        var vx = d > 0.0f ? (Position.X - _prevPosX) / d : 0.0f;
+        _prevPosX = Position.X;
+        var maxRad = _bankMaxRad * (float)GameState.Instance.FxIntensity;
+        // 负号换算见方法注释；机头朝下时 BankTarget 的「右移正角」在贴图本地系里是负角
+        var target = -(float)Core.Visual.BodyPose.BankTarget(vx, _bankRefSpeed, maxRad);
+        _bankAngle = (float)Core.Visual.BodyPose.Approach(_bankAngle, target, _bankRate, d);
+        _sprite.Rotation = _bankAngle;
     }
 
     private Color BaseModulate() => _enraged ? EnrageBlinkColor : Colors.White;

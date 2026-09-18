@@ -113,6 +113,12 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
     private static float _entryRise = 26.0f;
 
+    // ---- 朝向跟随（§2.13）：速度方向明确时贴图转向移动方向，悬停/缓慢漂移回正机头（朝下）。
+    // 只写 Sprite2D 的 Rotation（贴图本地，叠加在根节点 π 之上），判定几何不动。
+    private static float _faceMaxRad = 0.5f;      // effects.motion.enemy_face_max_rad（已乘动效强度）
+    private static float _faceRate = 8.0f;        // effects.motion.enemy_face_rate
+    private static float _faceMinSpeed = 180.0f;  // effects.motion.enemy_face_min_speed（高于悬停摇摆峰值）
+
     /// <summary>火花方向的自增步进角（黄金角）：逐次转向即可扇开，无需随机源。
     /// 纯形状量（角度分配），不是可调幅值——不入 balance。</summary>
     private const float GoldenAngle = 2.3999632f;
@@ -235,6 +241,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     private float _flashTimer;
     private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private const float FlashTime = 0.1f;
+    // 朝向跟随状态（§2.13）：速度走帧间差分（策略直写 Position，无 Velocity 字段）
+    private Vector2 _prevPos;
+    private float _faceAngle;
     /// <summary>寿命离场出屏判定余量（px）：顶/左/右三边对称，底边不入判定（离场方向向上/侧向）。</summary>
     private const float ExitDespawnMargin = 150.0f;
     private float _shakeDieNormal = 5.0f;
@@ -684,6 +693,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         _entryTime = CfgFx.Float("effects.motion.enemy_entry_time", _entryTime, 0.0f);
         _entryStartScale = CfgFx.Float("effects.motion.enemy_entry_start_scale", _entryStartScale, 0.0f, 2.0f);
         _entryRise = CfgFx.Float("effects.motion.enemy_entry_rise", _entryRise, 0.0f, 1000.0f);
+        _faceMaxRad = CfgFx.Float("effects.motion.enemy_face_max_rad", _faceMaxRad, 0.0f);
+        _faceRate = CfgFx.Float("effects.motion.enemy_face_rate", _faceRate, 0.0f);
+        _faceMinSpeed = CfgFx.Float("effects.motion.enemy_face_min_speed", _faceMinSpeed, CfgFx.IntervalFloor);
         _motionCfgLoaded = true;
     }
 
@@ -725,6 +737,27 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         _sprite.Scale = _entryBaseScale * Mathf.Lerp(1.0f, _entryStartScale, intensity);
         _sprite.Position = new Vector2(0.0f, _entryRise * intensity * (float)GameState.Instance.WorldScale);
+    }
+
+    /// <summary>朝向跟随（§2.13）：速度走帧间差分（策略直写 Position），速度方向明确时贴图
+    /// 转向移动方向、低于阈值按比例回正机头。只写 Sprite2D 的 Rotation；根节点 rotation=π
+    /// （机头朝下）经 <see cref="Core.Visual.BodyPose.FaceTarget"/> 的 rootTurn 换算，垂直下压
+    /// 时贴图回正为 0。强度 0 当帧回正（判据 6）；角度幅度乘动效强度（设置中途拖动当帧生效）。</summary>
+    private void UpdateFacing(float d)
+    {
+        if (_sprite == null)
+        {
+            return;
+        }
+
+        var vel = d > 0.0f ? (Position - _prevPos) / d : Vector2.Zero;
+        _prevPos = Position;
+        var speed = vel.Length();
+        var worldAngle = speed > 1.0f ? vel.Angle() : 0.0f;
+        var maxRad = _faceMaxRad * FxIntensity();
+        var target = (float)Core.Visual.BodyPose.FaceTarget(worldAngle, speed / Mathf.Max(_faceMinSpeed, 1.0f), Rotation, maxRad);
+        _faceAngle = (float)Core.Visual.BodyPose.Approach(_faceAngle, target, _faceRate, d);
+        _sprite.Rotation = _faceAngle;
     }
 
     /// <summary>入场落位逐帧推进（模拟时间；缓动算式在 core <see cref="UnitEntry"/>）。
@@ -837,10 +870,17 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         }
 
         _flashTimer = 0.0f; // 闪白计时复位
+        _faceAngle = 0.0f; // 朝向回正（池化复用防残留：上一条命的姿态不留到这一条）
+        if (_sprite != null)
+        {
+            _sprite.Rotation = 0.0f;
+        }
+
         GameState.Instance.RegisterEnemy(this);
         Setup(config, pStrategy, pDifficulty, pBulletType);
         UpdateTailGlow();
         _spawnX = Position.X;
+        _prevPos = Position; // 速度差分基准：从出生点起算，不把停放点差分进来
         _phase = GD.Randf() * Mathf.Tau;
         _fireTimer = FireDelayHint >= 0.0f ? FireDelayHint : (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
         AnchorY = -1.0f;
@@ -1126,6 +1166,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     {
         var d = (float)delta;
         _time += d;
+        UpdateFacing(d);      // 朝向跟随（视觉通道，§2.13）
         UpdateEntry(d);       // 入场落位（视觉通道）
         UpdateDamageFx(d);    // 低档受损的零星火花/烟（低频，既有特效设施限量）
         RefreshGlowForIntensity(); // 动效强度被拖动后重写能量层（判据 6）

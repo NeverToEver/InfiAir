@@ -1245,7 +1245,13 @@
 			"player_bank_max_rad": 0.14,
 			"player_bank_rate": 12.0,
 			"player_recoil_px": 2.5,
-			"player_recoil_tau": 0.09
+			"player_recoil_tau": 0.09,
+			"enemy_face_max_rad": 0.5,
+			"enemy_face_rate": 8.0,
+			"enemy_face_min_speed": 180.0,
+			"boss_bank_max_rad": 0.06,
+			"boss_bank_rate": 3.0,
+			"boss_bank_ref_speed": 120.0
 		}
 	},
 	"elite_turret_event": {
