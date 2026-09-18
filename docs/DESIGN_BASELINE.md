@@ -1,5 +1,6 @@
 # InfiAir Design Baseline (DESIGN_BASELINE)
 
+> 路径：`docs/DESIGN_BASELINE.md`（纯参考；找它 / 改它的场合见 `AGENTS.md` §1 路由表）。
 > **玩法设计意图与定稿取值的单一权威**：数值 / 规则 / 系统边界定稿在这里，改设计只改这里。
 > 只写现状与开放口径——根因、修法、验证过程、批次汇报属 git 历史；决策的「为什么 + 反转链」在 `docs/ROADMAP.md`；流程与门禁在 `AGENTS.md`；外部依据与出处（行业惯例、许可证）在 `docs/REFERENCES.md`。
 > 系统行为不在此维护（以代码为准）。**小节号被代码注释按 `§x.y` 引用**，重排前先 `grep -rn "§" csharp/`；本文件不写变更史与日期。

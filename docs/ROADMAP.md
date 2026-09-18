@@ -1,5 +1,6 @@
 # InfiAir Roadmap
 
+> 路径：`docs/ROADMAP.md`（找它 / 改它的场合见 `AGENTS.md` §1 路由表）。
 > 方向、开放项与已知债务的单一权威。只写**现状 + 开放项**——根因、修法、验证过程、批次汇报属 git 历史；设计口径见 `docs/DESIGN_BASELINE.md`，流程与门禁见 `AGENTS.md`，外部依据与出处见 `docs/REFERENCES.md`。
 > 决策条目**一行制**（决策 + 为什么 + 反转链），只记当前周期；更早决策的原文与理由在 git 历史（`git log --oneline --grep=<关键词>`）。推翻既有决策时加新条目，不改旧条目。
 

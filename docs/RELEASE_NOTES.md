@@ -1,5 +1,7 @@
 # InfiAir 发布说明
 
+> 路径：`docs/RELEASE_NOTES.md`（Release 正文单源；写它的场合见 `AGENTS.md` §1 路由表）。
+
 本文件按 `## v<版本>` 分节，`release.sh --publish` 只取与当前版本号匹配的那一节作为 GitHub Release 正文（历史节保留在文件里，不会重复发布）。发布前在顶部为新版本加一节。
 
 ---
