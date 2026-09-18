@@ -697,6 +697,20 @@ public partial class ProbeHost : Node
 
                 _autoplayProbe = true;
             }
+            else if (arg == "--elite-ship-probe")
+            {
+                _eliteShipProbe = true;
+            }
+            else if (arg.StartsWith("--elite-ship-probe=", System.StringComparison.Ordinal))
+            {
+                // 型别（1-based，与机型表下标 +1 对应）；解析不出就按缺省型别跑，不静默变成越界值
+                if (int.TryParse(arg["--elite-ship-probe=".Length..], out var eliteShipType))
+                {
+                    _eliteShipType = eliteShipType;
+                }
+
+                _eliteShipProbe = true;
+            }
             else if (arg == "--startup-time")
             {
                 _startupProbe = true;
@@ -831,7 +845,7 @@ public partial class ProbeHost : Node
 
         if (_eventId.Length > 0 || _feelProbe || _longProbe || _fogProbe || _fogInterruptProbe || _returnProbe
             || _bossProbe || _dockProbe || _killAllProbe || _augmentCacheProbe || _earlyProbe || _autoplayProbe
-            || _practiceProbe || _bestRecordProbe)
+            || _practiceProbe || _bestRecordProbe || _eliteShipProbe)
         {
             // Main 嵌入宿主时关闭了本局可驱动（防随机事件破坏宿主场景的确定性），
             // 探针即宿主，显式开启——遭遇触发链的资格/门槛/门控仍全部走生产判定。
@@ -841,8 +855,9 @@ public partial class ProbeHost : Node
             // 事件一开就冻结 Boss 调度、暂停波次，并挡下 Main 的坞蓄力（互斥）。
             // 探针不请求任何遭遇，也不缩短任何生产时长，故这两趟整体关掉遭遇驱动——
             // 红绿因此只取决于生产链本身，与随机掷签无关（AGENTS §5）。
-            // 遭遇本身的覆盖由 --event-probe 各趟负责。
-            _events.SetRunActive(!(_bossProbe || _dockProbe));
+            // 遭遇本身的覆盖由 --event-probe 各趟负责。精英机贴图趟加入这一组：它等的正是
+            // 生产波次表（遭遇一开就冻结波次，等待时长与红绿会跟着掷签漂）。
+            _events.SetRunActive(!(_bossProbe || _dockProbe || _eliteShipProbe));
             // 遭遇/手感/长局探针一律关闭迷雾随机事件：首延迟（25s）过后被精英炮塔等长趟越过，
             // 此后每 3s 有 35% 概率触发迷雾（方向偏转会把无头局的玩家推入弹幕致死），
             // 探针红绿将取决于随机数——违反 §5「随机要么避免、要么走可注入取值源」。
@@ -1109,6 +1124,12 @@ public partial class ProbeHost : Node
         if (_augmentCacheProbe)
         {
             TickAugmentCacheProbe();
+            return;
+        }
+
+        if (_eliteShipProbe)
+        {
+            TickEliteShipProbe();
             return;
         }
 

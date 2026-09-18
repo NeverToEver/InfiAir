@@ -236,6 +236,16 @@ smoke_elite_death() {
   expect_marker "elite turret 死亡打断" "${PROBE_LOG_BASE}.elite_death.log" "[event-probe] elite_turret 死亡打断完成"
 }
 
+smoke_elite_ship() {
+  # 精英机贴图路径：直选末位型别后等生产波次放出精英，读该机节点上的实际主贴图与辉光遮罩路径。
+  # 为什么需要它：型别按随机抽，180 模拟秒的自动游玩短局只出 1–2 个精英波，末位型写错照绿——
+  # 映射指到另一张存在的贴图不报错，`_glow.png` 遮罩缺失也只是静默保留原遮罩（玩法无感）。
+  # 帧数：第一波精英是第 4 波（special gap 初值 3、波次间隔 7s 起向 4s 收敛）≈ 27 模拟秒
+  # ≈ 1620 帧（余量 780 帧）。
+  run_case "elite ship skin smoke" 2400 "${PROBE_LOG_BASE}.elite_ship.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.elite_ship.userdata" --elite-ship-probe=4
+  expect_marker "精英机贴图与辉光路径" "${PROBE_LOG_BASE}.elite_ship.log" "[elite-ship-probe] 精英第 4 型贴图与辉光路径成立"
+}
+
 smoke_fuel() {
   # 燃料量槽满扫：无头局玩家不操作、不掉油，低油量填充绘制路径平时走不到；探针把液位从满扫到空，
   # 逼 _Draw 在每个液位各画一次（含掉液触发的最大波幅晃动）。判定靠错误正则抓「Invalid polygon data」
@@ -410,6 +420,7 @@ SMOKE_CASES=(
   smoke_formation
   smoke_elite
   smoke_elite_death
+  smoke_elite_ship
   smoke_fuel
   smoke_feel
   smoke_long

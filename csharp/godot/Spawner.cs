@@ -107,6 +107,11 @@ public partial class Spawner : Node
     /// <summary>练习局直选的下一只 Boss 型别（0 = 未指定，按击杀数轮换；一次性，TriggerBossInternal 消费）。</summary>
     private int _requestedBossType;
 
+    /// <summary>直选的下一只精英型别（0 = 未指定，按型别表均匀抽取；一次性，下一波精英的第一只消费）。
+    /// 与 Boss 直选同族：被替下的只有随机抽取这一步，入场仍走生产链（预告线 → 池化 → 生产数值/开火）。
+    /// 存在的理由是**覆盖**——型别按随机抽时，短局只出 1–2 个精英波，末位型的贴图映射写错也照绿。</summary>
+    private int _requestedEliteType;
+
     /// <summary>遭遇事件对 Boss 调度的冻结（深度计数口径：事件持有 +1、释放 -1，与
     /// _wavesPauseDepth 同构）——两个事件各自持有时，先结束者不会提前解冻后结束者的冻结。
     /// 到期记 pending 一次，不累积。记账（深度/pending/释放语义）在 core BossFreezeLedger，
@@ -373,10 +378,19 @@ public partial class Spawner : Node
             ELITE_WAVE_SIZE);
         for (var i = 0; i < count; i++)
         {
-            var config = ELITE_TYPES[(int)(GD.Randi() % (uint)ELITE_TYPES.Count)];
+            var config = PickEliteTypeInternal();
             var x = SlotPos(view.Position.X + SpawnInsetX, view.Size.X - SpawnInsetX * 2, count, i);
             QueueEnemy(config, x, (float)GD.RandRange(view.Position.Y + _hoverBand.X, view.Position.Y + _hoverBand.Y), true);
         }
+    }
+
+    /// <summary>精英型别抽取：直选请求优先（一次性，只作用于本波的第一只），否则按型别表均匀抽取。</summary>
+    private Godot.Collections.Dictionary PickEliteTypeInternal()
+    {
+        var requested = _requestedEliteType;
+        _requestedEliteType = 0;
+        var index = requested > 0 ? requested - 1 : (int)(GD.Randi() % (uint)ELITE_TYPES.Count);
+        return ELITE_TYPES[index];
     }
 
     /// <summary>单机随机入口（兼容既有调用）：随机 x + 悬停带内随机锚点。</summary>
@@ -498,6 +512,20 @@ public partial class Spawner : Node
 
         _requestedBossType = pType;
         TriggerBossInternal();
+        return true;
+    }
+
+    /// <summary>直选下一波精英的第一只型别（1-based，与 <see cref="ELITE_TYPES"/> 下标 +1 对应）。
+    /// 一次性：被下一波精英消费后清空，同波其余精英仍按型别表随机；返回 false 只表示型别越界。
+    /// 精英波的出场时机不由此改变（仍由波次表与 special gap 决定），调用方按波次等待。</summary>
+    public bool RequestEliteType(int pType)
+    {
+        if (pType < 1 || pType > ELITE_TYPES.Count)
+        {
+            return false;
+        }
+
+        _requestedEliteType = pType;
         return true;
     }
 
