@@ -77,9 +77,16 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>无障碍：减少闪光（settings.json 持久化；开启后色差 ×0.4、禁呼吸/抖动/心跳视觉脉冲，音效保留）</summary>
     public bool ReduceFlash { get; set; } = false;
 
-    /// <summary>无障碍：高对比弹体（settings.json 持久化，默认关；开启后敌弹带深色描边，靠形状而非
-    /// 色相与玩家弹区分。纯表现——碰撞/伤害/速度一律不变，关闭时逐位退回原外观）</summary>
-    public bool HighContrast { get; set; } = false;
+    /// <summary>高对比弹体的出厂默认（见 <see cref="HighContrast"/>）：默认开的理由是默认关时
+    /// 敌弹与玩家弹只靠色相区分（约 36° vs 355° 正是红绿色觉障碍最难的一段）。
+    /// 这是玩家可感的核定取值，改动须连同 `--settings-probe` 的默认值断言一起看。</summary>
+    public const bool DefaultHighContrast = true;
+
+    /// <summary>无障碍：高对比弹体（settings.json 持久化；敌弹带亮色描边，靠轮廓而非色相与玩家弹区分。
+    /// 纯表现——碰撞/伤害/速度一律不变，关闭时逐位退回原外观）。
+    /// 默认值单源在 <see cref="DefaultHighContrast"/>：出厂档、恢复默认与探针的「非默认档夹具」
+    /// 都取它，改这一处即全线跟随（写死一侧时，改默认值会让复位信号判据变成假红）。</summary>
+    public bool HighContrast { get; set; } = DefaultHighContrast;
 
     /// <summary>世界层画面增强（辉光/色彩分级/晕影，settings.json 持久化，默认开）。
     /// 关闭 = 逐元素发光回退路径，WorldPostFx 全屏层隐藏（低配机/风格偏好）。</summary>
@@ -128,7 +135,7 @@ public sealed partial class SettingsService : RefCounted
         CustomWindowHeight = 1080;
         AimAssistLevel = new StringName("medium");
         ReduceFlash = false;
-        HighContrast = false;
+        HighContrast = DefaultHighContrast;
         ShakeScale = 1.0;
         HitStopScale = 1.0;
         WorldPostFx = true;

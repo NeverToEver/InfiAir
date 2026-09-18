@@ -169,9 +169,16 @@ public partial class ProbeHost : Node
 
     /// <summary>正常 settings.json：同前，取值刻意全非默认（回退实现会把它们全部读成默认而判红）；
     /// 四个开关（减闪 / 高对比 / 画面增强 / 鼠标锁定）同样取非默认值——高对比进表也是
-    /// 「全部恢复默认」补发信号那半判据的前提（值没变过就无从判漏发）。</summary>
-    private const string ValidSettingsJson =
-        """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"high_contrast":true,"world_post_fx":false,"mouse_lock":false}""";
+    /// 「全部恢复默认」补发信号那半判据的前提（值没变过就无从判漏发）。
+    /// 高对比这一项由默认值派生（<see cref="NonDefaultHighContrast"/>）：写死 true 时，
+    /// 默认值改成开后本档就不再是「非默认」，复位信号判据会退化成假红。</summary>
+    private static readonly string ValidSettingsJson =
+        """{"version":4,"locale":"en","difficulty":"hard","view_zoom":"large","window_mode":"windowed","resolution":"1280x720","custom_width":1000,"custom_height":700,"aim_assist":"high","fps_cap":"fps30","vsync":false,"joy_aim_speed":3000.0,"joy_deadzone":0.7,"joy_vibration":false,"master_volume":0.5,"music_volume":0.4,"sfx_volume":0.3,"shake_scale":0.2,"hit_stop_scale":0.1,"tutorial_done":true,"ctrl_toggle_mode":true,"shift_toggle_mode":true,"fire_toggle_mode":true,"reduce_flash":true,"high_contrast":"""
+        + (NonDefaultHighContrast ? "true" : "false")
+        + ""","world_post_fx":false,"mouse_lock":false}""";
+
+    /// <summary>高对比弹体的「非默认」取值：夹具与判据都从这里派生，默认值改任一边都不失真。</summary>
+    private static readonly bool NonDefaultHighContrast = !SettingsService.DefaultHighContrast;
 
     /// <summary>正常档还原断言里 health 的期望值（ValidRunJson 的 health 字段）。</summary>
     private const float AssertedHealth = 42.5f;
@@ -1936,6 +1943,17 @@ public partial class ProbeHost : Node
 
         if (_settingsProbeStep == 0)
         {
+            // 高对比弹体默认开：本趟跑在独立用户目录里（settings.json 不存在＝取默认值），
+            // 此刻还没有任何写设置的动作，读到的就是出厂默认。默认关会让色觉不便的玩家
+            // 一上来就只看色相区分弹幕——默认值是「玩家可感」的裁定面，改它必须显式改这里。
+            if (!GameState.Instance.HighContrast)
+            {
+                GD.PushError("[settings-probe] 高对比弹体默认值不是开——默认关时敌弹与玩家弹只靠色相区分"
+                    + "（红绿色觉障碍最难的一段），而没有任何其它门禁会判出这次改动");
+                _settingsProbe = false;
+                return;
+            }
+
             _settingsWheel = FindWheel(settings);
             if (_settingsWheel == null)
             {
@@ -4654,11 +4672,12 @@ public partial class ProbeHost : Node
             ok = false;
         }
 
-        // 无障碍开关同样只认真 bool（宽松转换把 "on" 读成 true 时，手改档就能替玩家打开高对比）
-        if (gs.HighContrast)
+        // 无障碍开关同样只认真 bool（宽松转换把 "on" 读成 true 时，手改档就能替玩家打开高对比）。
+        // 判据是「回落到出厂默认」而不是写死某一侧——默认值本身是裁定过的取值（见 SettingsService）
+        if (gs.HighContrast != SettingsService.DefaultHighContrast)
         {
-            GD.PushError("[hostile-save-probe] 恶意设置档的 high_contrast 非 bool 却被读成开——"
-                + "手改档可替玩家改无障碍档");
+            GD.PushError($"[hostile-save-probe] 恶意设置档的 high_contrast 非 bool 却没有回落到默认值 "
+                + $"{SettingsService.DefaultHighContrast}——手改档可替玩家改无障碍档");
             ok = false;
         }
 
@@ -4875,7 +4894,7 @@ public partial class ProbeHost : Node
 
         if (gs.Locale != "en" || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
             || gs.FpsCap != new StringName("fps30") || gs.Difficulty != new StringName("hard")
-            || !gs.HighContrast || gs.CustomWindowWidth != 1000)
+            || gs.HighContrast != NonDefaultHighContrast || gs.CustomWindowWidth != 1000)
         {
             GD.PushError(GdFormat.Format(
                 "[hostile-save-probe] 正常设置档未还原：locale=%s view_zoom=%s aim_assist=%s fps_cap=%s difficulty=%s "
@@ -5300,7 +5319,9 @@ public partial class ProbeHost : Node
             $"{{\"version\":{Core.Storage.SettingsMigration.CurrentVersion + 1},\"locale\":\"en\","
             + "\"difficulty\":\"hard\",\"view_zoom\":\"large\",\"resolution\":\"1280x720\","
             + "\"custom_width\":1000,\"custom_height\":700,\"aim_assist\":\"high\",\"fps_cap\":\"fps30\","
-            + "\"vsync\":false,\"reduce_flash\":true,\"high_contrast\":true,\"world_post_fx\":false,\"mouse_lock\":false,"
+            + "\"vsync\":false,\"reduce_flash\":true,\"high_contrast\":"
+            + (NonDefaultHighContrast ? "true" : "false")
+            + ",\"world_post_fx\":false,\"mouse_lock\":false,"
             + "\"shake_scale\":0.2,\"hit_stop_scale\":0.1,\"master_volume\":0.5,\"music_volume\":0.4,"
             + "\"sfx_volume\":0.3,\"joy_aim_speed\":3000.0,\"joy_deadzone\":0.7,\"joy_vibration\":false}");
         ok &= LoadSettingsForProbe("更高版本档");
@@ -5358,7 +5379,7 @@ public partial class ProbeHost : Node
         if (gs.Locale != "zh" || gs.Difficulty != new StringName("medium")
             || gs.ViewZoom != new StringName("small") || gs.AimAssistLevel != new StringName("medium")
             || gs.FpsCap != new StringName("60") || !gs.VSync || !gs.MouseLock || gs.ReduceFlash
-            || gs.HighContrast
+            || gs.HighContrast != SettingsService.DefaultHighContrast
             || !gs.WorldPostFx || gs.CustomWindowWidth != 1920 || gs.CustomWindowHeight != 1080)
         {
             GD.PushError($"[settings-version-probe] {label} 未逐项回出厂档：locale={gs.Locale} "
@@ -5390,7 +5411,7 @@ public partial class ProbeHost : Node
         if (gs.Locale != "en" || gs.Difficulty != new StringName("hard")
             || gs.ViewZoom != new StringName("large") || gs.AimAssistLevel != new StringName("high")
             || gs.FpsCap != new StringName("fps30") || gs.VSync || gs.MouseLock || !gs.ReduceFlash
-            || !gs.HighContrast
+            || gs.HighContrast != NonDefaultHighContrast
             || gs.WorldPostFx || gs.CustomWindowWidth != 1000 || gs.CustomWindowHeight != 700)
         {
             GD.PushError($"[settings-version-probe] {label} 未逐项还原：locale={gs.Locale} "
