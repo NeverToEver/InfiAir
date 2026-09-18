@@ -1253,13 +1253,16 @@ public partial class Player : CharacterBody2D
             _fireCooldown = Mathf.Max(interval, 0.01f);
         }
 
-        // 机身色调四源 + 受击点脉动（委托 PlayerVisuals）
+        // 机身色调四源 + 受击点脉动 + 姿态（横移侧倾/开火后坐力，委托 PlayerVisuals）
         if (Invincible > 0.0f)
         {
             Invincible -= d;
         }
 
-        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime);
+        // 横向速度占比（机体右向量 = 本帧瞄准角旋转后的 (cos, sin)），驱动贴图 banking
+        var right = new Vector2(Mathf.Cos(Rotation), Mathf.Sin(Rotation));
+        var lateral01 = Velocity.Dot(right) / Mathf.Max(MaxSpeed, 1.0f);
+        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime, lateral01);
         // 回血（委托 PlayerDamage）
         _damage.HealTick(d);
     }
@@ -1605,6 +1608,7 @@ public partial class Player : CharacterBody2D
 
     private void FireInternal(Vector2 aim)
     {
+        _visuals.NotifyFired(); // 开火后坐力置位（表现层，§2.13）
         var spread = _spreadShotCount;
         var pierce = _pierceCount;
         var explosive = _explosiveEnabled;

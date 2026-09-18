@@ -37,6 +37,15 @@ public class PlayerVisuals
     /// <summary>弹反高光带顶点缓冲预分配（UpdateParryVisuals 每物理帧原地写，防 new Vector2[6]）。</summary>
     private readonly Vector2[] _parryShinePoly = new Vector2[6];
 
+    // ---- 机体姿态（横移侧倾 + 开火后坐力，DESIGN_BASELINE §2.13）：只写贴图节点的
+    // Rotation/Position，机体根节点与碰撞体不动；振幅乘动效强度（fx_intensity），0 = 关闭。
+    private float _bankAngle;         // 当前侧倾角（rad，贴图本地，指数平滑逼近目标）
+    private float _recoilAge = 10.0f; // 距上次开火的秒数（初值大于 3τ：开机无残余后坐力）
+    private float _bankMax = 0.14f;   // effects.motion.player_bank_max_rad（Init 读入，已乘动效强度）
+    private float _bankRate = 12.0f;  // effects.motion.player_bank_rate
+    private float _recoilPx = 2.5f;   // effects.motion.player_recoil_px（已乘世界缩放与动效强度）
+    private float _recoilTau = 0.09f; // effects.motion.player_recoil_tau
+
     /// <summary>机体底色（暖族提亮，DESIGN_BASELINE §2.1/§2.3 的战术琥珀）：全站唯一一份——
     /// Player._Ready 的初值与 UpdateFrame 的每帧写共用本常量（两份同名常量分叉时，运行时生效的是
     /// 每帧写的那份，初值侧被静默架空；原先的冷色是全息青退役残留）。</summary>
@@ -96,7 +105,21 @@ public class PlayerVisuals
         }
 
         BuildThrusterFlare();
+        var fx = FxIntensity();
+        _bankMax = CfgFx.Float("effects.motion.player_bank_max_rad", _bankMax, 0.0f) * fx;
+        _bankRate = CfgFx.Float("effects.motion.player_bank_rate", _bankRate, 0.0f);
+        var ws = (float)GameState.Instance.WorldScale;
+        _recoilPx = CfgFx.Float("effects.motion.player_recoil_px", _recoilPx, 0.0f) * ws * fx;
+        // tau 下限取 0 而非 IntervalFloor：tau=0 是「关闭后坐力」的合法口径（RecoilFactor 对 tau≤0 返回 0），
+        // 钳到 0.05 会把「关闭」误变成「极快回弹」。
+        _recoilTau = CfgFx.Float("effects.motion.player_recoil_tau", _recoilTau, 0.0f);
     }
+
+    /// <summary>动效强度（0..1）：设置项 fx_intensity 的每帧直读（取值口单源在设置服务）。</summary>
+    private static float FxIntensity() => (float)GameState.Instance.FxIntensity;
+
+    /// <summary>开火后坐力置位（FireInternal 每发调用）：重置后坐计时，贴图向机尾回弹由 UpdateFrame 推进。</summary>
+    public void NotifyFired() => _recoilAge = 0.0f;
 
     /// <summary>核心喷口三层软点（白芯/琥珀/红外，additive）：作为喷口根部的持续亮核，
     /// 叠加在 GpuParticles 尾焰之上；挂在 Thruster 节点下随其位置/缩放。数值 effects.thruster_core.*。</summary>
@@ -227,9 +250,22 @@ public class PlayerVisuals
     /// <summary>机身色调四源（优先级从高到低）：弹反金 tint &gt; 擦弹金色微闪 &gt; 无敌帧闪烁 &gt; 常态基底。
     /// 擦弹闪光在此递减（原 _physics_process 视觉分支）；无敌倒计时递减留在 player（战斗状态）。
     /// 受击点光点脉动同帧驱动（常亮低频闪烁，提示实际受击判定位置）。
-    /// simTime = Player 累计模拟时间（秒），脉动相位基准（原墙钟 nowMs；频率等价换算 20/6 rad/s）。</summary>
-    public void UpdateFrame(float delta, float parryTint, float invincible, float simTime)
+    /// simTime = Player 累计模拟时间（秒），脉动相位基准（原墙钟 nowMs；频率等价换算 20/6 rad/s）。
+    /// lateral01 = 横向速度占比（速度在机体右向量上的投影 ÷ MaxSpeed，Player 归一化后传入，
+    /// 加速档可超 1 后由算式钳制），驱动横移侧倾；
+    /// 侧倾与后坐力只写贴图节点的 Rotation/Position（机体根节点与判定几何不动，§2.13）。</summary>
+    public void UpdateFrame(float delta, float parryTint, float invincible, float simTime, float lateral01)
     {
+        // 横移侧倾：目标角按横向占比，指数平滑逼近（机头朝移动方向偏）
+        var target = Core.Visual.BodyPose.BankTarget(lateral01, 1.0f, _bankMax);
+        _bankAngle = (float)Core.Visual.BodyPose.Approach(_bankAngle, target, _bankRate, delta);
+        _sprite.Rotation = _bankAngle;
+
+        // 开火后坐力：贴图沿机尾（本地 +Y，贴图机头朝上）回弹
+        _recoilAge += delta;
+        var recoil = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _recoilTau) * _recoilPx;
+        _sprite.Position = new Vector2(0.0f, recoil);
+
         if (parryTint > 0.0f)
         {
             _sprite.Modulate = BodyTintBase.Lerp(new Color(1.7f, 1.25f, 0.5f), parryTint);
