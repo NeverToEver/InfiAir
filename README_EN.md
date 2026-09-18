@@ -33,12 +33,13 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 - **Run checkpoint saves** — progress is written automatically when you dock at base or choose "save & exit"; dying or abandoning a run deletes the save — checkpoints can be resumed, but never rolled back after death. "Continue last sortie" on the title screen restores the whole run (score, difficulty, talents, augments, missions); the battlefield restarts from the next wave.
 - **Talent cache tree** — milestones and boss kills mint talent points into a cache pool (last in, first out, with overflow decay). Charge open the panel and build freely: 27 nodes across 4 categories, with faction mutex, focus penalty, route contracts and overcharge pulling against each other — no build is a free lunch.
 - **Precise bullet-hell feel** — manual fire on the left mouse button (hold to fire, or click to toggle) with combo scoring (5 s window, up to ×2), graze scoring, and a 360° parry that reflects enemy bullets back at their owners. Your hitbox is a 2.8 px core; grace frames and exit-trajectory settlement guarantee a direct hit always lands and only grazes get forgiven.
-- **Boss rotation & encounter events** — 4 bosses with phased patterns and enrage; fail to kill one within 50 s and it flees. Elite turrets, bomber formations (their bombs can be shot down or parried back) and four interference fogs interleave under a strict priority chain — never two at once.
+- **Custom crosshair** — four shapes (bracket / cross / circle / dot) with size, thickness, gap, opacity, rotation, centre dot, outline and free RGBA; multiple profiles plus `INF1-` share codes to reproduce a style on another machine. The crosshair tints when it covers an enemy and spins into a locking bracket when strong tracking engages.
+- **Boss rotation & encounter events** — 4 bosses with phased patterns and enrage; fail to kill one within 50 s and it flees. Elite turrets, bomber formations (their bombs can be shot down or parried back) and four interference fogs interleave — encounters exclude each other by priority, while fogs roll independently and can run alongside an encounter (one fog at a time).
 - **Mothership & the Dawn Station** — charge-summon the mothership for fire support and a hangar pod, then return to the Dawn Station to refit: hangar, repair & resupply, route contracts and mission planning, spending RP on the way back out.
 - **Tactical-amber presentation** — warm charcoal base with amber interaction accents; metal, hologram lines and text greys all sit in the same warm family (the old cool cyan is retired); hand-written screen-space post-processing (bloom / grade / vignette / grain) fills in what GL Compatibility lacks; heavy damage cracks the screen and sinks your heartbeat into it, with a flash-reduction toggle for accessibility.
 - **Window & performance options** — windowed / borderless fullscreen; five render resolution tiers (720p / 900p / 1080p / 1440p / 4K, filtered to your monitor), free window resizing that remembers custom sizes; 3-step view zoom; a nine-tier FPS cap (30 / 45 / 60 / 120 / 144 / 165 / 180 / 240 / unlimited) plus vsync, with live FPS and the actual vsync state shown in Settings.
 - **Tunable input** — keyboard/mouse and gamepad side by side: every keyboard action except fire / talent panel / pause / restart is rebindable (conflicting keys yield automatically, defaults restorable), the gamepad is bound by SDL position with automatic Xbox / PS labels; right-stick sensitivity and deadzone, fire hold-or-toggle and Ctrl/Shift hold-or-toggle all live in Settings.
-- **Volume & accessibility** — separate master / music / effects volume; flash reduction (softens hit flashes and heartbeat pulses), screen-shake intensity and motion-effect intensity (the latter two down to off) sit alongside a one-click restore of all defaults.
+- **Volume & accessibility** — separate master / music / effects volume; flash reduction (softens hit flashes and heartbeat pulses), screen-shake intensity, hit-stop intensity and motion-effect intensity (all three down to off), and high-contrast bullets that outline enemy shots in a bright edge (on by default); one click restores all defaults.
 - **The inevitable-death curve** — difficulty climbs without bound with boss kills and time; three difficulty tiers set your score multiplier (×1 / ×2 / ×3) and pacing; every number lives in a single `data/balance.json`.
 
 ## Controls
@@ -56,7 +57,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | R | Restart run (pause screen) |
 | Esc | Back / Pause |
 
-Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial (progress resumes per stage). **P** opens practice: pick a boss type, starting difficulty and encounter — counts no progress and writes no saves. Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
+Title screen: **any key** for a new run · **C** continue last sortie · **T** tutorial (progress resumes per stage — the entry reads "continue tutorial" after a partial run) · **P** practice (pick a boss type, starting difficulty and encounter; counts no progress and writes no saves). Menus use a left-edge radial dial — rotate with arrows/stick, press to confirm; the title screen's tutorial / practice entries are focusable buttons (dpad/stick to move focus, A to confirm) while T / P and mouse clicks still work. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
 
 ## Running
 
@@ -84,7 +85,7 @@ The launcher scripts auto-detect the engine (`godot-mono` → `godot` → `godot
 
 ## Saves & settings
 
-Both files live under Godot's `user://` directory and never interfere with each other:
+All three files live under Godot's `user://` directory and never interfere with each other:
 
 | Platform | Directory |
 | --- | --- |
@@ -93,7 +94,8 @@ Both files live under Godot's `user://` directory and never interfere with each 
 | macOS | `~/Library/Application Support/Godot/app_userdata/InfiAir/` |
 
 - `run.json` — this run's checkpoint (written when docking at base or on "save & exit"; deleted on death or abandon-and-restart).
-- `settings.json` — every setting: language, difficulty, window & resolution, FPS cap, key bindings, accessibility options. Delete it to reset to defaults.
+- `best.json` — cross-run result record (survival time / boss kills / highest difficulty tier / goal reached); separate from the checkpoint, so dying never touches it.
+- `settings.json` — every setting: language, difficulty, window & resolution, FPS cap, key bindings, crosshair profiles, accessibility options. Delete it to reset to defaults.
 - `logs/` — runtime logs; check here first when a launch misbehaves.
 
 ## Troubleshooting
@@ -114,7 +116,7 @@ assets/          sprites / audio / fonts / shaders
 packaging/       Install / uninstall scripts and desktop entries shipped in releases
 scripts/ci/      CI gate scripts
 scripts/tools/   Asset generators and balance editor (Python)
-docs/            Design baseline · direction & debt · balance review archive · release notes · README screenshots
+docs/            Design baseline · direction & debt · external references · release notes · README screenshots
 builds/          Export and packaging output (not tracked)
 ```
 
@@ -125,7 +127,7 @@ builds/          Export and packaging output (not tracked)
 - **Build**: `dotnet build` (warnings are errors, `TreatWarningsAsErrors`).
 - **Pre-commit verification gates and commit-message rules live in [AGENTS.md](AGENTS.md)**; CI runs the same gate set as the local workflow.
 - **Packaging**: `./release.sh` exports Linux/Windows and packages them into `builds/release/`; `./release.sh --publish` additionally pushes the tag, creates the GitHub Release and uploads the assets.
-- Design intent: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md) · historical balance review: [BALANCE_REVIEW](docs/BALANCE_REVIEW.md) · release notes: [RELEASE_NOTES](docs/RELEASE_NOTES.md) · third-party asset licensing and industry-practice research: [REFERENCES](docs/REFERENCES.md).
+- Design baseline: [DESIGN_BASELINE](docs/DESIGN_BASELINE.md) · direction / debt / decision log: [ROADMAP](docs/ROADMAP.md) · external references and sources (licensing facts, industry practice): [REFERENCES](docs/REFERENCES.md) · release notes: [RELEASE_NOTES](docs/RELEASE_NOTES.md).
 
 ## License
 
