@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
@@ -12,12 +13,10 @@ namespace InfiAir;
 /// </summary>
 public partial class ConfusionEvent : FogEvent
 {
-    /// <summary>呼吸包络（alpha 0.06..0.16，周期 1s）。</summary>
+    /// <summary>呼吸包络（alpha 0.06..0.16；频率单源在 core FlashBudget，减少闪光下振幅归零）。</summary>
     private const float BaseAlpha = 0.11f;
 
     private const float PulseAlpha = 0.05f;
-
-    private const float PulsePeriod = 1.0f;
 
     private CanvasLayer? _layer;
     private ColorRect? _rect;
@@ -51,8 +50,9 @@ public partial class ConfusionEvent : FogEvent
         }
 
         _t += delta;
+        var amp = FlashBudget.Amplitude(PulseAlpha, PulseId.FogConfusion, GameState.Instance.ReduceFlash);
         var c = _rect.Color;
-        c.A = BaseAlpha + PulseAlpha * Mathf.Sin(_t / PulsePeriod * Mathf.Tau);
+        c.A = BaseAlpha + amp * Mathf.Sin(_t * FlashBudget.ConfusionHz * Mathf.Tau);
         _rect.Color = c;
     }
 

@@ -271,6 +271,10 @@ public partial class ProbeHost : Node
 
     private const int SettingsBannerWindowFrames = 45;
 
+    /// <summary>低燃料脉冲段的警戒态下发等待（帧）：HUD 的燃料警戒是 0.1s 轮询（6 帧），
+    /// 留一拍余量再开始采样，免得把「警戒态还没进来」记成「脉冲没跑」。</summary>
+    private const int SettingsWarnSettleFrames = 8;
+
     /// <summary>设置页探针的阶段与观测态（0 起 → 4 收尾；sawBlink 是正对照的判据）。</summary>
     private int _settingsProbeStep;
 
@@ -2064,6 +2068,78 @@ public partial class ProbeHost : Node
                 return;
             }
 
+            // 低燃料脉冲段：把油放到警戒线下（比值 0.1 < FuelGauge.WarnRatio），
+            // 采样窗口前留一拍让 HUD 的 0.1s 轮询把警戒态下发
+            GameState.Instance.SetReduceFlash(false);
+            _player.SetFuel(_player.FuelMax * 0.1f);
+            _settingsProbeStep = 5;
+            _settingsProbeFrame = 0;
+            _settingsProbeSawBlink = false;
+            return;
+        }
+
+        if (_settingsProbeStep == 5)
+        {
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (hud == null)
+            {
+                GD.PushError("[settings-probe] 未找到 HUD 节点——低燃料警戒脉冲的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (++_settingsProbeFrame <= SettingsWarnSettleFrames)
+            {
+                return;
+            }
+
+            if (hud.FuelTankAlpha < 0.99f)
+            {
+                _settingsProbeSawBlink = true;
+            }
+
+            if (_settingsProbeFrame < SettingsWarnSettleFrames + SettingsFlashWindowFrames)
+            {
+                return;
+            }
+
+            if (!_settingsProbeSawBlink)
+            {
+                GD.PushError($"[settings-probe] 低燃料警戒的 {SettingsFlashWindowFrames} 帧窗口内未观测到亮度泵动"
+                    + "——警戒态没进来或脉冲没跑，减闪段会退化成空转绿");
+                _settingsProbe = false;
+                return;
+            }
+
+            GameState.Instance.SetReduceFlash(true);
+            _settingsProbeStep = 6;
+            _settingsProbeFrame = 0;
+            return;
+        }
+
+        if (_settingsProbeStep == 6)
+        {
+            var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+            if (hud == null)
+            {
+                GD.PushError("[settings-probe] 未找到 HUD 节点——低燃料警戒脉冲的减少闪光门控断言取不到判据");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (hud.FuelTankAlpha < 0.99f)
+            {
+                GD.PushError($"[settings-probe] 减少闪光下低燃料警戒仍在亮度泵动（alpha={hud.FuelTankAlpha:0.##}）"
+                    + "——全屏尺度的脉冲未按 core FlashBudget 归零");
+                _settingsProbe = false;
+                return;
+            }
+
+            if (++_settingsProbeFrame < SettingsFlashWindowFrames)
+            {
+                return;
+            }
+
             GameState.Instance.SetReduceFlash(false);
             settings.ShowSettings(null);
             foreach (var page in new[] { "gameplay", "display", "audio", "about", "controls" })
@@ -2071,11 +2147,11 @@ public partial class ProbeHost : Node
                 settings.ShowPage(new StringName(page));
             }
 
-            _settingsProbeStep = 5;
+            _settingsProbeStep = 7;
             _modalStep = 0;
         }
 
-        if (_settingsProbeStep == 5)
+        if (_settingsProbeStep == 7)
         {
             if (!VerifyHighContrastBullets())
             {
@@ -2083,10 +2159,10 @@ public partial class ProbeHost : Node
                 return;
             }
 
-            _settingsProbeStep = 6;
+            _settingsProbeStep = 8;
         }
 
-        if (_settingsProbeStep == 6)
+        if (_settingsProbeStep == 8)
         {
             TickModalCloseProbe(settings);
         }

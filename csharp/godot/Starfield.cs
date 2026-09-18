@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
@@ -367,12 +368,16 @@ public partial class Starfield : Node2D
         DrawMultiline(_farLines, new Color(0.7f, 0.75f, 0.9f, 0.6f), 3.0f);
         DrawMultiline(_nearLines, new Color(1.0f, 1.0f, 1.0f, 0.9f), 5.0f);
 
-        // 亮星层：软点贴图 + 逐星色温/正弦闪烁；最大的几枚加十字微光
+        // 亮星层：软点贴图 + 逐星色温/正弦闪烁；最大的几枚加十字微光。
+        // 频率与减少闪光归零的单源在 core FlashBudget（这是全屏尺度的亮度调制）；
+        // 归零取均值常亮，平均亮度不变、只是不再起伏。
         if (_starTex != null)
         {
+            var twinkleAmp = FlashBudget.Amplitude(0.35f, PulseId.StarfieldTwinkle, GameState.Instance.ReduceFlash);
             for (var i = 0; i < _bright.Length; i++)
             {
-                var twinkle = 0.65f + 0.35f * Mathf.Sin(_t * 2.1f + _brightPhase[i]);
+                var twinkle = 0.65f
+                    + twinkleAmp * Mathf.Sin(_t * FlashBudget.StarfieldTwinkleHz * Mathf.Tau + _brightPhase[i]);
                 var a = _brightBaseA[i] * twinkle;
                 var c = _brightColors[i];
                 var half = _brightSize[i] * 0.5f;

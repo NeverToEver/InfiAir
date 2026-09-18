@@ -114,6 +114,10 @@ public partial class Hud : CanvasLayer
     /// <summary>警告横幅当前 alpha（探针读口，零引用保留）：减少闪光下 ShowWarning 全程应恒为 1
     /// （不再 0.25↔1.0 闪烁），否则在闪烁窗内可读到 0.25。见 ROADMAP 零引用成员口径。</summary>
     public float WarningBannerAlpha => _bannerPlate.Modulate.A;
+
+    /// <summary>燃料量槽当前 alpha（探针读口，零引用保留）：低燃料警戒脉冲的采样面——
+    /// 减少闪光下应恒为 1（静置全亮），否则在 0.62↔1.0 之间泵动。见 ROADMAP 零引用成员口径。</summary>
+    public float FuelTankAlpha => _fuelTank.Modulate.A;
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;
@@ -184,8 +188,7 @@ public partial class Hud : CanvasLayer
     private const float ParryFullRatio = 0.995f;
 
     // ---------------- 仪表/事件条视觉提示常量（新调参不落 balance：纯观感，无玩法判据） ----------------
-    /// <summary>低燃料警戒脉冲频率（Hz）与最暗 alpha（亮度泵动，ReduceFlash 下静止）。</summary>
-    private const float FuelPulseHz = 2.4f;
+    /// <summary>低燃料警戒脉冲的最暗 alpha（亮度泵动；频率与减少闪光处置的单源在 core FlashBudget）。</summary>
     private const float FuelPulseMinAlpha = 0.62f;
     /// <summary>事件条开合时长（秒）。</summary>
     private const float EventBarFadeTime = 0.18f;
@@ -1455,8 +1458,12 @@ public partial class Hud : CanvasLayer
         if ((float)GameState.Instance.Health > 0.0f && (float)GameState.Instance.Health < maxHp * _lowHpRatio)
         {
             _pulseTime += delta;
-            var s = (Enemy.SinFast(_pulseTime * Mathf.Tau / _lowHpPulsePeriod) + 1.0f) * 0.5f;
-            alpha = Mathf.Max(alpha, Mathf.Lerp(_lowHpPulseMin, _lowHpPulseMax, s));
+            // 减少闪光下振幅经 core FlashBudget 归零（停在区间中值）：全屏尺度的脉动此前
+            // 只有「MetaFX LOD0 接管」这一条归零路径，回退路径上的脉动没有任何门控
+            var mid = (_lowHpPulseMin + _lowHpPulseMax) * 0.5f;
+            var amp = FlashBudget.Amplitude(
+                (_lowHpPulseMax - _lowHpPulseMin) * 0.5f, PulseId.HudLowHpVignette, GameState.Instance.ReduceFlash);
+            alpha = Mathf.Max(alpha, mid + amp * Enemy.SinFast(_pulseTime * Mathf.Tau / _lowHpPulsePeriod));
         }
         else
         {
@@ -1469,7 +1476,7 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>低燃料警戒亮度泵动：仅在警戒态推进（正弦调 _fuelTank.Modulate.a）；
-    /// 退出/ReduceFlash 时静置为全亮——不做闪烁，避免无障碍下持续明暗。</summary>
+    /// 频率取 core FlashBudget（单源），减少闪光下振幅经同一处预算归零后静置全亮。</summary>
     private void UpdateFuelPulse(float delta)
     {
         if (!_fuelWarnActive)
@@ -1478,7 +1485,9 @@ public partial class Hud : CanvasLayer
         }
 
         var m = _fuelTank.Modulate;
-        if (GameState.Instance.ReduceFlash)
+        var amplitude = FlashBudget.Amplitude(
+            1.0f - FuelPulseMinAlpha, PulseId.HudLowFuel, GameState.Instance.ReduceFlash);
+        if (amplitude <= 0.0f)
         {
             if (m.A != 1.0f)
             {
@@ -1490,7 +1499,7 @@ public partial class Hud : CanvasLayer
         }
 
         _cuePhase += delta;
-        var s = (Enemy.SinFast(_cuePhase * Mathf.Tau * FuelPulseHz) + 1.0f) * 0.5f;
+        var s = (Enemy.SinFast(_cuePhase * Mathf.Tau * FlashBudget.LowFuelHz) + 1.0f) * 0.5f;
         m.A = Mathf.Lerp(FuelPulseMinAlpha, 1.0f, s);
         _fuelTank.Modulate = m;
     }
