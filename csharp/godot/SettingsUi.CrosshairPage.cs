@@ -45,6 +45,7 @@ public partial class SettingsUi
         page.AddChild(profileRow);
         _xhairProfileOption = new OptionButton();
         _xhairProfileOption.CustomMinimumSize = new Vector2(220.0f, 44.0f);
+        UITheme.ApplyOptionButton(_xhairProfileOption);
         _xhairProfileOption.ItemSelected += idx =>
         {
             GameState.Instance.SetCrosshairActive((int)idx);
@@ -147,6 +148,7 @@ public partial class SettingsUi
             CustomMinimumSize = new Vector2(300.0f, 44.0f),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
+        UITheme.ApplyLineEdit(_xhairCodeEdit);
         codeRow.AddChild(_xhairCodeEdit);
         var importButton = UITheme.MakeButton(Tr("SET_XHAIR_IMPORT"));
         importButton.Pressed += OnXhairImportPressed;
@@ -185,7 +187,7 @@ public partial class SettingsUi
         label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
         var gs = GameState.Instance;
-        var slider = new HSlider
+        var slider = new UITheme.ChamferSlider
         {
             MinValue = minValue,
             MaxValue = maxValue,
@@ -194,6 +196,7 @@ public partial class SettingsUi
             CustomMinimumSize = new Vector2(240.0f, 0.0f),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
+        UITheme.ApplySlider(slider);
         row.AddChild(slider);
         var valueLabel = UITheme.MakeLabel(GdFormat.Format(format, read(gs.ActiveCrosshair)), UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
@@ -243,6 +246,7 @@ public partial class SettingsUi
     private void MakeSwatch(Container row, byte r, byte g, byte b, byte a)
     {
         var button = new Button { CustomMinimumSize = new Vector2(44.0f, 32.0f) };
+        UITheme.AttachButtonSfx(button); // 色板是自绘样式盒的按钮（不走 ApplyButton），交互音单挂
         var style = new StyleBoxFlat { BgColor = new Color(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f) };
         style.SetCornerRadiusAll(4);
         button.AddThemeStyleboxOverride("normal", style);
@@ -312,6 +316,7 @@ public partial class SettingsUi
         _xhairRenameDialog.OkButtonText = Tr("SET_CONFIRM_OK");
         _xhairRenameDialog.CancelButtonText = Tr("SET_CONFIRM_CANCEL");
         _xhairRenameEdit = new LineEdit();
+        UITheme.ApplyLineEdit(_xhairRenameEdit);
         _xhairRenameDialog.AddChild(_xhairRenameEdit);
         _xhairRenameDialog.Confirmed += OnXhairRenameConfirmed;
         AddChild(_xhairRenameDialog);
@@ -336,6 +341,7 @@ public partial class SettingsUi
         if (gs.CrosshairProfiles.Count <= CrosshairBook.MinProfiles)
         {
             _xhairHint.Text = Tr("SET_XHAIR_DELETE_LAST");
+            UITheme.PlayUiSfx(SfxId.UiDeny); // 被拒动作：提示行只说「为什么」，回绝音说「按不成」
             return;
         }
 
@@ -375,6 +381,11 @@ public partial class SettingsUi
             default:
                 SetXhairHint(Tr("SET_XHAIR_ERR_MALFORMED"));
                 break;
+        }
+
+        if (result != CrosshairCodeResult.Ok)
+        {
+            UITheme.PlayUiSfx(SfxId.UiDeny); // 导入被拒（校验失败一律不落档）：回绝音与提示行同步
         }
     }
 

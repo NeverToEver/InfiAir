@@ -86,6 +86,13 @@ public partial class BackNavigator : Node
     public void GoBack()
     {
         var action = DecideBackAction();
+        // 取消音：本动作真的改变了界面层级才响。两条纯旁路不发——捕获态透传与阻塞态忽略是
+        // 「按了但什么都没发生」，它们的回绝语义归 UiDeny，不归取消。Esc/右键/手柄 B 三路同此一处。
+        if (action is not (BackAction.CAPTURE_PASSTHROUGH or BackAction.IGNORE))
+        {
+            UITheme.PlayUiSfx(SfxId.UiCancel);
+        }
+
         switch (action)
         {
             case BackAction.CANCEL_EXIT:

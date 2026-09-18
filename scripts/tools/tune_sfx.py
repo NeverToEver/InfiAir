@@ -170,6 +170,13 @@ TUNING = {
     "buff_pick.wav": {"filters": [], "target_db": -7.0},
     "resupply.wav": {"filters": [], "target_db": -7.0},
     "heartbeat.wav": {"filters": [], "target_db": -9.0},  # 90.8% <100Hz 纯低频，只压电平+截尾淡出
+    # 界面反馈族：纯音、无噪声尾巴，故不整形；只把峰值归一到**明显低于战斗音**的电平
+    #（战斗音 -6~-9dBFS，UI -10~-13dBFS，再叠 SfxPlayer.BaseDb 的低一档基准）
+    "ui_hover.wav": {"filters": [], "target_db": -13.0},  # 悬停最轻：扫过一排按钮不该抢耳
+    "ui_confirm.wav": {"filters": [], "target_db": -11.0},
+    "ui_cancel.wav": {"filters": [], "target_db": -11.0},
+    "ui_toggle.wav": {"filters": [], "target_db": -11.0},
+    "ui_deny.wav": {"filters": [], "target_db": -10.0},  # 被拒是最需要被听见的一枚，仍低于战斗音
 }
 HPF_HZ = 30  # 全部先过 30Hz 高通：去直流 + 次声吃掉却听不到的动态余量
 

@@ -834,6 +834,7 @@ public partial class Hud : CanvasLayer
         // 文本类由信号驱动（见 _ready 连接）
         var d = (float)delta;
         _simTime += d;
+        UpdateNumberRolls(d); // 击杀数/难度读数的追赶（模拟时间；无活动追赶时零开销）
         UpdateVignette(d);
         UpdateFuelPulse(d); // 低燃料警戒亮度泵动（空闲时无逐帧写）
         VerifyBossHeaderLayout(); // Boss 血条显形后判一次（见该方法的护栏理由）
@@ -1216,6 +1217,98 @@ public partial class Hud : CanvasLayer
 
     private int _lastKills = -1;
 
+    // ---------------- 数读数追赶（击杀数 / 难度乘数） ----------------
+    // 数值变化不再是硬切：显示值在小变 150ms / 大变 300ms 内 ease-out 追上目标值。
+    // 只改「显示如何追上目标」——刷新时机、信号订阅与文案格式一律不动；常量就地定义（§2.8 纪律）。
+    private const float RollShortSeconds = 0.15f;
+    private const float RollLongSeconds = 0.30f;
+
+    /// <summary>击杀数「大变」跨度：单次入账跨 4 杀以上（清一波编队/连锁爆炸）走长档。</summary>
+    private const int RollKillsBigDelta = 4;
+
+    /// <summary>难度「大变」跨度：进程乘数每 30s 只涨 0.075，Boss 击杀一次 +0.6——0.5 恰好把两者分开。</summary>
+    private const float RollDifficultyBigDelta = 0.5f;
+
+    /// <summary>变幅小于此值视为「没有变化」：难度信号一次变化常伴随两条信号，
+    /// 不设阈值会把同一次变化当成两次，各起一段追赶。</summary>
+    private const float RollEpsilon = 0.005f;
+
+    /// <summary>单个数读数的追赶状态（From→To 在 Duration 内 ease-out 收拢）。</summary>
+    private struct Roll
+    {
+        public float From;
+        public float To;
+        public float Elapsed;
+        public float Duration;
+        public bool Active;
+    }
+
+    private Roll _killsRoll;
+    private Roll _difficultyRoll;
+
+    /// <summary>难度读数是否已落过值（开局初始化/读档）：未落过值时直接写目标值，
+    /// 不播「从 x0.00 追上去」的假动效（进程乘数开局恒 1.0，读档可能是任意值）。</summary>
+    private bool _difficultyPrimed;
+
+    /// <summary>动效强度（0 = 回到本批之前的画面，含取不到节奏服务的降级）：0 时数读数直接跳变。</summary>
+    private static float FxIntensity => VisualRhythm.Instance?.Intensity ?? 0.0f;
+
+    /// <summary>当前显示值（不推进时间）：未在追赶紧返回目标值。</summary>
+    private static float RollValue(in Roll roll) => roll.From + (roll.To - roll.From) * RollEased(roll);
+
+    /// <summary>追赶进度对应的缓动（ease-out 三次）：起步快、收尾稳，读起来是「追上去」而非匀速滑动。
+    /// 未起过追赶（默认态 Duration=0）时返回 1：0/0 会算出 NaN，而 NaN 会静默污染整个读数文本。</summary>
+    private static float RollEased(in Roll roll)
+    {
+        if (roll.Duration <= 0.0f)
+        {
+            return 1.0f;
+        }
+
+        var t = Mathf.Clamp(roll.Elapsed / roll.Duration, 0.0f, 1.0f);
+        return 1.0f - Mathf.Pow(1.0f - t, 3.0f);
+    }
+
+    /// <summary>起一段追赶：起值取当前显示值——追赶途中再来一次变化就从半途接着追，不回闪旧值。</summary>
+    private static void StartRoll(ref Roll roll, float from, float target, bool big)
+    {
+        roll.From = from;
+        roll.To = target;
+        roll.Elapsed = 0.0f;
+        roll.Duration = big ? RollLongSeconds : RollShortSeconds;
+        roll.Active = true;
+    }
+
+    /// <summary>推进一段追赶（模拟时间，帧长即 delta）：到达目标即停，返回值恰好等于目标值。</summary>
+    private static float AdvanceRoll(ref Roll roll, float delta)
+    {
+        roll.Elapsed += delta;
+        if (roll.Elapsed >= roll.Duration)
+        {
+            roll.Active = false;
+            return roll.To;
+        }
+
+        return RollValue(roll);
+    }
+
+    /// <summary>每帧推进两个数读数（模拟时间；无活动追赶时两次布尔判断即返回）。</summary>
+    private void UpdateNumberRolls(float delta)
+    {
+        if (_killsRoll.Active)
+        {
+            SetKillsText(Mathf.RoundToInt(AdvanceRoll(ref _killsRoll, delta)));
+        }
+
+        if (_difficultyRoll.Active)
+        {
+            SetDifficultyText(AdvanceRoll(ref _difficultyRoll, delta));
+        }
+    }
+
+    private void SetKillsText(int kills)
+        => _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), kills);
+
     /// <summary>击杀计数标签（不显示分数/连击，内部计分引擎只驱动里程碑/解锁）。
     /// ScoreChanged 伴随击杀/擦弹等高频来源，按计数变化节流格式化。</summary>
     private void OnScoreChanged(int _newScore)
@@ -1233,9 +1326,21 @@ public partial class Hud : CanvasLayer
         }
 
         // 计数增加时短促弹跳（首帧 -1 只记态不播；语言切换强制重写不播）
-        var gained = _lastKills >= 0 && kills > _lastKills;
+        var previous = _lastKills;
+        var gained = previous >= 0 && kills > previous;
         _lastKills = kills;
-        _killsLabel.Text = GdFormat.Format((string)Tr("UI_KILLS"), kills);
+        if (!gained || FxIntensity <= 0.0f)
+        {
+            // 首帧 / 语言切换 / 动效关闭：直接落到目标值
+            _killsRoll = new Roll { From = kills, To = kills };
+            SetKillsText(kills);
+        }
+        else
+        {
+            StartRoll(ref _killsRoll, RollValue(_killsRoll), kills, kills - previous >= RollKillsBigDelta);
+            SetKillsText(Mathf.RoundToInt(RollValue(_killsRoll)));
+        }
+
         if (gained)
         {
             UITheme.PunchScale(_killsLabel, 1.12f, 0.16f);
@@ -1328,17 +1433,36 @@ public partial class Hud : CanvasLayer
     }
 
     /// <summary>难度标签：难度乘数 + 命名档位 + 难度档设置（如「难度 x2.50 · 第四档 · 危险 · 中」）。
-    /// 命名档位让连续爬升可读、可讨论（原只有一个数字，玩家读不出「到哪个阶段了」）。</summary>
+    /// 命名档位让连续爬升可读、可讨论（原只有一个数字，玩家读不出「到哪个阶段了」）。
+    /// 乘数改为追赶显示（档名/难度档设置仍是离散标签、取目标状态，不参与追赶）。</summary>
     private void RefreshDifficultyLabel()
     {
-        // 档名取键区间上限用运行期档位数，不在 HUD 复制一份常量（档位表扩增时不再静默显示错档名）
+        var target = (float)GameState.Instance.DifficultyMultiplier;
+        var current = _difficultyPrimed ? RollValue(_difficultyRoll) : target;
+        var delta = Mathf.Abs(target - current);
+        if (!_difficultyPrimed || FxIntensity <= 0.0f || delta < RollEpsilon)
+        {
+            // 开局/读档初始化、动效关闭、同一次变化的重复信号：直接落到目标值
+            _difficultyPrimed = true;
+            _difficultyRoll = new Roll { From = target, To = target };
+            SetDifficultyText(target);
+            return;
+        }
+
+        StartRoll(ref _difficultyRoll, current, target, delta >= RollDifficultyBigDelta);
+        SetDifficultyText(RollValue(_difficultyRoll));
+    }
+
+    /// <summary>难度读数写入：档名取键区间上限用运行期档位数，不在 HUD 复制一份常量
+    /// （档位表扩增时不再静默显示错档名）；文案键与格式串一字不改，只把乘数换成追赶中的插值。</summary>
+    private void SetDifficultyText(float multiplier)
+    {
         var tierMax = Math.Max(GameState.Instance.DifficultyTierCount() - 1, 0);
         var tier = Mathf.Clamp(GameState.Instance.DifficultyTierIndex(), 0, tierMax);
-        var tierText = Tr($"DIFF_TIER_{tier}");
         _difficultyLabel.Text = GdFormat.Format(
             (string)Tr("UI_DIFF_FMT"),
-            (float)GameState.Instance.DifficultyMultiplier,
-            tierText,
+            multiplier,
+            Tr($"DIFF_TIER_{tier}"),
             (string)GameState.Instance.DifficultyLabel());
     }
 
@@ -1901,6 +2025,9 @@ public partial class Hud : CanvasLayer
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
+        // 与本页其他滚动容器同一套金属皮（UITheme 的滚动条统一入口）：漏套这一处时展开增幅栏
+        // 会露出一条引擎默认的圆角灰拉条，与旁边的自绘切角面板不同族
+        UITheme.ApplyMetalScrollBar(scroll.GetVScrollBar());
         vbox.AddChild(scroll);
         _augmentRows = new VBoxContainer();
         _augmentRows.AddThemeConstantOverride("separation", 6);

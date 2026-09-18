@@ -9,6 +9,11 @@
 - dash.wav           相位冲刺（上行扫频 + 噪声）
 - resupply.wav       母舰补给（上行三音琶音）
 - heartbeat.wav      Meta HUD DYING 心跳（55Hz 双脉冲 lub-dub）
+- ui_hover.wav        界面·悬停（极短高频软点）
+- ui_confirm.wav      界面·确认（上行两音）
+- ui_cancel.wav       界面·取消（下行两音，与确认互为反向手势）
+- ui_toggle.wav       界面·切换（单音短点，档位/开关变化）
+- ui_deny.wav         界面·受阻（低频双脉冲回绝）
 - bgm_loop.wav       40s 无缝循环氛围电子 BGM（和弦垫 + 琶音 + 低音）
 - bgm_boss.wav       Boss 战曲：同族音色、更快的驱动琶音与和声小调进行（32s 无缝循环）
 - bgm_base.wav       基地休整曲：同族音色、慢速大七和弦垫 + 稀疏钟音琶音（40s 无缝循环）
@@ -176,6 +181,101 @@ def make_heartbeat() -> list:
                 env = min(lt / 0.008, 1.0) * math.exp(-lt * 18.0)
                 s += amp * env * math.sin(2.0 * math.pi * 55.0 * lt)
         out.append(0.8 * s)
+    return out
+
+
+# ---------------- 界面反馈族（UI 音效） ----------------
+# 全部是纯音（正弦 + 一次谐波），**不消费随机流**：短、无噪声尾巴、无起振硬切，
+# 逐字节可复现与既有产物无关（见 main() 末尾的种子说明）。
+# 音量另有分工：采样峰值在 tune_sfx.py 里归一得更低，SfxPlayer.BaseDb 再低一档——
+# 界面反馈是操作确认，任何时候都不该盖过开火/爆炸/受击。
+
+def make_ui_hover() -> list:
+    """界面·悬停（0.05s）：极短高频软点，只回答「指到了」。
+
+    时长与余量都压到「听得见即止」：鼠标扫过一排按钮会连续穿过多个控件，
+    长一点、响一点就成连发噪声（同因，SfxPlayer 的 UiHover 最小间隔取 80ms）。
+    """
+    dur = 0.05
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        env = min(t / 0.004, 1.0) * math.exp(-t * 72.0)
+        out.append(0.5 * env * (math.sin(2.0 * math.pi * 1560.0 * t)
+                                + 0.25 * math.sin(4.0 * math.pi * 1560.0 * t)))
+    return out
+
+
+def make_ui_confirm() -> list:
+    """界面·确认（0.16s）：上行两音（G5→D6），与 buff_pick 同族但更短、更轻。"""
+    dur = 0.16
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0, freq, decay in ((0.0, 784.0, 40.0), (0.055, 1174.66, 30.0)):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.003, 1.0) * math.exp(-lt * decay)
+                s += env * (math.sin(2.0 * math.pi * freq * lt)
+                            + 0.22 * math.sin(4.0 * math.pi * freq * lt))
+        out.append(0.55 * s)
+    return out
+
+
+def make_ui_cancel() -> list:
+    """界面·取消（0.20s）：下行两音（D5→G4）——与确认的上行互为反向手势，不看画面也听得出方向。"""
+    dur = 0.20
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0, freq, decay in ((0.0, 587.33, 34.0), (0.06, 392.0, 26.0)):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.003, 1.0) * math.exp(-lt * decay)
+                s += env * (math.sin(2.0 * math.pi * freq * lt)
+                            + 0.22 * math.sin(4.0 * math.pi * freq * lt))
+        out.append(0.55 * s)
+    return out
+
+
+def make_ui_toggle() -> list:
+    """界面·切换（0.10s）：单音短点（C6）——档位/开关变化的定位音，不带方向语义。"""
+    dur = 0.10
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        env = min(t / 0.003, 1.0) * math.exp(-t * 34.0)
+        out.append(0.5 * env * (math.sin(2.0 * math.pi * 1046.5 * t)
+                                + 0.30 * math.sin(4.0 * math.pi * 1046.5 * t)))
+    return out
+
+
+def make_ui_deny() -> list:
+    """界面·受阻（0.24s）：低频双脉冲、脉冲内下滑（175→149Hz）——「按不动 / 被拒」的回绝音。
+
+    用下滑与低频（而不是高频蜂鸣）表达否定：本作 UI 是暖琥珀军事终端语汇，
+    蜂鸣会读成警报（Danger 在本项目留给「须立即处置」，见 DESIGN_BASELINE §1.9.1）。
+    """
+    dur = 0.24
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0 in (0.0, 0.10):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.004, 1.0) * math.exp(-lt * 26.0)
+                # 线性下滑的解析相位（∫f dt = f0·t − k·t²/2），免去逐样本状态
+                phase = 2.0 * math.pi * (175.0 * lt - 0.5 * 260.0 * lt * lt)
+                s += env * (math.sin(phase) + 0.30 * math.sin(2.0 * phase))
+        out.append(0.7 * s)
     return out
 
 
@@ -400,6 +500,15 @@ def main() -> None:
     write_wav("bullet_fire.wav", make_bullet_fire(135.0, 0.8), peak_target=0.42)
     write_wav("bullet_fire_b.wav", make_bullet_fire(115.0, 0.65), peak_target=0.42)
     write_wav("bullet_fire_c.wav", make_bullet_fire(160.0, 1.0), peak_target=0.42)
+    # 界面反馈族：合成函数是纯音（零 random 调用），本段既不消费也不移动随机流位置，
+    # 上方全部产物逐字节不变；调用前的 seed 是护栏——日后若给这几个函数加噪声源，
+    # 它们仍从已知起点取相位，不会把既有音效/BGM 的流位置往后推。
+    random.seed(BGM_SEED)
+    write_wav("ui_hover.wav", make_ui_hover())
+    write_wav("ui_confirm.wav", make_ui_confirm())
+    write_wav("ui_cancel.wav", make_ui_cancel())
+    write_wav("ui_toggle.wav", make_ui_toggle())
+    write_wav("ui_deny.wav", make_ui_deny())
 
 
 if __name__ == "__main__":

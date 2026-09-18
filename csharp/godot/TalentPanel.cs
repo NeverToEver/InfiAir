@@ -850,7 +850,11 @@ public partial class TalentPanel : CanvasLayer
         if (GameState.Instance.TalentUpgrade(_selectedNode))
         {
             RefreshAll();
+            return;
         }
+
+        // 被拒（缓存点不足等）：按钮可点但服务侧不通过——回绝音是这条路径上唯一的即时反馈
+        UITheme.PlayUiSfx(SfxId.UiDeny);
     }
 
     private void OnCacheChanged(double _effective, int _raw) => RefreshCacheReadout();

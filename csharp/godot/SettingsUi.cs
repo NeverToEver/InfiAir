@@ -435,6 +435,7 @@ public partial class SettingsUi : RadialMenuLayer
     {
         _hintLabel.Text = Tr("SET_CANCELLED");
         _capturingAction = new StringName();
+        UITheme.PlayUiSfx(SfxId.UiCancel); // 取消路径（捕获态放弃改键）与 Esc/返回同一个音
     }
 
     public void Back()
@@ -624,6 +625,11 @@ public partial class SettingsUi : RadialMenuLayer
             // 明确告知玩家为何没绑上，而不是静默让某功能按不出来。
             var stolen = GameState.Instance.OccupiedBy(kc, _capturingAction);
             var bound = GameState.Instance.RebindAction(_capturingAction, kc);
+            if (!bound)
+            {
+                UITheme.PlayUiSfx(SfxId.UiDeny); // 被拒（固定/保留键不可抢占）：提示行之外再给一次听觉回绝
+            }
+
             _hintLabel.Text = !bound
                 ? GdFormat.Format(Tr("SET_BOUND_RESERVED"), Tr("ACT_" + _capturingAction.ToString().ToUpper()), boundKey)
                 : stolen == new StringName()
@@ -861,7 +867,7 @@ public partial class SettingsUi : RadialMenuLayer
         var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
         label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
-        var slider = new HSlider
+        var slider = new UITheme.ChamferSlider
         {
             MinValue = 0.0f,
             MaxValue = 100.0f,
@@ -870,6 +876,7 @@ public partial class SettingsUi : RadialMenuLayer
             CustomMinimumSize = new Vector2(240.0f, 0.0f),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
+        UITheme.ApplySlider(slider);
         row.AddChild(slider);
         var valueLabel = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
@@ -1011,7 +1018,7 @@ public partial class SettingsUi : RadialMenuLayer
         var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
         label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
-        var slider = new HSlider
+        var slider = new UITheme.ChamferSlider
         {
             MinValue = 0.0f,
             MaxValue = 100.0f,
@@ -1020,6 +1027,7 @@ public partial class SettingsUi : RadialMenuLayer
             CustomMinimumSize = new Vector2(240.0f, 0.0f),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
+        UITheme.ApplySlider(slider);
         row.AddChild(slider);
         var valueLabel = UITheme.MakeLabel($"{value * 100.0:0}%", UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);
@@ -1061,7 +1069,7 @@ public partial class SettingsUi : RadialMenuLayer
         var label = UITheme.MakeLabel(title, UITheme.FontBody, UITheme.Text, HorizontalAlignment.Left);
         label.CustomMinimumSize = new Vector2(LabelColumnWidth, 0.0f);
         row.AddChild(label);
-        var slider = new HSlider
+        var slider = new UITheme.ChamferSlider
         {
             MinValue = minValue,
             MaxValue = maxValue,
@@ -1070,6 +1078,7 @@ public partial class SettingsUi : RadialMenuLayer
             CustomMinimumSize = new Vector2(240.0f, 0.0f),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
         };
+        UITheme.ApplySlider(slider);
         row.AddChild(slider);
         var valueLabel = UITheme.MakeLabel(GdFormat.Format(format, value), UITheme.FontBody, UITheme.TextDim);
         valueLabel.CustomMinimumSize = new Vector2(70.0f, 0.0f);

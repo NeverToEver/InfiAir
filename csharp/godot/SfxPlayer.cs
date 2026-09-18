@@ -30,20 +30,27 @@ public partial class SfxPlayer : Node
         "res://assets/audio/dash.wav",
         "res://assets/audio/resupply.wav",
         "res://assets/audio/heartbeat.wav",
+        "res://assets/audio/ui_hover.wav",
+        "res://assets/audio/ui_confirm.wav",
+        "res://assets/audio/ui_cancel.wav",
+        "res://assets/audio/ui_toggle.wav",
+        "res://assets/audio/ui_deny.wav",
     };
 
-    // 基准音量：旧实现多数调用点裸 0dB 直打 Master，同类叠峰即削波炸耳；统一下调为校准起点
-    private static readonly float[] BaseDb = { -10f, -10f, -11f, -8f, -7f, -7f, -7f, -8f, -6f, -10f };
+    // 基准音量：旧实现多数调用点裸 0dB 直打 Master，同类叠峰即削波炸耳；统一下调为校准起点。
+    // 界面反馈族（末 5 枚）再低一档：UI 是操作确认而非战斗信息，不该盖过开火/爆炸/受击。
+    private static readonly float[] BaseDb = { -10f, -10f, -11f, -8f, -7f, -7f, -7f, -8f, -6f, -10f, -20f, -14f, -15f, -16f, -14f };
 
     // 音高抖动半宽：多实例同采样同相叠加（梳状滤波）是刺耳主源之一；显式传 pitchScale 的
-    // 调用（过场/Boss tell）是精确调音，不抖
-    private static readonly float[] PitchJitter = { 0.05f, 0.05f, 0.04f, 0.08f, 0.05f, 0.03f, 0.04f, 0.04f, 0f, 0f };
+    // 调用（过场/Boss tell）是精确调音，不抖。UI 音是「同一个界面同一个声音」的固定语义，不抖。
+    private static readonly float[] PitchJitter = { 0.05f, 0.05f, 0.04f, 0.08f, 0.05f, 0.03f, 0.04f, 0.04f, 0f, 0f, 0f, 0f, 0f, 0f, 0f };
 
-    // 最小触发间隔 ms：波次同帧多杀/爆炸弹链/受击连击在声源处限频，不再逐事件全放
-    private static readonly uint[] CooldownMs = { 25, 30, 40, 40, 60, 100, 60, 80, 250, 150 };
+    // 最小触发间隔 ms：波次同帧多杀/爆炸弹链/受击连击在声源处限频，不再逐事件全放。
+    // UiHover 的限频是功能性的：鼠标扫过一整排按钮会逐帧穿过多个按钮，没有间隔就成连发噪声（60–80ms）。
+    private static readonly uint[] CooldownMs = { 25, 30, 40, 40, 60, 100, 60, 80, 250, 150, 80, 60, 80, 60, 150 };
 
-    // 复音数：同类音效同时发声上限
-    private static readonly int[] VoiceCounts = { 2, 2, 2, 3, 2, 1, 2, 2, 1, 1 };
+    // 复音数：同类音效同时发声上限（UI 反馈同时只会有一个焦点，1–2 足够）
+    private static readonly int[] VoiceCounts = { 2, 2, 2, 3, 2, 1, 2, 2, 1, 1, 2, 2, 1, 2, 1 };
 
     private AudioStreamPlayer[][] _voices = [];
     private int[] _voiceNext = [];

@@ -142,6 +142,8 @@ public partial class UITheme : RefCounted
     public static void ApplyFocusRing(Button button)
     {
         button.AddThemeStyleboxOverride("focus", MakeFocusRing());
+        // 扁平文字入口（标题屏的教程/练习）也是按钮，交互音与钢板按钮同源
+        AttachButtonSfx(button);
     }
 
     /// <summary>统一按钮工厂。primary=true：ACCENT 底（18% alpha）+ 亮边框 + 较大字号（主操作）。</summary>
@@ -181,6 +183,7 @@ public partial class UITheme : RefCounted
         button.AddThemeColorOverride("font_pressed_color", Text);
         button.AddThemeColorOverride("font_hover_pressed_color", Text);
         button.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
+        AttachButtonSfx(button);
     }
 
     /// <summary>互斥选项按钮（设置页档位列：toggle + ButtonGroup）。</summary>
@@ -433,6 +436,7 @@ public partial class UITheme : RefCounted
         button.AddThemeColorOverride("font_pressed_color", Text);
         button.AddThemeColorOverride("font_hover_pressed_color", Text);
         button.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
+        AttachButtonSfx(button);
     }
 
     /// <summary>虚影面板材质（§3.2）：更透的全息底 + 亮一档边框（仅基地控制台使用）。</summary>
@@ -495,6 +499,277 @@ public partial class UITheme : RefCounted
         bar.AddThemeStyleboxOverride("grabber_highlight", grabberHot);
         bar.AddThemeStyleboxOverride("grabber_pressed", grabberHot);
     }
+
+    // ---------------- 设置页控件（滑杆 / 下拉 / 输入框；滚动条见 ApplyMetalScrollBar） ----------------
+    // 这三类控件此前一律吃引擎默认主题（直角细框、冷灰底、灰色手柄），与全站暖琥珀自绘界面不同族。
+    // 色相一律由既有 token 派生，贴图仍只用既有素材（button_plate*.png 九宫格）；滑杆手柄由
+    // ChamferSlider 就地自绘——引擎把滑杆手柄当**主题图标**画，图标既不可着色、也没有按下态，
+    // 表达不了三态与切角语汇。
+
+    /// <summary>切角滑杆：手柄自绘为切角八边形（与 <see cref="ChamferPoints"/> 同一套方形语汇）。
+    /// 三态＝常态暖青铜 / 悬停受激提亮 / 拖动按下压暗，键盘焦点再补一圈暖琥珀 2px
+    ///（与 <see cref="ApplyFocusRing"/> 同一焦点语汇，不另起一种焦点表达）。
+    ///
+    /// 手柄尺寸取「引擎主题里那一枚 grabber」与设计尺寸的较大者：引擎先画它自己的图标
+    ///（默认主题是灰色圆角块），自绘手柄必须把它完整盖住。**不替换主题图标**是刻意的——
+    /// 引擎的点击→取值映射按图标宽度换算（`Slider::gui_input` 的 `grab_width`），
+    /// 换图标尺寸即改拖动手感，而本批只许改外观。</summary>
+    public partial class ChamferSlider : HSlider
+    {
+        /// <summary>手柄设计尺寸（高 22 ≤ 设置行高，不外溢压到相邻行）。</summary>
+        private const float HandleWidth = 14.0f;
+
+        private const float HandleHeight = 22.0f;
+        private const float HandleChamfer = 4.0f;
+
+        /// <summary>几何缓冲：切角点集 + 闭合描边用的「首点收尾」副本（_Draw 期复用，免逐帧分配）。</summary>
+        private readonly Vector2[] _pts = new Vector2[8];
+
+        private readonly Vector2[] _loop = new Vector2[9];
+        private Vector2 _grabberSize;
+        private bool _hovered;
+        private bool _dragging;
+
+        public override void _Ready()
+        {
+            // 按需重绘：值/尺寸/交互态变化才重画（本仓库的按需重绘纪律）
+            ValueChanged += _ => QueueRedraw();
+            Resized += QueueRedraw;
+            MouseEntered += () => SetHovered(true);
+            MouseExited += () => SetHovered(false);
+            FocusEntered += QueueRedraw;
+            FocusExited += QueueRedraw;
+            DragStarted += () => SetDragging(true);
+            DragEnded += _ => SetDragging(false);
+        }
+
+        public override void _Draw()
+        {
+            var grabber = GrabberSize();
+            var size = new Vector2(Mathf.Max(HandleWidth, grabber.X), Mathf.Max(HandleHeight, grabber.Y));
+            var chamfer = Mathf.Min(HandleChamfer, Mathf.Min(size.X, size.Y) * 0.5f);
+            if (!FillChamferPoints(_pts, size, chamfer))
+            {
+                return; // 控件被压到放不下切角：整块不画（不画半块手柄，也不报错）
+            }
+
+            var origin = HandleCenter(grabber) - size * 0.5f;
+            for (var i = 0; i < _pts.Length; i++)
+            {
+                _pts[i] += origin;
+                _loop[i] = _pts[i];
+            }
+
+            _loop[_pts.Length] = _pts[0]; // DrawPolyline 不自动闭合：末点回到首点
+            var focused = HasFocus();
+            DrawColoredPolygon(_pts, HandleFill());
+            DrawPolyline(_loop, focused ? AccentHot : AccentDim, focused ? 2.0f : 1.0f, true);
+        }
+
+        /// <summary>手柄中心：算式逐项对齐引擎绘制 grabber 的那一份（`Slider::_notification`）——
+        /// 比例、`center_grabber` 与 `grabber_offset` 三处若与引擎不同源，自绘手柄就会与引擎的
+        /// 点击映射（同一套几何）错开若干像素。</summary>
+        private Vector2 HandleCenter(Vector2 grabber)
+        {
+            var ratio = (float)GetAsRatio();
+            var centered = GetThemeConstant("center_grabber") != 0;
+            var offset = (float)GetThemeConstant("grabber_offset");
+            var x = centered
+                ? ratio * Size.X
+                : ratio * (Size.X - grabber.X) + grabber.X * 0.5f;
+            return new Vector2(x, Size.Y * 0.5f + offset);
+        }
+
+        /// <summary>引擎那一枚 grabber 的尺寸（三态图标取逐分量最大——悬停/置灰时引擎换图标，
+        /// 自绘手柄须把两枚都盖住）。主题运行期不更换，故缓存在实例字段（不缓存 Godot 对象：
+        /// 静态持有引擎对象会在退出期触发 native 触碰崩溃）。</summary>
+        private Vector2 GrabberSize()
+        {
+            if (_grabberSize != Vector2.Zero)
+            {
+                return _grabberSize;
+            }
+
+            var normal = GetThemeIcon("grabber")?.GetSize() ?? Vector2.Zero;
+            var hot = GetThemeIcon("grabber_highlight")?.GetSize() ?? Vector2.Zero;
+            var off = GetThemeIcon("grabber_disabled")?.GetSize() ?? Vector2.Zero;
+            _grabberSize = new Vector2(
+                Mathf.Max(normal.X, Mathf.Max(hot.X, off.X)),
+                Mathf.Max(normal.Y, Mathf.Max(hot.Y, off.Y)));
+            return _grabberSize;
+        }
+
+        private Color HandleFill()
+        {
+            if (!Editable)
+            {
+                return new Color(SteelTint, 0.4f); // 置灰口径与按钮一致
+            }
+
+            if (_dragging)
+            {
+                return SteelTintPressed;
+            }
+
+            return _hovered ? SteelTintHover : SteelTint;
+        }
+
+        private void SetHovered(bool value)
+        {
+            _hovered = value;
+            QueueRedraw();
+        }
+
+        private void SetDragging(bool value)
+        {
+            _dragging = value;
+            QueueRedraw();
+        }
+    }
+
+    /// <summary>滑杆统一入口：切角手柄（三态 + 焦点环）+ 深槽轨道 + 琥珀进度条。
+    /// 取值语义/步进/范围/回调一概不动——只换外观；拖动收尾补一枚切换音（松手即落值＝一次状态变化，
+    /// 与 OptionButton 选项落定、LineEdit 进入编辑态同一个音）。</summary>
+    public static void ApplySlider(HSlider slider)
+    {
+        slider.AddThemeStyleboxOverride("slider", MakeSliderTrackStyle(SlotDark, Accent));
+        slider.AddThemeStyleboxOverride("grabber_area", MakeSliderTrackStyle(new Color(Accent, 0.80f), Accent));
+        slider.AddThemeStyleboxOverride("grabber_area_highlight", MakeSliderTrackStyle(new Color(AccentHot, 0.92f), AccentHot));
+        slider.DragEnded += _ => PlayUiSfx(SfxId.UiToggle);
+    }
+
+    /// <summary>滑杆槽轨/进度条样式：深槽 + 1px 边，纵向内边距即槽高（10px）。</summary>
+    private static StyleBoxFlat MakeSliderTrackStyle(Color bg, Color border)
+    {
+        var style = new StyleBoxFlat { BgColor = bg, BorderColor = new Color(border, 0.5f) };
+        style.SetBorderWidthAll(1);
+        style.SetCornerRadiusAll(3);
+        style.ContentMarginTop = 5.0f;
+        style.ContentMarginBottom = 5.0f;
+        return style;
+    }
+
+    /// <summary>下拉控件（OptionButton）主题化：与按钮同一套钢板（normal/hover/pressed/disabled
+    /// 三态齐全）+ 既有焦点描边环；弹出的 PopupMenu 一并收编——引擎默认弹窗是冷灰直角面板，
+    /// 且它是独立 Window，不套皮时下拉一打开就露出另一套视觉语言。</summary>
+    public static void ApplyOptionButton(OptionButton option)
+    {
+        option.AddThemeStyleboxOverride("normal", MakeBtnStyle(SteelTint));
+        option.AddThemeStyleboxOverride("hover", MakeBtnStyle(SteelTintHover));
+        option.AddThemeStyleboxOverride("pressed", MakeBtnStyle(SteelTintPressed, inset: true));
+        option.AddThemeStyleboxOverride("hover_pressed", MakeBtnStyle(SteelTintPressed, inset: true));
+        option.AddThemeStyleboxOverride("disabled", MakeBtnStyle(new Color(SteelTint, 0.4f)));
+        option.AddThemeStyleboxOverride("focus", MakeFocusRing());
+        option.AddThemeFontOverride("font", Font);
+        option.AddThemeFontSizeOverride("font_size", FontBody);
+        option.AddThemeColorOverride("font_color", Text);
+        option.AddThemeColorOverride("font_hover_color", TextOnBright);
+        option.AddThemeColorOverride("font_pressed_color", Text);
+        option.AddThemeColorOverride("font_hover_pressed_color", Text);
+        option.AddThemeColorOverride("font_focus_color", Text);
+        option.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
+        ApplyPopupMenu(option.GetPopup());
+        // 交互音：下拉也是按钮（悬停/按下走 ApplyOptionButton 自己的样式盒），选项落定另发切换音
+        AttachButtonSfx(option);
+        option.ItemSelected += _ => PlayUiSfx(SfxId.UiToggle);
+    }
+
+    /// <summary>下拉弹窗：金属面板底（内边距压回引擎默认的 4px——套皮不该改弹窗的行距与内缩）
+    /// + 琥珀 16% 悬停行 + 与页内同源的字号与字色。</summary>
+    private static void ApplyPopupMenu(PopupMenu? menu)
+    {
+        if (menu == null)
+        {
+            return;
+        }
+
+        var panel = MakeBtnStyle(PanelSteelTint);
+        panel.SetContentMarginAll(4.0f);
+        menu.AddThemeStyleboxOverride("panel", panel);
+        var hover = new StyleBoxFlat { BgColor = new Color(Accent, 0.16f) };
+        hover.SetContentMarginAll(4.0f);
+        menu.AddThemeStyleboxOverride("hover", hover);
+        menu.AddThemeFontOverride("font", Font);
+        menu.AddThemeFontSizeOverride("font_size", FontBody);
+        menu.AddThemeColorOverride("font_color", Text);
+        menu.AddThemeColorOverride("font_hover_color", AccentHot);
+        menu.AddThemeColorOverride("font_disabled_color", new Color(TextDim, 0.5f));
+        menu.AddThemeColorOverride("font_accelerator_color", TextDim);
+    }
+
+    /// <summary>输入框（LineEdit）主题化：常态暗钢槽 / 悬停提亮一档 / 焦点补暖琥珀 2px 环
+    ///（引擎的 LineEdit 聚焦时是「normal 之上叠画 focus」，故焦点环沿用按钮那枚空心环，
+    /// 输入槽底色不丢）。悬停态引擎主题里没有对应样式盒（只有 normal/focus/read_only），
+    /// 故用进出事件在 normal 上换档——三态由此齐全。</summary>
+    public static void ApplyLineEdit(LineEdit edit)
+    {
+        var normal = MakeBtnStyle(PanelSteelTint);
+        var hover = MakeBtnStyle(SteelTint);
+        edit.AddThemeStyleboxOverride("normal", normal);
+        edit.AddThemeStyleboxOverride("read_only", MakeBtnStyle(new Color(PanelSteelTint, 0.6f)));
+        edit.AddThemeStyleboxOverride("focus", MakeFocusRing());
+        edit.AddThemeFontOverride("font", Font);
+        edit.AddThemeFontSizeOverride("font_size", FontBody);
+        edit.AddThemeColorOverride("font_color", Text);
+        edit.AddThemeColorOverride("font_uneditable_color", new Color(TextDim, 0.6f));
+        edit.AddThemeColorOverride("font_placeholder_color", new Color(TextDim, 0.75f));
+        edit.AddThemeColorOverride("font_selected_color", TextOnBright);
+        edit.AddThemeColorOverride("caret_color", AccentHot);
+        edit.AddThemeColorOverride("selection_color", new Color(Accent, 0.35f));
+        edit.MouseEntered += () => edit.AddThemeStyleboxOverride("normal", hover);
+        edit.MouseExited += () => edit.AddThemeStyleboxOverride("normal", normal);
+        // 进入编辑态＝一次状态变化，与下拉选项落定、滑杆松手同一个音（无文案，纯听觉反馈）
+        edit.FocusEntered += () => PlayUiSfx(SfxId.UiToggle);
+    }
+
+    // ---------------- 界面音效（只经既有播放通道；音量受设置页「音效」滑杆控制） ----------------
+
+    /// <summary>界面音效统一出口：走 <see cref="GameState.PlaySfx"/>（既有 SFX 总线 + 目录表口径，
+    /// 音量/最小间隔/复音全在 SfxPlayer 的目录表里，不新增播放通道）。autoload 不可用
+    ///（退出期/场景重载的非常规时序）时静默——UI 反馈不该把异常抛给调用方。</summary>
+    public static void PlayUiSfx(SfxId id) => GameState.TryGetInstance()?.PlaySfx(id);
+
+    /// <summary>置灰按钮的受阻反馈：引擎在 `_gui_input` 里对 disabled 直接早退，按钮信号
+    ///（pressed/button_down…）一个都不发，但 **gui_input 信号在其之前投递**（`Control::_call_gui_input`），
+    /// 受阻动作（RP 不足 / 槽位满 / 领奖条件未达）的听觉反馈只能从这里出——没有它，
+    /// 灰按钮按下去是全静音的，玩家分不清「按不动」与「没反应」。</summary>
+    private static void PlayDenyIfDisabled(Button button, InputEvent @event)
+    {
+        if (!button.Disabled)
+        {
+            return;
+        }
+
+        var pressed = @event switch
+        {
+            InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } => true,
+            _ => @event.IsActionPressed("ui_accept"),
+        };
+        if (pressed)
+        {
+            PlayUiSfx(SfxId.UiDeny);
+        }
+    }
+
+    /// <summary>按钮交互音：悬停/焦点 = 轻点（hover 音自带 80ms 最小间隔，扫过一排按钮不会连发），
+    /// 按下 = 确认；切换类按钮（ToggleMode）改发切换音——同一按钮不会被两种「按下」语义同时覆盖。
+    /// meta 守卫保证幂等：一个按钮可能先后经过 ApplyButton 与 MakeButton 两条套皮路径。</summary>
+    public static void AttachButtonSfx(Button button)
+    {
+        if (button.HasMeta(ButtonSfxMeta))
+        {
+            return;
+        }
+
+        button.SetMeta(ButtonSfxMeta, true);
+        button.MouseEntered += () => PlayUiSfx(SfxId.UiHover);
+        button.FocusEntered += () => PlayUiSfx(SfxId.UiHover);
+        button.ButtonDown += () => PlayUiSfx(button.ToggleMode ? SfxId.UiToggle : SfxId.UiConfirm);
+        button.GuiInput += @event => PlayDenyIfDisabled(button, @event);
+    }
+
+    /// <summary>套皮幂等标记（音效只挂一次）。</summary>
+    private const string ButtonSfxMeta = "ui_sfx_hooked";
 
     /// <summary>面板打开微动效：200ms 淡入（不做位移动画——容器布局会覆盖 position）。</summary>
     public static void AnimateOpen(Control control)
