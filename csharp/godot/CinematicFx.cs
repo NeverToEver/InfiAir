@@ -63,62 +63,53 @@ public partial class CinematicFx : RefCounted
         return ImageTexture.CreateFromImage(img);
     }
 
-    /// <summary>深空星云贴图工厂：256² 画布逐像素累积 10 枚软斑（确定性种子），再双线性放大。
-    /// 灰度能量场（RGB=alpha=能量值），颜色全部交给调用方 modulate 染色——星空/开始页共用一张。
-    /// 贴图四向平铺无缝（星空滚动回绕依赖边缘连续，不做边缘衰减）。
+    /// <summary>深空星云贴图工厂：256² 画布采样环面无缝能量场（core NebulaField：值噪声云 +
+    /// 脊状细丝 + 暗尘带），再双线性放大。灰度能量场（RGB=alpha=能量值），颜色全部交给
+    /// 调用方 modulate 染色——星空共用一张。贴图四向平铺无缝（无缝判据在 NebulaField 单测）。
     /// 一次性构建（调用方自持实例字段），热路径零分配。</summary>
     public static ImageTexture NebulaTexture(int size = 768, int seed = 20260907)
     {
         const int BaseSize = 256;
-        const int BlobCount = 10;
-        var rng = new RandomNumberGenerator();
-        rng.Seed = (ulong)seed;
-        var blobX = new float[BlobCount];
-        var blobY = new float[BlobCount];
-        var blobR = new float[BlobCount];
-        var blobS = new float[BlobCount];
-        for (var i = 0; i < BlobCount; i++)
-        {
-            blobX[i] = rng.Randf() * BaseSize;
-            blobY[i] = rng.Randf() * BaseSize;
-            blobR[i] = rng.RandfRange(BaseSize * 0.16f, BaseSize * 0.42f);
-            blobS[i] = rng.RandfRange(0.35f, 1.0f);
-        }
-
+        var field = InfiAir.Core.NebulaField.Build(BaseSize, seed);
         var img = Image.CreateEmpty(BaseSize, BaseSize, false, Image.Format.Rgba8);
         for (var y = 0; y < BaseSize; y++)
         {
             for (var x = 0; x < BaseSize; x++)
             {
-                var v = 0.0f;
-                for (var i = 0; i < BlobCount; i++)
-                {
-                    var dx = Mathf.Abs(x + 0.5f - blobX[i]);
-                    var dy = Mathf.Abs(y + 0.5f - blobY[i]);
-                    // 环面距离：贴图四向平铺无缝（星空滚动回绕无接缝）
-                    if (dx > BaseSize * 0.5f)
-                    {
-                        dx = BaseSize - dx;
-                    }
-
-                    if (dy > BaseSize * 0.5f)
-                    {
-                        dy = BaseSize - dy;
-                    }
-
-                    var d = new Vector2(dx, dy).Length() / blobR[i];
-                    if (d < 1.0f)
-                    {
-                        v += blobS[i] * Mathf.Pow(1.0f - d, 2.2f);
-                    }
-                }
-
-                v = Mathf.Clamp(v, 0.0f, 1.0f);
+                var v = field[y * BaseSize + x];
                 img.SetPixel(x, y, new Color(v, v, v, v));
             }
         }
 
         img.Resize(size, size, Image.Interpolation.Bilinear);
+        return ImageTexture.CreateFromImage(img);
+    }
+
+    /// <summary>四芒衍射星贴图（亮星层的十字微光）：细高斯横竖光轴 + 小型软核，灰度。
+    /// 96² 单张，确定性逐像素生成；旋转/缩放交给绘制端 DrawSetTransform，贴图零状态。</summary>
+    public static ImageTexture SpikeTexture()
+    {
+        const int Size = 96;
+        const float Center = Size * 0.5f;
+        const float Length = Size * 0.46f; // 光轴臂长（半径）
+        const float AxisSigma = 1.7f;      // 光轴横向厚度（高斯 σ）
+        var img = Image.CreateEmpty(Size, Size, false, Image.Format.Rgba8);
+        for (var y = 0; y < Size; y++)
+        {
+            for (var x = 0; x < Size; x++)
+            {
+                var dx = x + 0.5f - Center;
+                var dy = y + 0.5f - Center;
+                // 横轴：沿 x 衰减出臂形，垂直向高斯收细；纵轴对称
+                var ax = MathF.Exp(-(dx * dx) / (Length * Length * 0.35f)) * MathF.Exp(-(dy * dy) / (2.0f * AxisSigma * AxisSigma));
+                var ay = MathF.Exp(-(dy * dy) / (Length * Length * 0.35f)) * MathF.Exp(-(dx * dx) / (2.0f * AxisSigma * AxisSigma));
+                var d2 = dx * dx + dy * dy;
+                var core = MathF.Exp(-d2 / (2.0f * 3.2f * 3.2f)) * 0.85f;
+                var v = Math.Clamp(MathF.Max(MathF.Max(ax, ay), 0.0f) + core, 0.0f, 1.0f);
+                img.SetPixel(x, y, new Color(v, v, v, v));
+            }
+        }
+
         return ImageTexture.CreateFromImage(img);
     }
 

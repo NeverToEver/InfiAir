@@ -10,10 +10,10 @@ shader_type canvas_item;
 // 时后绘压暖层，其余区域暖层在上；下方按同序 over 合成，与两次绘制逐位等价。
 // 贴图为环面无缝灰度能量场（rgba=v），repeat 跨缝采样与原逐格 clamp 边缘视觉等价。
 // 下列字面默认值是「死默认」：Starfield 建星云层时即按 effects.starfield.nebula_alpha 与
-// Starfield.cs 的暖/冷基础色全量写入；默认值保持与二者同值（alpha 0.21 = 0.30 × 冷层比例 0.7）。
+// Starfield.cs 的暖/冷基础色全量写入；默认值保持与二者同值（alpha 0.165 = 0.30 × 冷层比例 0.55）。
 uniform vec2 phase_off = vec2(0.15, 1.0); // CPU 每帧 1 次上传（滚动唯一动态量）
-uniform vec4 warm : source_color = vec4(0.72, 0.42, 0.16, 0.30);  // 暖琥珀主层（战术主色温）
-uniform vec4 cool : source_color = vec4(0.16, 0.38, 0.55, 0.21);  // 冷青副层（全息青色温）
+uniform vec4 warm : source_color = vec4(0.72, 0.42, 0.16, 0.30);   // 暖琥珀主层（战术主色温）
+uniform vec4 cool : source_color = vec4(0.16, 0.38, 0.55, 0.165);  // 冷青副层（点缀，暖主导的衬托）
 
 void fragment() {
     vec2 ph = fract(UV / 0.7 + phase_off);

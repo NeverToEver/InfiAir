@@ -15,6 +15,9 @@ namespace InfiAir;
 /// 同步），消除「大档位建区后切回小档位，星空只盖中央一块」的残留。
 /// 视觉增厚（2026-09）：星云贴图双层（确定性程序化生成，灰度能量场 modulate 染色）+
 /// 亮星层（软点贴图、逐星色温/闪烁相位）+ 低频流星；全部一次性建缓存，绘制零分配。
+/// 风格化（2026-09-19）：星云改 core NebulaField 能量场（值噪声云 + 脊状细丝 + 暗尘带，
+/// 告别软斑棉团）；远/近星点逐星亮度与色温差分（暖琥珀/冷蓝白点缀）；亮星改
+/// 光环 + 逐星微旋衍射芒 + 软核三层；流星补软核头部。判定/速度语义零改动。
 /// 星云 _Draw 为 3×3×2 = 18 次 DrawTextureRect（≈8.8 屏/帧混合填充）
 /// → 单全屏精灵 + canvas_item shader（GPU repeat 平铺，1 draw、1 屏/帧；相位/tint/混合序
 /// 逐位还原，见 starfield_nebula.gdshader 头注）。
@@ -39,23 +42,35 @@ public partial class Starfield : Node2D
     private Vector2[] _near = System.Array.Empty<Vector2>();
     private Vector2[] _farLines = System.Array.Empty<Vector2>(); // Godot C#：PackedVector2Array → Vector2[]
     private Vector2[] _nearLines = System.Array.Empty<Vector2>();
+    private Color[] _farColors = System.Array.Empty<Color>(); // 逐星亮度/色温（风格化差分，仍每层 1 次 draw）
+    private Color[] _nearColors = System.Array.Empty<Color>();
     private const float LineLen = 1.0f;
 
     // ---- 视觉常量（原内联字面量集中于此，便于统一调色/节奏；不动星数/种子，
     //      确定性观感与既有画面逐位一致） ----
     private const float NebulaTileRatio = 0.7f;    // 星云平铺高 / 可见区高（滚动回绕基线）
     private const float NebulaScrollSpeed = 12.0f; // 星云下卷速度（px/s；Warp 时按倍率加速）
-    private const float NebulaCoolAlphaScale = 0.7f; // 冷色层相对暖色层的 alpha 比例
+    private const float NebulaCoolAlphaScale = 0.55f; // 冷色层相对暖色层的 alpha 比例（冷青降为点缀，暖琥珀主导）
     private const float BrightParallax = 1.35f;    // 亮星层相对近层的速度（远近视差）
     private static readonly Color NebulaWarm = new(0.72f, 0.42f, 0.16f); // 暖色层（暖琥珀）
     private static readonly Color NebulaCool = new(0.16f, 0.38f, 0.55f); // 冷色层（冷青）
 
-    // ---- 亮星层（比近层更快 = 更近的视差深度；逐星色温 + 闪烁相位，_Draw 内查表零分配） ----
+    // ---- 远/近星点的配色口径：底色微差 + 少量暖琥珀/冷蓝白点缀（占比取样时定，
+    //      alpha 逐星随机＝距离感；同层单色的「胡椒面」观感由此打破，仍每层 1 次 draw） ----
+    private static readonly Color FarBase = new(0.72f, 0.76f, 0.92f);
+    private static readonly Color NearBase = new(1.0f, 1.0f, 1.0f);
+    private static readonly Color StarWarm = new(1.0f, 0.85f, 0.60f);
+    private static readonly Color StarCool = new(0.72f, 0.84f, 1.0f);
+
+    // ---- 亮星层（比近层更快 = 更近的视差深度；逐星色温/相位/旋转，_Draw 内查表零分配） ----
     private Vector2[] _bright = System.Array.Empty<Vector2>();
     private Color[] _brightColors = System.Array.Empty<Color>();
     private float[] _brightPhase = System.Array.Empty<float>();
     private float[] _brightSize = System.Array.Empty<float>();
     private float[] _brightBaseA = System.Array.Empty<float>();
+    private float[] _brightRot = System.Array.Empty<float>(); // 衍射芒逐星微旋（±0.3rad，避免千星一律）
+    private const float SpikeTexSize = 96.0f; // 衍射芒贴图边长（CinematicFx.SpikeTexture 实参，变换缩放换算用）
+    private static readonly Rect2 SpikeRect = new(new Vector2(-SpikeTexSize * 0.5f, -SpikeTexSize * 0.5f), new Vector2(SpikeTexSize, SpikeTexSize));
     private static readonly Color[] BrightPalette =
     {
         new(1.0f, 0.94f, 0.82f),  // 暖白
@@ -68,6 +83,7 @@ public partial class Starfield : Node2D
     private const float NebulaTexSize = 768.0f; // 贴图边长（NebulaTexture 实参，平铺相位换算用）
     private Texture2D? _nebulaTex;
     private Texture2D? _starTex;
+    private Texture2D? _spikeTex;
     private float _nebulaScroll;
     // 星云全屏精灵材质（精灵本体 _Ready 建为子节点由树持有，无需字段；每帧仅 1 个相位 uniform）
     private ShaderMaterial? _nebulaMat;
@@ -294,12 +310,27 @@ public partial class Starfield : Node2D
         _farLines = new Vector2[_farCount * 2];
         _nearLines = new Vector2[_nearCount * 2];
 
-        // 亮星层：接续同一 RNG 序列（全局确定性重绘一致）；色温/相位/尺寸/基线亮度逐星随机
+        // 逐星配色（远层暗一档＝距离感；各层按比例点缀暖琥珀/冷蓝白），
+        // 接续同一 RNG 序列，全局确定性重绘一致
+        _farColors = new Color[_farCount];
+        for (int i = 0; i < _farCount; i++)
+        {
+            _farColors[i] = PickStarColor(rng, FarBase, 0.30f, 0.58f);
+        }
+
+        _nearColors = new Color[_nearCount];
+        for (int i = 0; i < _nearCount; i++)
+        {
+            _nearColors[i] = PickStarColor(rng, NearBase, 0.55f, 0.92f);
+        }
+
+        // 亮星层：接续同一 RNG 序列（全局确定性重绘一致）；色温/相位/尺寸/基线亮度/旋转逐星随机
         _bright = new Vector2[_brightCount];
         _brightColors = new Color[_brightCount];
         _brightPhase = new float[_brightCount];
         _brightSize = new float[_brightCount];
         _brightBaseA = new float[_brightCount];
+        _brightRot = new float[_brightCount];
         for (int i = 0; i < _brightCount; i++)
         {
             _bright[i] = new Vector2(_origin.X + rng.Randf() * _areaSize.X, _origin.Y + rng.Randf() * _areaSize.Y);
@@ -307,11 +338,13 @@ public partial class Starfield : Node2D
             _brightPhase[i] = rng.Randf() * Mathf.Tau;
             _brightSize[i] = rng.RandfRange(10.0f, 24.0f);
             _brightBaseA[i] = rng.RandfRange(0.3f, 0.6f);
+            _brightRot[i] = rng.RandfRange(-0.3f, 0.3f);
         }
 
-        // 星云/亮星贴图一次性构建（灰度能量场 + 软点），实例字段持有（C# 静态禁持 Godot 对象规则）
+        // 星云/亮星/衍射芒贴图一次性构建（确定性程序化），实例字段持有（C# 静态禁持 Godot 对象规则）
         _nebulaTex = CinematicFx.NebulaTexture((int)NebulaTexSize, 20260907);
         _starTex = CinematicFx.SoftTexture();
+        _spikeTex = CinematicFx.SpikeTexture();
 
         // 星云改单全屏精灵（repeat 平铺 + 相位 shader），替代 _Draw 18 次 DrawTextureRect；
         // ShowBehindParent 保持星云在星点之下；alpha≈0 整层不建（同原早退门槛）
@@ -425,14 +458,14 @@ public partial class Starfield : Node2D
     {
         // 星云底已迁至全屏精灵（_Ready 建，ShowBehindParent 绘于本节点星点之下）
 
-        // 每层单条 draw_multiline 合批（230 条绘制指令 → 2 条）；线宽对应原圆直径
-        DrawMultiline(_farLines, new Color(0.7f, 0.75f, 0.9f, 0.6f), 3.0f);
-        DrawMultiline(_nearLines, new Color(1.0f, 1.0f, 1.0f, 0.9f), 5.0f);
+        // 每层单条 draw_multiline 合批 + 逐星颜色数组（亮度/色温差分）；线宽对应原圆直径
+        DrawMultilineColors(_farLines, _farColors, 3.0f);
+        DrawMultilineColors(_nearLines, _nearColors, 5.0f);
 
-        // 亮星层：软点贴图 + 逐星色温/正弦闪烁；最大的几枚加十字微光。
+        // 亮星层：光环（大星垫底）+ 衍射芒（逐星微旋）+ 软核，三层读出「亮」的层次。
         // 频率与减少闪光归零的单源在 core FlashBudget（这是全屏尺度的亮度调制）；
         // 归零取均值常亮，平均亮度不变、只是不再起伏。
-        if (_starTex != null)
+        if (_starTex != null && _spikeTex != null)
         {
             var twinkleAmp = FlashBudget.Amplitude(0.35f, PulseId.StarfieldTwinkle, GameState.Instance.ReduceFlash);
             for (var i = 0; i < _bright.Length; i++)
@@ -442,22 +475,33 @@ public partial class Starfield : Node2D
                 var a = _brightBaseA[i] * twinkle;
                 var c = _brightColors[i];
                 var half = _brightSize[i] * 0.5f;
-                DrawTextureRect(_starTex, new Rect2(_bright[i] - new Vector2(half, half), new Vector2(_brightSize[i], _brightSize[i])), false, new Color(c, a));
                 if (_brightSize[i] > 20.0f)
                 {
-                    var r = _brightSize[i] * 0.9f;
-                    DrawLine(_bright[i] + new Vector2(-r, 0.0f), _bright[i] + new Vector2(r, 0.0f), new Color(c, a * 0.4f), 1.0f, true);
-                    DrawLine(_bright[i] + new Vector2(0.0f, -r), _bright[i] + new Vector2(0.0f, r), new Color(c, a * 0.4f), 1.0f, true);
+                    var halo = half * 1.7f;
+                    DrawTextureRect(_starTex, new Rect2(_bright[i] - new Vector2(halo, halo), new Vector2(halo * 2.0f, halo * 2.0f)), false, new Color(c, a * 0.16f));
                 }
+
+                // 芒在变换空间画（位置=星点、旋转=逐星、缩放=星尺寸）；核是圆对称，同变换里画省一次切换
+                var k = _brightSize[i] * 2.6f / SpikeTexSize;
+                DrawSetTransform(_bright[i], _brightRot[i], new Vector2(k, k));
+                DrawTextureRect(_spikeTex, SpikeRect, false, new Color(c, a));
+                DrawTextureRect(_starTex, SpikeRect, false, new Color(c, a * 0.85f));
             }
+
+            DrawSetTransform(Vector2.Zero, 0.0f, Vector2.One); // 还原——流星绘制走绝对坐标
         }
 
-        // 流星：头亮尾淡 4 段拖尾，出现/收尾各留包络（无突现突失）
+        // 流星：软核头部 + 头亮尾淡 4 段拖尾，出现/收尾各留包络（无突现突失）
         if (_meteorActive)
         {
             var envelope = Mathf.Clamp(_meteorT / 0.1f, 0.0f, 1.0f) * Mathf.Clamp((1.0f - _meteorT) / 0.2f, 0.0f, 1.0f);
             if (envelope > 0.01f)
             {
+                if (_starTex != null)
+                {
+                    DrawTextureRect(_starTex, new Rect2(_meteorPos - new Vector2(9.0f, 9.0f), new Vector2(18.0f, 18.0f)), false, new Color(0.9f, 0.96f, 1.0f, 0.5f * envelope));
+                }
+
                 var tail = -_meteorVel.Normalized();
                 var head = _meteorPos;
                 for (var s = 0; s < 4; s++)
@@ -469,5 +513,13 @@ public partial class Starfield : Node2D
                 }
             }
         }
+    }
+
+    /// <summary>逐星配色：层底色为基调，12% 暖琥珀 / 6% 冷蓝白点缀；alpha 随机＝亮度与距离感。</summary>
+    private static Color PickStarColor(RandomNumberGenerator rng, Color baseColor, float aMin, float aMax)
+    {
+        var roll = rng.Randf();
+        var tint = roll < 0.12f ? StarWarm : roll < 0.18f ? StarCool : baseColor;
+        return new Color(tint, rng.RandfRange(aMin, aMax));
     }
 }
