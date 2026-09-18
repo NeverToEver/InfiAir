@@ -157,9 +157,11 @@ public sealed partial class InputBindingsService : RefCounted
                 {
                     JoyAxis.LeftX or JoyAxis.LeftY => (string)Tr("SET_LABEL_LSTICK"),
                     JoyAxis.RightX or JoyAxis.RightY => (string)Tr("SET_LABEL_RSTICK"),
+                    // 扳机报硬件物理名（与设置页「手柄为右扳机 RT」同一叫法），不进翻译表
                     JoyAxis.TriggerLeft => "LT",
                     JoyAxis.TriggerRight => "RT",
-                    _ => motion.Axis.ToString(),
+                    // 六轴已穷举，这一支只在引擎日后新增轴时走到：回落键名，而不是把枚举名印给玩家
+                    _ => ActionKeyText(action),
                 };
             }
         }
