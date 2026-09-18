@@ -74,16 +74,20 @@ public partial class TutorialProbeDriver : Node
     /// 不用白盒写口——顺带覆盖「教程授予的相位突进真的能用」）。</summary>
     private const int DashGapFrames = 250;
 
-    /// <summary>弹反的近身判定带（px）：第二发用的「来不及提前按」距离档——带内按下时敌弹恰在
-    /// 有效窗口开启后不久进入弹反半径。</summary>
+    /// <summary>弹反的近身判定带（px）：第二发用——带内按下时敌弹恰在有效窗口开启后不久才进圈，
+    /// 即「盾亮起与弹进圈几乎同时」的边界拍（漏判的高发形态，见 CheckShieldLeak）。</summary>
     private const float ParryCloseBandMax = 175.0f;
 
-    /// <summary>弹反的常规判定带（px）：第一发用的从容距离档（过窗余量最足的上沿）。</summary>
+    /// <summary>弹反的常规判定带（px）：第一发用（窗口开启后还有十余帧余量的从容档）。</summary>
     private const float ParryNormalBandMax = 280.0f;
 
-    /// <summary>弹反判定带的下限（px）：前摇 0.15s 内敌弹（420px/s）走 73.5px，60+73.5≈134——
-    /// 低于 140 按下会「按晚了」：盾亮起时弹已进圈，Area2D 只在进入瞬间判定，穿圈即漏。</summary>
+    /// <summary>弹反判定带的下限（px）：前摇 0.15s（(0.8−0.5)/2）内敌弹按 420px/s 走 63px，
+    /// 故 140 处按下的那一发在盾亮起时约在 77px——刚好还在半径（60）之外，进圈发生在窗口内。</summary>
     private const float ParryBandMin = 140.0f;
+
+    /// <summary>盾漏判判据的宽限帧：进圈那一帧的可见性受节点处理序影响（玩家侧扫描、教程目标行
+    /// 重渲染、本节点读数各在一帧内的不同相位），给几帧吸收；漏判实测会持续十余帧，判得出。</summary>
+    private const int ParryLeakGraceFrames = 3;
 
     /// <summary>反向对照的贴身距离（px）：敌弹进到这个距离而没人弹反，即为「弹已到、计数未动」的实证。</summary>
     private const float ParryNegControlDist = 55.0f;
@@ -95,6 +99,10 @@ public partial class TutorialProbeDriver : Node
     /// <summary>设备档切换断言的等待上限（帧）：信号广播与重渲染都应在两三帧内完成，
     /// 超时即断线（不是慢，是没接上）。</summary>
     private const int HintSwitchBudgetFrames = 30;
+
+    /// <summary>等母舰段后续目标行出现的上限（帧）：蓄力 3s + 穿梭门 + 母舰下压 ≈ 6s，取 12s 余量
+    /// （超时说明召唤链没跑起来——那本身也是要红的形态）。</summary>
+    private const int FollowUpAppearBudgetFrames = 720;
 
     /// <summary>召唤母舰的手柄标签（物理名，不随语言变；本趟默认 Xbox 布局，PS 布局为 □）。</summary>
     private const string PadDockLabel = "X";
@@ -186,6 +194,10 @@ public partial class TutorialProbeDriver : Node
     private int _parryWaitFrames;
     /// <summary>弹反按下后的松手倒计帧（保持两帧，见按下处注释）。</summary>
     private int _parryReleaseIn;
+    /// <summary>盾漏判判据的连续帧计数：有效窗口内圈内存在未反射的逼近弹（见 CheckShieldLeak）。</summary>
+    private int _parryLeakFrames;
+    /// <summary>母舰段后续目标行在设备切换前的文本（切换只该换标签，不该换行）。</summary>
+    private string _dockFollowUpText = "";
 
     /// <summary>完成标记只打一次（门禁按它判红绿；重复打标记会让「跑了两遍」看起来正常）。</summary>
     private bool _markerPrinted;
@@ -354,12 +366,20 @@ public partial class TutorialProbeDriver : Node
         OverBudget("机动");
     }
 
+    /// <summary>母舰段后续目标行的文本（课程表单源取键）：探针要与它逐字比对，故不另写一份字面量。</summary>
+    private string FollowUpText() => (string)Tr(TutorialCurriculum.At(4).FollowUpKey);
+
     /// <summary>设备感知断言（母舰段内嵌）：该阶段的目标行不随任何计数自动刷新——只有设备档
     /// 切换信号链能把它换档，判据钉的就是这条链。经 <c>Input.ParseInputEvent</c> 注入**手柄事件**
     /// （生产输入面的另一路），断目标行报出手柄标签（X＝召唤的手柄绑定，物理名不随语言变）；再注入
     /// 键盘事件断切回键名（J＝本趟改键后的召唤键——顺带钉「改键后键鼠档仍跟随」）。标签不跟设备
     /// 变档／重渲染链断线／残留占位符，都在这里红。手柄摇杆注入后立即归零：ParseInputEvent 的轴
-    /// 状态不会自动复位，不复位会让玩家一直向下漂；断言窗口收在蓄力替换行出现（3s）之前。</summary>
+    /// 状态不会自动复位，不复位会让玩家一直向下漂；两档断言收在蓄力替换行出现（3s）之前。
+    ///
+    /// 后两拍（3/4）钉**换行语义**：母舰召唤完成后目标行换成后续行（对接说明，无键位补参），
+    /// 此时再切一次设备——切换只该换键位标签，不该换行。一律打回阶段目标行的实现会把
+    /// 「长按 &lt;键&gt; 蓄力召唤母舰」重新印给正在对接的玩家，而阶段机照常推进、引擎侧零报错，
+    /// 只有这一拍看得出来。</summary>
     private void DriveHintDeviceCheck()
     {
         switch (_hintPhase)
@@ -391,11 +411,53 @@ public partial class TutorialProbeDriver : Node
             case 2:
                 if (_tutorial!.ObjectiveText().Contains(KbDockLabel, System.StringComparison.Ordinal))
                 {
-                    _hintPhase = 3; // 两档都成形，设备感知判据收口
+                    _hintPhase = 3; // 两档都成形；接着等后续目标行出现，钉子阶段的换行语义
+                    _hintWaitFrames = 0;
                 }
                 else if (++_hintWaitFrames > HintSwitchBudgetFrames)
                 {
                     Fail($"注入键盘事件后目标行未切回键名 {KbDockLabel}（档位不随最近设备回切）：{_tutorial.ObjectiveText()}");
+                }
+
+                break;
+            case 3:
+                // 等后续目标行（母舰召唤完成后换上的对接说明）：按课程表的键取下文案比对，
+                // 不靠「不含标签」这类间接特征——蓄力替换行同样不含标签，会提前误判成后续行。
+                // 召唤后的演出有十几秒，预算按母舰出场（蓄力 3s + 穿梭门 + 下压）给足。
+                if (_tutorial!.ObjectiveText() == FollowUpText())
+                {
+                    _dockFollowUpText = _tutorial.ObjectiveText();
+                    _hintPhase = 4;
+                    _hintWaitFrames = 0;
+                    // 必须注入**另一档**的事件：同档事件不会切档、也就不会广播重渲染——
+                    // 那样这一拍只会「什么都没发生」，盖不住「一律打回目标行」的实现
+                    Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.8f });
+                    Input.ParseInputEvent(new InputEventJoypadMotion { Device = 0, Axis = JoyAxis.LeftY, AxisValue = 0.0f });
+                }
+                else if (++_hintWaitFrames > FollowUpAppearBudgetFrames)
+                {
+                    Fail($"母舰段后续目标行迟迟不出现（对接演出未起）：{_tutorial.ObjectiveText()}");
+                }
+
+                break;
+            case 4:
+                // 设备切换只该换**键位标签**，不该换行：后续行没有键位补参，切换后文本必须逐字不变。
+                // 一律打回阶段目标行的实现会在这里红（对接进行中还在提示「长按 <键> 蓄力召唤母舰」）。
+                if (++_hintWaitFrames < HintSwitchBudgetFrames)
+                {
+                    break; // 等「注入 → 广播 → 重渲染」这条链跑完再判
+                }
+
+                if (_tutorial!.ObjectiveText() != _dockFollowUpText)
+                {
+                    Fail($"设备切换把母舰段的后续目标行打回了阶段目标行：切换前 «{_dockFollowUpText}» / 切换后 «{_tutorial.ObjectiveText()}»");
+                }
+                else
+                {
+                    _hintPhase = 5; // 设备感知与换行语义都收口
+                    // 切回键鼠档：后面的阶段（含第三遍的改键跟随断言）都以键名档为准
+                    Input.ParseInputEvent(new InputEventKey { Device = -1, Keycode = Key.F7, Pressed = true });
+                    Input.ParseInputEvent(new InputEventKey { Device = -1, Keycode = Key.F7, Pressed = false });
                 }
 
                 break;
@@ -424,6 +486,11 @@ public partial class TutorialProbeDriver : Node
         if (readout < 0 || readout > 2)
         {
             Fail($"弹反段读数越界（{readout}/2）");
+            return;
+        }
+
+        if (CheckShieldLeak())
+        {
             return;
         }
 
@@ -503,6 +570,72 @@ public partial class TutorialProbeDriver : Node
         OverBudget("弹反");
     }
 
+    /// <summary>盾漏判判据（每帧，与「按下后读数涨」是两条独立判据）：盾在有效窗口内时，只要有一发
+    /// **逼近中的**敌弹已进弹反半径而未被反射，连续超过宽限帧即红；返回 true 表示本帧已判失败。
+    ///
+    /// 为什么单独一条：`area_entered` 只在「进入重叠」那一刻投递一次，而几何判据要求弹心 ≤ 盾半径
+    /// （重叠区自「盾半径＋弹体半径」起算）——进入事件落在两个半径之间的弹只有一次机会且必被拒，
+    /// 玩家看到的是一次白挥（时机对了却没弹反，引擎侧零报错）。修复侧是有效窗口内逐帧扫描补判；
+    /// **摘掉扫描实测每趟有二十余帧的圈内未反射弹**，但只按「阶段最终能否过关」判则要连续漏判才红
+    /// （实测 9 趟只红 1 趟）——本判据把一次漏判变成一次红。
+    /// 只看逼近弹：已掠过玩家正在远去的弹不会再进盾判定，计它会把正常形态判红。</summary>
+    private bool CheckShieldLeak()
+    {
+        if (_player == null || _player.ParryPhase() != (int)InfiAir.Core.Combat.ParryPhase.Active)
+        {
+            _parryLeakFrames = 0;
+            return false;
+        }
+
+        if (InRadiusUnreflectedApproaching() == 0)
+        {
+            _parryLeakFrames = 0;
+            return false;
+        }
+
+        _parryLeakFrames++;
+        if (_parryLeakFrames <= ParryLeakGraceFrames)
+        {
+            return false;
+        }
+
+        Fail($"盾漏判：有效窗口内敌弹已进弹反半径 {_parryLeakFrames} 帧仍未反射"
+             + "（area_entered 单次判定漏掉边界进入的弹，逐帧扫描补判缺失）");
+        return true;
+    }
+
+    /// <summary>弹反半径内**未被反射**的逼近敌弹数（判据与生产同源：core 几何判据 + 敌弹注册表）。
+    /// 注册表口径：反射弹换阵营后移出敌弹表，故命中的都是「本该被吃掉却没吃掉」的弹。</summary>
+    private int InRadiusUnreflectedApproaching()
+    {
+        var count = 0;
+        var noseAngle = Vector2.Up.Rotated(_player!.Rotation).Angle();
+        var bullets = GameState.Instance.EnemyBullets;
+        for (var i = 0; i < bullets.Count; i++)
+        {
+            var bullet = bullets[i];
+            if (bullet == null || !GodotObject.IsInstanceValid(bullet) || bullet.IsPlayerBullet)
+            {
+                continue;
+            }
+
+            var toPlayer = _player.GlobalPosition - bullet.GlobalPosition;
+            if (bullet.Direction.Dot(toPlayer) <= 0.0f)
+            {
+                continue;
+            }
+
+            // 弧外用生产同一条几何判据排除：生产值 arc_deg=360（全向），<360 时背后的弹本就不该被盾吃掉
+            if (InfiAir.Core.Combat.ParryShield.Covers(
+                    toPlayer.X, toPlayer.Y, noseAngle, _player.ParryRadius, _player.ParryArcDeg))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     /// <summary>最近**逼近中**敌弹与玩家的距离（px），次近逼近弹的距离经 out 给出
     /// （无逼近弹返回 -1）。只看逼近的：已掠过玩家正在远去的弹也会落进距离带，对它按弹反
     /// 只会白挥一下盾（窗口内没有弹会进来）。次近弹供「孤立弹」判定——齐射时两发同进
@@ -558,7 +691,13 @@ public partial class TutorialProbeDriver : Node
 
         CheckStageReadout(4);
         DriveHintDeviceCheck();
-        Input.ActionPress(new StringName("dock"));
+        // 两档标签断言走完再开始蓄力：蓄力一开目标行即换成蓄力替换行（无键位补参），
+        // 那时再切设备判的是那一行，钉不到阶段目标行的换档（见 DriveHintDeviceCheck）
+        if (_hintPhase >= 3)
+        {
+            Input.ActionPress(new StringName("dock"));
+        }
+
         OverBudget("母舰停靠");
     }
 

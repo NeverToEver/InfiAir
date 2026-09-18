@@ -316,8 +316,9 @@ public partial class Tutorial : Node2D
     }
 
     /// <summary>设备档切换：键位补参按当前设备重取（键鼠 ⇄ 手柄），已显示的提示行即时换档。
-    /// 返航段已返航时目标行是后续行（带两个键位补参），其余形态按阶段目标行重渲染；
-    /// 蓄力行只有百分比补参，下一次 0.1s 节流轮询自然成形，不必在此特判。</summary>
+    /// 重渲染的对象是**当前正在显示的那一行**（_objectiveKey 记的就是它），而不是一律打回阶段目标行：
+    /// 母舰段召唤完成后的后续行、返航段达成后的后续行、两段的蓄力替换行都是常显形态，
+    /// 打回目标行会把已经做过一步的指令重新印给玩家（对接中还在提示「长按 X 蓄力召唤母舰」）。</summary>
     private void OnHintDeviceChanged()
     {
         if (_finished || _failed)
@@ -325,9 +326,14 @@ public partial class Tutorial : Node2D
             return;
         }
 
-        if (_progress.Stage.Goal == TutorialGoalKind.Homecoming && _progress.Charged && !AugmentPanelOpen())
+        var stage = _progress.Stage;
+        if (stage.FollowUpKey.Length > 0 && _objectiveKey == stage.FollowUpKey)
         {
             ShowFollowUpObjective();
+        }
+        else if (stage.ChargeKey.Length > 0 && _objectiveKey == stage.ChargeKey)
+        {
+            SetChargeObjective(stage.Goal == TutorialGoalKind.Dock ? _dockCharge : _homeCharge);
         }
         else
         {
@@ -991,19 +997,10 @@ public partial class Tutorial : Node2D
             }
 
             var id = key.AsStringName();
-            var row = new HBoxContainer();
-            row.AddThemeConstantOverride("separation", 10);
-            row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
-            var nameLabel = UITheme.MakeLabel(
-                (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
-            nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-            row.AddChild(nameLabel);
-            if (stacks > 1)
-            {
-                row.AddChild(UITheme.MakeLabel(GdFormat.Format("×%d", stacks), UITheme.FontHud, UITheme.AccentGold, HorizontalAlignment.Right));
-            }
-
-            vbox.AddChild(row);
+            // 行装配与生产 HUD 同源（UITheme.MakeAugmentRow）：字形尺寸、×N 规则、名称取值口
+            // 只有一份——HUD 行改版时教程触点不会悄悄长成另一个样子
+            vbox.AddChild(UITheme.MakeAugmentRow(
+                id, (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), stacks));
             listed += 1;
         }
 
