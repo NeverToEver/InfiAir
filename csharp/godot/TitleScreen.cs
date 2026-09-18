@@ -241,6 +241,8 @@ public partial class TitleScreen : CanvasLayer
         button.AddThemeColorOverride("font_hover_color", UITheme.AccentGold);
         button.AddThemeColorOverride("font_focus_color", UITheme.AccentGold);
         button.AddThemeColorOverride("font_pressed_color", UITheme.AccentGold);
+        // 焦点环走全库同一枚（UITheme）：引擎默认焦点盒是直角细框，与切角语汇不同族
+        UITheme.ApplyFocusRing(button);
         return button;
     }
 

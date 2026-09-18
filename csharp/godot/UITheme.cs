@@ -114,6 +114,35 @@ public partial class UITheme : RefCounted
         return label;
     }
 
+    /// <summary>增幅明细行（HUD 滚动栏与教程基地段触点共用的一份装配）：字形 + 名称 + 层数
+    /// （&gt;1 时右侧 ×N）。名称由调用方取译文传入——取值口留在调用方，`Tr($"AUG_{id}_NAME")`
+    /// 这类动态拼接键才会落在文案门禁的键族判定里（搬进本类就出了判定面）。
+    /// 鼠标过滤不在此处置：由调用方按自己的容器语义设置（HUD 滚动栏整层 Ignore）。</summary>
+    public static HBoxContainer MakeAugmentRow(StringName id, string displayName, int stacks)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 10);
+        row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
+        var nameLabel = MakeLabel(displayName, FontHud, Text, HorizontalAlignment.Left);
+        nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        row.AddChild(nameLabel);
+        if (stacks > 1)
+        {
+            row.AddChild(MakeLabel(
+                Core.Text.GdFormat.Format("×%d", stacks), FontHud, AccentGold, HorizontalAlignment.Right));
+        }
+
+        return row;
+    }
+
+    /// <summary>焦点描边环外挂：给不走钢板样式的按钮（标题屏的扁平文字入口）补上与
+    /// <see cref="ApplyButton"/> 同一枚环——焦点态必须有可见反馈，且全库只该有一种焦点语汇
+    /// （引擎默认焦点盒是直角细框，与切角语汇不同族）。</summary>
+    public static void ApplyFocusRing(Button button)
+    {
+        button.AddThemeStyleboxOverride("focus", MakeFocusRing());
+    }
+
     /// <summary>统一按钮工厂。primary=true：ACCENT 底（18% alpha）+ 亮边框 + 较大字号（主操作）。</summary>
     public static Button MakeButton(string text) => MakeButton(text, false);
 

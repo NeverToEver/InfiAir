@@ -376,6 +376,8 @@ public partial class Hud : CanvasLayer
         _onReduceFlashChanged = Callable.From<bool>(OnReduceFlashChanged);
         ConnectGs(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         ConnectGs(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
+        // 标签里的键名随设备档变（手柄档报按钮标签）：同一处重渲染口接两条信号
+        ConnectGs(GameState.SignalName.InputDeviceChanged, _onKeyBindingsChanged);
         ConnectGs(GameState.SignalName.TalentCacheChanged, _onTalentCacheChanged);
         ConnectGs(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
         RebuildAugmentDock();
@@ -756,6 +758,7 @@ public partial class Hud : CanvasLayer
         DisconnectGs(GameState.SignalName.MilestoneReached, _onMilestoneReached);
         DisconnectGs(GameState.SignalName.AugmentsChanged, _onAugmentsChanged);
         DisconnectGs(GameState.SignalName.KeyBindingsChanged, _onKeyBindingsChanged);
+        DisconnectGs(GameState.SignalName.InputDeviceChanged, _onKeyBindingsChanged);
         DisconnectGs(GameState.SignalName.TalentCacheChanged, _onTalentCacheChanged);
         DisconnectGs(GameState.SignalName.ReduceFlashChanged, _onReduceFlashChanged);
     }
@@ -1882,22 +1885,13 @@ public partial class Hud : CanvasLayer
         scroll.AddChild(_augmentRows);
     }
 
-    /// <summary>滚动栏明细行：字形 + 名称 + 层数（&gt;1 时右侧 ×N）。</summary>
+    /// <summary>滚动栏明细行：装配与教程基地段触点同源（<see cref="UITheme.MakeAugmentRow"/>），
+    /// 本处只补滚动栏的鼠标语义——整层 Ignore，HUD 不吃鼠标。</summary>
     private HBoxContainer MakeAugmentRow(StringName id, int stacks)
     {
-        var row = new HBoxContainer();
-        row.AddThemeConstantOverride("separation", 10);
+        var row = UITheme.MakeAugmentRow(
+            id, (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), stacks);
         row.MouseFilter = Control.MouseFilterEnum.Ignore;
-        row.AddChild(AugmentIcons.MakeGlyph(id, AugmentIcons.ColorFor(id), 24.0f));
-        var nameLabel = UITheme.MakeLabel(
-            (string)Tr($"AUG_{id.ToString().ToUpperInvariant()}_NAME"), UITheme.FontHud, UITheme.Text, HorizontalAlignment.Left);
-        nameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        row.AddChild(nameLabel);
-        if (stacks > 1)
-        {
-            row.AddChild(UITheme.MakeLabel(GdFormat.Format("×%d", stacks), UITheme.FontHud, UITheme.AccentGold, HorizontalAlignment.Right));
-        }
-
         return row;
     }
 
@@ -2091,10 +2085,11 @@ public partial class Hud : CanvasLayer
         _augmentPanel.Visible = false;
     }
 
-    /// <summary>收起态标签：名称 + 当前绑定键提示（改键后同步刷新）。</summary>
+    /// <summary>收起态标签：名称 + 当前绑定键提示（改键后同步刷新；标签按最近使用设备取档——
+    /// 手柄玩家看到的是按钮标签而不是键盘键名）。</summary>
     private void RefreshAugmentTag()
     {
-        _augmentTag.Text = GdFormat.Format("%s [%s]", (string)Tr("UI_AUGMENTS_TAG"), (string)GameState.Instance.ActionKeysText(new StringName("augment_panel")));
+        _augmentTag.Text = GdFormat.Format("%s [%s]", (string)Tr("UI_AUGMENTS_TAG"), GameState.Instance.ActionHintText(new StringName("augment_panel")));
     }
 
     /// <summary>信息横幅（母舰到达等）：切角板结构复用警告横幅，ACCENT 色系、不闪烁。</summary>
