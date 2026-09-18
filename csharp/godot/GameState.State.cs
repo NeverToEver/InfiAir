@@ -383,8 +383,12 @@ public partial class GameState : Node
     /// <summary>无障碍：命中顿帧强度倍率（0..1，settings.json 持久化，默认 1；0 = 完全关闭顿帧）——SettingsService 转发。</summary>
     public double HitStopScale { get => _settings.HitStopScale; set => _settings.HitStopScale = value; }
 
+    /// <summary>无障碍：动效强度倍率（0..1，settings.json 持久化，默认 1；0 = 回到本轮战斗动效之前的画面）。
+    /// 本轮新增动效（呼吸/拍点/流光/速度线/背景响应）的振幅一律乘它取用，频率不受影响——SettingsService 转发。</summary>
+    public double FxIntensity { get => _settings.FxIntensity; set => _settings.FxIntensity = value; }
+
     /// <summary>设置改动/读档后把顿帧强度同步进手感域（trauma 与顿帧时长都不每帧回查设置；
-    /// 震动倍率无缓存——Shake 出口直读 _settings，故无需同步口）。</summary>
+    /// 震动倍率与动效强度无缓存——出口直读 _settings，故无需同步口）。</summary>
     public void SyncHitStopScale(double value) => _gameFeel.SetHitStopScale(value);
 
     /// <summary>主音量（0..1，settings.json 持久化，默认 0.8；作用于 Master 总线）——SettingsService 转发。</summary>

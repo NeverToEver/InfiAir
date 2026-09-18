@@ -1203,6 +1203,17 @@
 			"reduce_flash": {
 				"chromatic_scale": 0.4
 			}
+		},
+		"motion": {
+			"bpm_battle": 120,
+			"bpm_boss": 150,
+			"bpm_base": 84,
+			"breath_hz_min": 0.5,
+			"breath_hz_max": 1.2,
+			"breath_amp": 0.025,
+			"beat_attack": 0.08,
+			"beat_release": 0.2,
+			"beat_amp_local": 0.08
 		}
 	},
 	"elite_turret_event": {

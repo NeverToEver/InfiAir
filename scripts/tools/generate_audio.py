@@ -181,6 +181,8 @@ def make_heartbeat() -> list:
 
 # ---------------- BGM ----------------
 
+# 战斗曲速度（战斗 / Boss / 基地三档的唯一事实另一侧：视觉节拍层按
+# data/balance.json effects.motion.bpm_battle 换算拍相位，两处必须一致）。
 BPM = 120.0
 BEAT = 60.0 / BPM
 LOOP_DUR = 40.0
@@ -236,7 +238,7 @@ EXTRA_BGM = (
         dict(
             progression=BOSS_PROGRESSION,
             chords=BOSS_CHORDS,
-            bpm=150.0,
+            bpm=150.0,  # 与 data/balance.json effects.motion.bpm_boss 一致（视觉节拍相位按它换算）
             loop_dur=32.0,
             chord_dur=4.0,
             arp_pattern=[0, 1, 2, 3, 2, 1, 2, 3],
@@ -255,7 +257,7 @@ EXTRA_BGM = (
         dict(
             progression=BASE_PROGRESSION,
             chords=BASE_CHORDS,
-            bpm=84.0,
+            bpm=84.0,  # 与 data/balance.json effects.motion.bpm_base 一致（视觉节拍相位按它换算）
             loop_dur=40.0,
             chord_dur=5.0,
             arp_pattern=[0, 2, 1, 3],  # 四分音符、窄跨度，钟音式点缀

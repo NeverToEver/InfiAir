@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using InfiAir.Core;
+using InfiAir.Core.Visual;
 using Xunit;
 
 namespace InfiAir.Core.Tests;
@@ -35,6 +36,36 @@ public sealed class FlashBudgetTests
         }
 
         Assert.Equal(3.0f, FlashBudget.HzLimit, 5);
+    }
+
+    /// <summary>本轮动效（`effects.motion`）的取值面判据（`DESIGN_BASELINE` §2.12 判据 1 与 5）：
+    /// 三档 BPM 换算出的**整拍**频率一律 < 3Hz；全屏呼吸的默认半振幅不越 core Rhythm 的硬线。
+    /// 守的静默错误＝表里登记的只有呼吸频率，「有人把 BPM 调到 200」（整拍 3.33Hz）时全屏节拍
+    /// 越过阈值，而频率表、减闪归零两半都照常全绿。</summary>
+    [Fact]
+    public void MotionBalance_BeatAndBreathStayUnderHardLines()
+    {
+        using var doc = JsonDocument.Parse(RepoFiles.Read("data/balance.json"));
+        // 段缺失即抛（取不到判据时必须显式失败，不得静默空转）
+        var motion = doc.RootElement.GetProperty("effects").GetProperty("motion");
+
+        // 上半：三档曲速的整拍频率（视觉节拍只做整拍脉冲，半拍仅局部元素、不进本判据面）
+        foreach (var key in new[] { "bpm_battle", "bpm_boss", "bpm_base" })
+        {
+            Assert.True(motion.TryGetProperty(key, out var node), $"effects.motion.{key} 不存在（键被改名？）");
+            var hz = Rhythm.BeatHz(node.GetDouble());
+            Assert.True(
+                hz < FlashBudget.HzLimit,
+                $"effects.motion.{key} 的整拍频率 {hz:0.###}Hz 越过全屏尺度闪烁阈值 {FlashBudget.HzLimit}Hz（XAG 118）");
+        }
+
+        // 下半：全屏呼吸的默认半振幅（峰谷差＝2×半振幅）必须本来就低于定义线——不能靠运行期
+        // 钳制兜着：值越线时画面仍合规、但「默认值已合法」这条事实已经没了
+        var amp = motion.GetProperty("breath_amp").GetDouble();
+        Assert.True(
+            2.0 * amp < 0.10,
+            $"effects.motion.breath_amp={amp} 的峰谷亮度差达到 XAG 118 的「闪」定义线（≥10%）");
+        Assert.Equal(amp, Rhythm.FullScreenHalfAmplitude(amp), 6);
     }
 
     [Fact]

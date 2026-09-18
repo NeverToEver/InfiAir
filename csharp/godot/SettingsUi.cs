@@ -80,6 +80,9 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _hitStopValueLabel = null!; // 命中顿帧强度档位读出
     private Label _hitStopValueLabelInline = null!; // 顿帧滑杆行内数值
     private HSlider _hitStopSlider = null!;
+    private Label _fxIntensityValueLabel = null!; // 动效强度档位读出
+    private Label _fxIntensityValueLabelInline = null!; // 动效强度滑杆行内数值
+    private HSlider _fxIntensitySlider = null!;
     private readonly List<(HSlider Slider, Func<double> Read, Label Value)> _volumeSliders = new(); // 音量滑杆（语言重建后需重置显示值）
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
@@ -937,6 +940,20 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(_hitStopValueLabel);
         RefreshHitStopLabel();
         page.AddChild(UITheme.MakeLabel(Tr("SET_HIT_STOP_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        // 动效强度（0 = 回到本轮战斗动效之前的画面）：与减闪/震动/顿帧并列，管的是「动多少」
+        (_fxIntensitySlider, _fxIntensityValueLabelInline) = MakePercentSlider(
+            page,
+            Tr("SET_FX_INTENSITY"),
+            GameState.Instance.FxIntensity,
+            v =>
+            {
+                GameState.Instance.SetFxIntensity(v);
+                RefreshFxIntensityLabel();
+            });
+        _fxIntensityValueLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.AccentGold, HorizontalAlignment.Left);
+        page.AddChild(_fxIntensityValueLabel);
+        RefreshFxIntensityLabel();
+        page.AddChild(UITheme.MakeLabel(Tr("SET_FX_INTENSITY_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
         // 关于：版本与操作速查（设置页承载「关于」是单机游戏的通行做法，便于一处查版本与按键）
         page.AddChild(UITheme.MakeSectionHeader(Tr("SET_ABOUT")));
         _versionLabel = UITheme.MakeLabel(GdFormat.Format(Tr("SET_VERSION"), GameVersion()), UITheme.FontBody, UITheme.AccentGold);
@@ -1208,6 +1225,7 @@ public partial class SettingsUi : RadialMenuLayer
         _mouseLockBtn.SetPressedNoSignal(GameState.Instance.MouseLock);
         _joyVibrationBtn.SetPressedNoSignal(GameState.Instance.JoyVibration);
         RefreshShakeLabel();
+        RefreshFxIntensityLabel();
         RefreshVolumeSliders();
         RefreshDisplayReadouts();
     }
@@ -1235,6 +1253,18 @@ public partial class SettingsUi : RadialMenuLayer
         _hitStopValueLabel.Text = pct == 0 ? Tr("SET_HIT_STOP_OFF_STATE") : GdFormat.Format(Tr("SET_HIT_STOP_STATE"), pct);
     }
 
+    /// <summary>动效强度读出：0 单独说明（否则玩家会把 0% 读成「最弱动效」而不是「已关闭」）</summary>
+    private void RefreshFxIntensityLabel()
+    {
+        if (_fxIntensityValueLabel == null)
+        {
+            return;
+        }
+
+        var pct = (int)Mathf.Round(GameState.Instance.FxIntensity * 100.0);
+        _fxIntensityValueLabel.Text = pct == 0 ? Tr("SET_FX_INTENSITY_OFF_STATE") : GdFormat.Format(Tr("SET_FX_INTENSITY_STATE"), pct);
+    }
+
     private void RefreshVolumeSliders()
     {
         // 音量滑杆行随页重建（语言切换/全部恢复默认后）重新取值，避免显示值与设置域脱钩
@@ -1253,6 +1283,11 @@ public partial class SettingsUi : RadialMenuLayer
         if (_hitStopSlider != null)
         {
             _hitStopSlider.SetValueNoSignal(GameState.Instance.HitStopScale * 100.0);
+        }
+
+        if (_fxIntensitySlider != null)
+        {
+            _fxIntensitySlider.SetValueNoSignal(GameState.Instance.FxIntensity * 100.0);
         }
     }
 

@@ -139,6 +139,7 @@ public sealed partial class SettingsService : RefCounted
         HighContrast = DefaultHighContrast;
         ShakeScale = 1.0;
         HitStopScale = 1.0;
+        FxIntensity = 1.0;
         WorldPostFx = true;
         FpsCap = new StringName("60");
         VSync = true;
@@ -718,6 +719,22 @@ public sealed partial class SettingsService : RefCounted
         GameState.Instance.SyncHitStopScale(HitStopScale);
     }
 
+    // ---------------- 无障碍：动效强度 ----------------
+
+    /// <summary>动效强度倍率（0..1，settings.json 持久化）：**缩放**本轮战斗动效的振幅
+    /// （屏幕呼吸、拍点、舰体流光），不改频率；0 = 回到本轮动效之前的画面。
+    /// 与「减少闪光」「屏幕震动强度」「命中顿帧强度」互不连坐——它管的是「动多少」，
+    /// 另外三项各管频闪、位移与瞬时定格，同一处动效可以只受其中一项约束。</summary>
+    public double FxIntensity { get; set; } = 1.0;
+
+    /// <summary>设置动效强度（钳 [0,1]）：只更新内存，不自动写盘——
+    /// 设置页滑杆在 DragEnded/离开页时统一落盘一次（同震动/顿帧强度）。
+    /// 消费方直读本字段（GameState.FxIntensity），故无缓存、无需补发信号。</summary>
+    public void SetFxIntensity(double value)
+    {
+        FxIntensity = Mathf.Clamp(value, 0.0, 1.0);
+    }
+
     /// <summary>鼠标锁定窗口内：开关持久化并广播（MouseTrap 据此决定是否拉回出框鼠标）</summary>
     public void SetMouseLock(bool enabled)
     {
@@ -1091,8 +1108,9 @@ public sealed partial class SettingsService : RefCounted
         SfxVolume = ReadVolume(data.GetValueOrDefault("sfx_volume", SfxVolume), SfxVolume);
         ShakeScale = ReadVolume(data.GetValueOrDefault("shake_scale", ShakeScale), ShakeScale);
         HitStopScale = ReadVolume(data.GetValueOrDefault("hit_stop_scale", HitStopScale), HitStopScale);
+        FxIntensity = ReadVolume(data.GetValueOrDefault("fx_intensity", FxIntensity), FxIntensity);
         // 读档直写字段不发 setter 事件：顿帧强度须显式同步进手感域（ApplyBalance 早于
-        // LoadSettings，注入时读到的还是默认值）。震动倍率无缓存，不必同步。
+        // LoadSettings，注入时读到的还是默认值）。震动倍率与动效强度无缓存，不必同步。
         GameState.Instance.SyncHitStopScale(HitStopScale);
         ApplyVolumes();
         // 手柄设置：灵敏度默认取 balance player.aim_assist.joy_speed，死区默认 0.2（径向，读取侧生效）
@@ -1277,6 +1295,7 @@ public sealed partial class SettingsService : RefCounted
             ["sfx_volume"] = SfxVolume,
             ["shake_scale"] = ShakeScale,
             ["hit_stop_scale"] = HitStopScale,
+            ["fx_intensity"] = FxIntensity,
             ["crosshair_profiles"] = crosshairArray,
             ["crosshair_active"] = _crosshairBook.ActiveIndex,
         };

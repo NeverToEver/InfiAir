@@ -20,6 +20,9 @@ public enum PulseId
 
     /// <summary>背景星场亮星闪烁。</summary>
     StarfieldTwinkle,
+
+    /// <summary>全屏慢呼吸（`effects.motion`：按危险度调频的整屏明暗起伏，由 WorldPostFx 一处驱动）。</summary>
+    WorldBreath,
 }
 
 /// <summary>一次性闪光的标识（枚举顺序即 <see cref="FlashBudget.OneShots"/> 的行序）。</summary>
@@ -76,6 +79,9 @@ public readonly record struct PulseSource(
 ///   - 按 WCAG 2.3.1，阈值约束的是**大面积**闪烁，故精灵与局部 UI 的短时高频频闪不在本表——
 ///     玩家无敌帧闪烁、Boss 逃跑期机体闪烁、瞄准线高频抖动、编队炸弹弹头、刷怪预警圈、
 ///     激光辉光、轮盘开机物化频闪都属面积豁免之列（它们各自受不受「减少闪光」约束，见各自实现）。
+///     **拍点脉冲同理不入本表**：每拍的脉冲一律下放局部元素（弹体尾部 / 舰体流光 / 仪表 /
+///     亮星，各自屏占远低于 20%），面积判据不适用——本轮动效里只有**全屏呼吸**占屏够大，
+///     故只有它进本表（判定线就在面积上，不在「是不是脉冲」上）。
 ///   - 标题屏的远景爆炸、光带与按键提示是「待人类裁定」条目的处置对象（见 `docs/ROADMAP.md`），
 ///     也不是本表的判据面。
 ///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪）无频率可言，
@@ -121,6 +127,10 @@ public static class FlashBudget
         new(Id: PulseId.StarfieldTwinkle, Hz: StarfieldTwinkleHz, ZeroUnderReduceFlash: true,
             Origin: "core", BalanceKey: "", BalanceIsPeriod: false,
             Note: "背景星场亮星闪烁；归零取均值常亮，不改平均亮度"),
+        new(Id: PulseId.WorldBreath, Hz: 1.2f, ZeroUnderReduceFlash: true,
+            Origin: "balance", BalanceKey: "effects.motion.breath_hz_max", BalanceIsPeriod: false,
+            Note: "全屏慢呼吸的频率上限（危险度越高越贴近它，下限见 breath_hz_min）；"
+                + "峰谷亮度差另受 core Rhythm 的硬线钳制，拍点脉冲不入本表"),
     };
 
     /// <summary>登记行（下标即枚举值）。</summary>

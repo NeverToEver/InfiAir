@@ -103,6 +103,10 @@ public partial class GameState : Node
     /// <summary>无障碍·命中顿帧强度（0..1，0 = 完全关闭）：持久化到 settings.json，顿帧请求按此折算时长</summary>
     public void SetHitStopScale(double value) => _settings.SetHitStopScale(value);
 
+    /// <summary>无障碍·动效强度（0..1，0 = 关闭本轮战斗动效）：持久化到 settings.json，
+    /// 呼吸/拍点/流光的振幅按此折算（只缩放振幅、不改频率；与减闪/震动/顿帧互不连坐）</summary>
+    public void SetFxIntensity(double value) => _settings.SetFxIntensity(value);
+
     /// <summary>主音量（0..1）：立即应用到 Master 总线 + 持久化</summary>
     public void SetMasterVolume(double value) => _settings.SetMasterVolume(value);
 
