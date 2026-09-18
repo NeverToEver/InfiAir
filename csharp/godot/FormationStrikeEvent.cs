@@ -424,6 +424,9 @@ public partial class FormationStrikeEvent : EncounterEventBase
             craft.Rotation = _heading + (Mathf.Pi / 2.0f);
             craft.Died += (c) => OnCraftDied(c, index);
             GetParent().AddChild(craft);
+            // 相位波：按投弹名次（上方已算好的 core 排序取值）错开各机自己的入场落位时刻——
+            // 编队锚点运动、投弹时刻表、位置与碰撞判定一律不动（纯视觉）
+            craft.SetEntryRank(rank[i]);
             _crafts[i] = craft;
         }
 

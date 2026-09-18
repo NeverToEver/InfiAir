@@ -19,6 +19,8 @@ public static class ShipEnergyFx
     private static readonly StringName PBreathHz = new("breath_hz");
     private static readonly StringName PIntensity = new("intensity");
     private static readonly StringName PTint = new("tint");
+    private static readonly StringName PSweep = new("sweep");
+    private static readonly StringName PSweepAmp = new("sweep_amp");
 
     // 流动三频懒缓存（-1 哨兵；effects.ship_energy.* 首次读取后复用）
     private static float _flowSpeed = -1.0f;
@@ -46,6 +48,21 @@ public static class ShipEnergyFx
         mat.SetShaderParameter(PFlowSpeed, _flowSpeed);
         mat.SetShaderParameter(PPulseHz, _pulseHz);
         mat.SetShaderParameter(PBreathHz, _breathHz);
+    }
+
+    /// <summary>写入事件流光参数（一次性事件反馈，**不是常驻动效**）：sweep 为扫过进度 0..1，
+    /// amplitude 为本次峰值幅度（里程碑档更强）。走完必须写回 `sweep = 0`——着色器在 0 时整段
+    /// 不叠，输出逐位等于引入扫光之前；半途停下会留下一块常驻亮带（只在画面上看得见，引擎零报错），
+    /// 故调用方每帧推进、到点归零（见 <c>Player.UpdateEventSweep</c>）。</summary>
+    public static void SetSweep(Sprite2D? glowLayer, float sweep, float amplitude)
+    {
+        if (glowLayer?.Material is not ShaderMaterial mat)
+        {
+            return;
+        }
+
+        mat.SetShaderParameter(PSweep, sweep);
+        mat.SetShaderParameter(PSweepAmp, amplitude);
     }
 
     /// <summary>按主贴图资源路径派生能量遮罩（"_glow.png" 后缀）；

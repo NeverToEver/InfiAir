@@ -36,6 +36,9 @@ public enum OneShotFlashId
 
     /// <summary>Boss 阶段切换瞬间的整条血条提亮。</summary>
     BossPhase,
+
+    /// <summary>舰体事件流光：擦弹 / 弹反 / 受击 / 击杀连击里程碑各扫过一次（一次性，非常驻）。</summary>
+    ShipGlowSweep,
 }
 
 /// <summary>一次性闪光登记行：无频率可言（不进 <see cref="FlashBudget.Sources"/>），但同样受「减少闪光」约束。</summary>
@@ -84,9 +87,11 @@ public readonly record struct PulseSource(
 ///     故只有它进本表（判定线就在面积上，不在「是不是脉冲」上）。
 ///   - 标题屏的远景爆炸、光带与按键提示是「待人类裁定」条目的处置对象（见 `docs/ROADMAP.md`），
 ///     也不是本表的判据面。
-///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪）无频率可言，
-///     不进频率表——但它们的减闪门控同样单源在本类（<see cref="AllowsOneShot"/>），
-///     三个站点各自引它，判据面是「core 单测的两半互补 + 探针按正反两半各采样一次」。
+///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪、舰体事件流光）
+///     无频率可言，不进频率表——但它们的减闪门控同样单源在本类（<see cref="AllowsOneShot"/>），
+///     四个站点各自引它，不留本地布尔副本。判据面＝本类单测的两半互补（减闪下一律抑制／
+///     非减闪一律放行）＋ 行序与枚举对齐；**站点的实际接线没有自动判据**——覆盖该面的结构性
+///     门禁已按 2026-09-18 的裁剪决策退役，调用点改为窗口化过目（`ROADMAP` 的人工项）。
 /// </summary>
 public static class FlashBudget
 {
@@ -145,12 +150,15 @@ public static class FlashBudget
             Note: "掉的是哪一段仍由残影段表达"),
         new(Id: OneShotFlashId.BossPhase, SuppressedByReduceFlash: true,
             Note: "名牌与阶段标签照常刷新，只停整条提亮"),
+        new(Id: OneShotFlashId.ShipGlowSweep, SuppressedByReduceFlash: true,
+            Note: "舰体事件流光；抑制后触发事件各自的既有读数仍在——擦弹有计分与音效、"
+                + "弹反有金环与音效、受击有白闪与方向弧、击杀有击杀环与连击本身，只停这道扫光"),
     };
 
     /// <summary>登记行（下标即枚举值）。</summary>
     public static OneShotFlash OneShot(OneShotFlashId id) => OneShots[(int)id];
 
-    /// <summary>一次性闪光是否放行——生产的唯一判据口（三个站点各自引它，不留本地布尔副本）。
+    /// <summary>一次性闪光是否放行——生产的唯一判据口（四个站点各自引它，不留本地布尔副本）。
     /// 两半互补：只有「非减闪一律放行」会让写反的实现混过，只有「减闪下一律抑制」会让
     /// 「一律不闪」混过，故单测两半都判。</summary>
     public static bool AllowsOneShot(OneShotFlashId id, bool reduceFlash)

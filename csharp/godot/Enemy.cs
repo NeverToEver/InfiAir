@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core.GameFeel;
+using InfiAir.Core.Visual;
 
 namespace InfiAir;
 
@@ -73,10 +74,55 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     private static float _glowIntEnemy = 0.30f;
     private static float _glowIntElite = 0.40f;
 
+    // ---- 损伤分级与入场落位（纯外观；懒加载一次，静态标量，非 Godot 对象） ----
+    private static bool _motionCfgLoaded;
+    private static float _damageMidRatio = 0.7f;
+    private static float _damageLowRatio = 0.4f;
+    private static float _damageGlowMid = 0.7f;
+    private static float _damageGlowLow = 0.45f;
+    private static float _damageFxInterval = 0.55f;
+    private static float _entryTime = 0.3f;
+
+    /// <summary>当前损伤外观档（只在**改档**那一帧重写能量层参数，正常帧零开销）。</summary>
+    private UnitDamageTier _damageTier = UnitDamageTier.Intact;
+
+    /// <summary>下一股火花/烟的剩余间隔（低档受损才推进）。</summary>
+    private float _damageFxTimer;
+
+    /// <summary>火花计数（取方向用；自增即可确定，见 <see cref="UpdateDamageFx"/>）。</summary>
+    private int _damageFxTick;
+
+    /// <summary>入场落位已推进的模拟秒数（<see cref="UnitEntry"/> 取进度）。</summary>
+    private float _entryElapsed;
+
+    /// <summary>落位后的基准缩放：入场动效、受击闪白回位、分裂子机倍率三处共用同一基准。</summary>
+    private Vector2 _entryBaseScale = Vector2.One;
+
+    /// <summary>入场动效是否已结束（结束后不再写 Sprite2D 的缩放/位移，把通道交回受击闪白）。</summary>
+    private bool _entryDone = true;
+
+    /// <summary>入场起点缩放倍率（相对落位后基准）与上方位移（设计像素 × world_scale）。
+    /// 位移取 Sprite2D 的**局部** Y：敌机根节点在 tscn 里旋转了 π（机头朝下），
+    /// 故局部 +Y 在世界里表现为「从上方滑入」，与机头朝向一致。</summary>
+    private const float EntryStartScale = 0.82f;
+
+    private const float EntryRise = 26.0f;
+
+    /// <summary>火花方向的自增步进角（黄金角）：逐次转向即可扇开，无需随机源。</summary>
+    private const float GoldenAngle = 2.3999632f;
+
+    /// <summary>「烟」用的爆炸规模分档（既有爆炸池的烟发射器；取值同擦弹 0.25 量级）。</summary>
+    private const float DamageSmokeScale = 0.3f;
+
     // ---- 本局状态（Setup/Reactivate 写入；公开属性直读写） ----
     public StringName Strategy { get; set; } = "straight";
     public bool IsElite { get; private set; }
     public int Hp { get; set; } = 2;
+
+    /// <summary>出生时的血量（损伤分级的基准）：Hp 会被打掉，比例必须相对出生值算。
+    /// 分裂子机等外部改写血量的路径要一并改它，否则子机一出生就按「半血」显示受损。</summary>
+    public int MaxHp { get; set; } = 2;
+
     public float Speed { get; set; } = 140.0f;
     public bool CanShoot { get; set; }
     /// <summary>首发射延迟提示（秒；&lt;0 = 按随机初相）。教程弹反靶机用它把三机的开火错峰成
@@ -259,6 +305,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         AreaEntered += OnAreaEntered;
         AreaExited += OnAreaExited;
+        LoadMotionCfg();
+        BeginEntry(); // 直实例化路径的入场（池化路径由 Reactivate 再起一次）
     }
 
     public override void _ExitTree()
@@ -409,6 +457,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
                 * (float)GameState.Instance.EnemyHpRamp(pDifficulty)));
         ScoreValue = (int)config["score"].AsInt64();
         CanShoot = GD.Randf() < (float)config["fire"].AsDouble();
+        // 损伤分级基准与档位复位（池化复用的上一任可能是残血档）：新一任从完好档起算
+        MaxHp = Hp;
+        _damageTier = UnitDamageTier.Intact;
+        _damageFxTick = 0;
+        _damageFxTimer = 0.0f;
         // 开火间隔随难度缩短但保有地板（密度可升、射速不得突破可反应下限）：
         // 原实现完全不吃难度，后期弹幕「不更密但更痛」，与弹幕系加压方式相悖。
         // 斜率/地板在 core DifficultyScaling；pDifficulty 保持调用方快照语义。
@@ -443,7 +496,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     }
 
     /// <summary>能量发光层（GlowLayer）：遮罩随主贴图变体同步派生（同资源路径 "_glow.png"），
-    /// tint/强度按 敌机/精英 分档；纯视觉叠加层，缺节点/缺遮罩静默保持默认。</summary>
+    /// tint/强度按 敌机/精英 分档；纯视觉叠加层，缺节点/缺遮罩静默保持默认。
+    /// 强度按当前损伤档乘算（<see cref="DamageState.GlowMultiplier"/>）；完好档乘 1.0，逐位等于改造前。</summary>
     private void UpdateGlowLayer(Sprite2D sprite)
     {
         _glowLayer ??= sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName);
@@ -467,10 +521,24 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             _glowCfgLoaded = true;
         }
 
+        ApplyGlowIntensity();
+    }
+
+    /// <summary>按当前损伤档重写能量层强度（唯一的强度写入口：入场档位复位与受击改档都经它）。
+    /// 乘子单源在 core <see cref="DamageState"/>，本类不另存一份档位→亮度表。</summary>
+    private void ApplyGlowIntensity()
+    {
+        if (_glowLayer == null)
+        {
+            return;
+        }
+
+        var baseIntensity = IsElite ? _glowIntElite : _glowIntEnemy;
+        var multiplier = DamageState.GlowMultiplier(_damageTier, _damageGlowMid, _damageGlowLow);
         ShipEnergyFx.Apply(
             _glowLayer,
             IsElite ? _glowTintElite : _glowTintEnemy,
-            IsElite ? _glowIntElite : _glowIntEnemy);
+            baseIntensity * multiplier);
     }
 
     /// <summary>机体背光轮廓：贴图同源副本 + 加性材质 + 阵营染色，略放大垫在机体之下，
@@ -498,6 +566,147 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         _rimGlow.Texture = _sprite.Texture;
         _rimGlow.Modulate = IsElite ? RimGlowColorElite : RimGlowColor;
+    }
+
+    /// <summary>损伤分级刷新（受击入口调用；**改档才写参数**，逐帧零开销）。
+    /// 与受击闪白（<see cref="FlashFx"/>：Sprite2D 的 Modulate + 缩放回弹）走两条互不相交的通路——
+    /// 本项只写 GlowLayer 的 shader 强度与追加一次性特效节点，绝不碰 Sprite2D 的
+    /// Modulate / Scale / Position：闪白期间改档不会顶掉闪白，闪白也不会把档位写回去。
+    /// 视觉缩放与碰撞半径零改动（分级是外观读数，不进任何判定）。</summary>
+    private void RefreshDamageTier()
+    {
+        var tier = DamageState.Of(Hp, MaxHp, _damageMidRatio, _damageLowRatio);
+        if (tier == _damageTier)
+        {
+            return;
+        }
+
+        _damageTier = tier;
+        ApplyGlowIntensity();
+        if (tier == UnitDamageTier.Critical)
+        {
+            // 进低档先等一拍再冒火花：进档那一帧紧接着就是受击白闪，两件事挤在同一帧读不出层次
+            _damageFxTick = 0;
+            _damageFxTimer = _damageFxInterval;
+        }
+    }
+
+    /// <summary>低档受损的零星火花/烟（**低频、限量**）：走既有 <see cref="CombatVfx"/>（轻量特效在活
+    /// 上限 24，满额自动跳过）与 <see cref="Explosion"/>（池保留上限）——不新增粒子系统、不新增无上限节点。
+    /// 方向由自增计数按黄金角扇开，**零随机**（AGENTS §4：无头确定性不许依赖 GD.Rand* 默认序列）。
+    /// 减少闪光下只留火花（<see cref="CombatVfx.ImpactSpark"/> 自带压暗），不补烟——那一层带白炽核心闪帧。</summary>
+    private void UpdateDamageFx(float delta)
+    {
+        if (_damageTier != UnitDamageTier.Critical)
+        {
+            return;
+        }
+
+        _damageFxTimer -= delta;
+        if (_damageFxTimer > 0.0f)
+        {
+            return;
+        }
+
+        _damageFxTimer = _damageFxInterval;
+        _damageFxTick += 1;
+        var parent = GetParent();
+        if (parent == null)
+        {
+            return;
+        }
+
+        var reduceFlash = GameState.Instance.ReduceFlash;
+        var dir = Vector2.Right.Rotated(_damageFxTick * GoldenAngle);
+        CombatVfx.ImpactSpark(parent, GlobalPosition, dir, reduceFlash);
+        if (!reduceFlash && _damageFxTick % 3 == 0)
+        {
+            Explosion.SpawnAt(parent, GlobalPosition, DamageSmokeScale);
+        }
+    }
+
+    /// <summary>损伤/入场外观配置读取（effects.motion.*；懒加载一次，静态标量共享）。
+    /// 比例类钳 0..1（越界会让某一档永不出现），时长类钳 <see cref="CfgFx.IntervalFloor"/> 下限
+    /// （0 会让计时器每帧触发或入场瞬间完成）。</summary>
+    private static void LoadMotionCfg()
+    {
+        if (_motionCfgLoaded)
+        {
+            return;
+        }
+
+        _damageMidRatio = CfgFx.Float("effects.motion.enemy_damage_mid_ratio", _damageMidRatio, 0.0f, 1.0f);
+        _damageLowRatio = CfgFx.Float("effects.motion.enemy_damage_low_ratio", _damageLowRatio, 0.0f, 1.0f);
+        _damageGlowMid = CfgFx.Float("effects.motion.enemy_damage_glow_mid", _damageGlowMid, 0.0f, 1.0f);
+        _damageGlowLow = CfgFx.Float("effects.motion.enemy_damage_glow_low", _damageGlowLow, 0.0f, 1.0f);
+        _damageFxInterval = CfgFx.Float(
+            "effects.motion.enemy_damage_fx_interval", _damageFxInterval, CfgFx.IntervalFloor);
+        _entryTime = CfgFx.Float("effects.motion.enemy_entry_time", _entryTime, 0.0f);
+        _motionCfgLoaded = true;
+    }
+
+    /// <summary>开始入场落位（直实例化与池化复用两条出生路径各一次）：起点姿态在此写一遍，
+    /// 随后逐帧由 <see cref="UpdateEntry"/> 推进。**只动 Sprite2D**（子节点）——节点位置、
+    /// 碰撞半径、移动策略与开火时序一律不受影响（判定零改动）。</summary>
+    private void BeginEntry()
+    {
+        _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+        if (_sprite == null)
+        {
+            _entryDone = true;
+            return;
+        }
+
+        _entryBaseScale = _sprite.Scale;
+        _entryElapsed = 0.0f;
+        // 时长坏配置（≤0）直接落位：不留「永久偏小偏高」的入场姿态
+        _entryDone = !(_entryTime > 0.0f);
+        if (_entryDone)
+        {
+            _sprite.Scale = _entryBaseScale;
+            _sprite.Position = Vector2.Zero;
+            return;
+        }
+
+        _sprite.Scale = _entryBaseScale * EntryStartScale;
+        _sprite.Position = new Vector2(0.0f, EntryRise * (float)GameState.Instance.WorldScale);
+    }
+
+    /// <summary>入场落位逐帧推进（模拟时间；缓动算式在 core <see cref="UnitEntry"/>）。
+    /// 排在受击闪白之前：闪白期两者都要写 Sprite2D 的缩放，闪白的绝对值后写覆盖入场值——
+    /// 缩放回弹是高优先的打击感读数，而入场的起点缩放会自愈（下一帧照常写）。</summary>
+    private void UpdateEntry(float delta)
+    {
+        if (_entryDone || _sprite == null)
+        {
+            return;
+        }
+
+        _entryElapsed += delta;
+        var k = UnitEntry.Placement01(_entryElapsed, _entryTime);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(EntryStartScale, 1.0f, k);
+        _sprite.Position = new Vector2(0.0f, EntryRise * (1.0f - k) * (float)GameState.Instance.WorldScale);
+        if (k < 1.0f)
+        {
+            return;
+        }
+
+        // 落位：写回精确基准并停用本通道（不写回精确值会让机体永远差一点点缩放）
+        _entryDone = true;
+        _sprite.Scale = _entryBaseScale;
+        _sprite.Position = Vector2.Zero;
+    }
+
+    /// <summary>视觉缩放倍率（分裂子机 0.6 等外部缩放）：与入场落位的基准缩放**同源更新**——
+    /// 只乘 Sprite2D 的话，入场结束那一帧会把缩放写回未乘倍率的基准（子机瞬间变大）。</summary>
+    public void SetVisualScaleMult(float multiplier)
+    {
+        _entryBaseScale *= multiplier;
+        _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+        if (_sprite != null)
+        {
+            _sprite.Scale = _entryBaseScale;
+        }
     }
 
     public void Setup(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
@@ -570,6 +779,8 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         _fireTimer = FireDelayHint >= 0.0f ? FireDelayHint : (float)GD.RandRange(1.0, Mathf.Max(FireInterval, 1.0));
         AnchorY = -1.0f;
         EnsureStrategy();
+        LoadMotionCfg();
+        BeginEntry(); // 落位姿态在 Setup/UpdateTailGlow 之后写：尾焰光点按落位后的缩放算位置
     }
 
     public void Reactivate(Godot.Collections.Dictionary config, StringName pStrategy, float pDifficulty)
@@ -626,9 +837,18 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         Hp -= amount;
         _scoreScale = scoreScale;
+        RefreshDamageTier();
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite != null)
         {
+            if (!_entryDone)
+            {
+                // 入场中受击：闪白回位的基准必须是**落位后**的缩放。入场起点的小缩放若被当成基准
+                // 捕获，闪白结束会把机体写回那个小缩放并就此固定（画面上只是一只「略小」的敌机，
+                // 引擎零报错）。先把缩放摆到基准再交给 FlashFx 捕，入场下一帧照常写自己那一档。
+                _sprite.Scale = _entryBaseScale;
+            }
+
             FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale); // 受击闪白 + 缩放回弹
         }
         if (Hp <= 0)
@@ -840,7 +1060,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     {
         var d = (float)delta;
         _time += d;
-        UpdateFlash(d);
+        UpdateEntry(d);       // 入场落位（视觉通道）
+        UpdateDamageFx(d);    // 低档受损的零星火花/烟（低频，既有特效设施限量）
+        UpdateFlash(d);       // 受击闪白：Sprite2D 的缩放/Modulate 的最后一句话
         if (_exiting)
         {
             // 寿命离场：向上或侧方加速，离场不给分、不计击杀
@@ -1045,13 +1267,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             // typed Spawn 直调（Spawn 必返回有效实例，无需 Nil/判活守卫）
             var e = pool.Spawn(config, strategy, diff,
                 pos + new Vector2(i == 0 ? 24.0f : -24.0f, 0.0f));
-            var miniSprite = e.GetNodeOrNull<Sprite2D>("Sprite2D");
-            if (miniSprite != null)
-            {
-                miniSprite.Scale *= 0.6f;
-            }
-
+            // 视觉倍率走节点自身的入口：与入场落位的基准缩放同源（只乘 Sprite2D 会被入场结束写回）
+            e.SetVisualScaleMult(0.6f);
             e.Hp = Mathf.Max(1, (int)Mathf.Round(e.Hp * 0.5f));
+            e.MaxHp = e.Hp; // 分级基准跟着减半：否则子机一出生就按「半血」显示受损档
             e.ScoreValue = 0;
             e.CanShoot = false;
             e.SetSplit(false);

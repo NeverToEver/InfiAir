@@ -1,6 +1,8 @@
 using Godot;
+using InfiAir.Core;
 using InfiAir.Core.Combat;
 using InfiAir.Core.Input;
+using InfiAir.Core.Visual;
 
 namespace InfiAir;
 
@@ -243,6 +245,17 @@ public partial class Player : CharacterBody2D
     private Sprite2D? _muzzleGlow;
     private float _muzzleGlowA; // 枪口辉光剩余强度（FireInternal 置 1，_Process 指数衰减）
 
+    // ---- 舰体事件流光（一次性事件反馈，不是常驻动效） ----
+    /// <summary>能量层（GlowLayer）引用：逐帧变动的扫光参数只有这一个写入口
+    /// （<see cref="ShipEnergyFx.Apply"/> 只在初始化写一次常驻参数）。静态字段禁持 Godot 对象，故此处持实例引用。</summary>
+    private Sprite2D? _energyLayer;
+    /// <summary>本次扫光已推进的模拟秒数；&lt;0 = 无扫光（＝着色器里的中性态，输出逐位等于改造前）。</summary>
+    private float _sweepElapsed = -1.0f;
+    private float _sweepTime = 0.35f;    // effects.motion.sweep_time
+    private float _sweepAmpBase = 0.55f; // effects.motion.sweep_amp
+    private float _sweepBoost = 0.35f;   // effects.motion.sweep_milestone_boost
+    private float _sweepAmp;             // 本次扫光幅度（基础值 × 里程碑档倍率）
+
     private readonly Callable _onRefreshAugmentFactors;
     private readonly Callable _onAimAssistLevelChanged;
     private readonly Callable _onJoySettingsChanged;
@@ -251,6 +264,9 @@ public partial class Player : CharacterBody2D
     private readonly Callable _onFogDirectionShift;
     private readonly Callable _onGrazeEntered;
     private readonly Callable _onParryShieldEntered;
+    private readonly Callable _onComboChanged;
+    private readonly Callable _onPlayerDamagedSweep;
+    private readonly Callable _onParryLanded;
 
     public Player()
     {
@@ -262,6 +278,9 @@ public partial class Player : CharacterBody2D
         _onFogDirectionShift = Callable.From<Vector2, float>(OnFogDirectionShift);
         _onGrazeEntered = Callable.From<Area2D>(OnGrazeEntered);
         _onParryShieldEntered = Callable.From<Area2D>(OnParryShieldEntered);
+        _onComboChanged = Callable.From<int>(OnComboChanged);
+        _onPlayerDamagedSweep = Callable.From<float, Vector2>(OnPlayerDamagedSweep);
+        _onParryLanded = Callable.From(OnParryLanded);
     }
 
     public override void _Ready()
@@ -309,6 +328,92 @@ public partial class Player : CharacterBody2D
         {
             fogEvents.Connect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
         }
+
+        // 事件流光触发源（四路，全部走既有信号：不新增信号、不新增判定）：
+        //   击杀与连击里程碑订阅 GameState.ComboChanged——它是现成的击杀节拍面（此前零消费者）；
+        //   受击订阅 GameState.PlayerDamaged（扣血生效那一路发）；弹反订阅自身 ParryLanded。
+        // 擦弹没有信号，走 OnGrazeEntered 的既有内联点。
+        if (!gs.IsConnected(GameState.SignalName.ComboChanged, _onComboChanged))
+        {
+            gs.Connect(GameState.SignalName.ComboChanged, _onComboChanged);
+        }
+
+        if (!gs.IsConnected(GameState.SignalName.PlayerDamaged, _onPlayerDamagedSweep))
+        {
+            gs.Connect(GameState.SignalName.PlayerDamaged, _onPlayerDamagedSweep);
+        }
+
+        if (!IsConnected(SignalName.ParryLanded, _onParryLanded))
+        {
+            Connect(SignalName.ParryLanded, _onParryLanded);
+        }
+    }
+
+    /// <summary>击杀节拍：连击每次递增扫一次；10/50/100 的整倍扫更强的（档位在 core EventSweep）。
+    /// 断连（ComboChanged(0)）不是击杀节拍，不触发——`MilestoneTier(0)` 也是 0，若不在这里挡回，
+    /// 断连会被当成「普通档触发」而白扫一道（连击断在受击/超时上，那两种情形本来就有各自的反馈）。
+    /// **不显示任何数字**——局内计分/连击计数是已裁状态（`docs/ROADMAP.md`：不复活计分显示），
+    /// 这里只做非数字的视觉反馈。</summary>
+    private void OnComboChanged(int combo)
+    {
+        if (combo <= 0)
+        {
+            return;
+        }
+
+        TriggerSweep(EventSweep.MilestoneTier(combo));
+    }
+
+    /// <summary>受击（扣血生效路径）。闪避/护盾吸收分支不发该信号，故不会白扫一次。</summary>
+    private void OnPlayerDamagedSweep(float amount, Vector2 fromPos) => TriggerSweep(0);
+
+    /// <summary>弹反成功（既有信号）。</summary>
+    private void OnParryLanded() => TriggerSweep(0);
+
+    /// <summary>
+    /// 触发一次舰体事件流光（一次性，不常驻）。两道门控都在此处收口：
+    ///   1. **动效强度 0 不触发**（§2.12 判据 6：0 ＝ 回到本批次之前的画面）；取不到节奏服务
+    ///      （标题屏/拆树期）按 0 处理，与其余消费方的中性口径一致。
+    ///   2. **减少闪光抑制**：这道扫光是提亮脉冲，门控单源在 core <see cref="FlashBudget"/>
+    ///      （不留本地布尔副本）；抑制后事件各自的既有读数仍在（见登记表 Note）。
+    /// 重复触发只是把进度拨回 0（扫光本就该在密集击杀里连续扫），不做叠加——叠幅度会让
+    /// 连杀时的舰体越来越亮，与「最亮＝最危险」的读法冲突。
+    /// </summary>
+    private void TriggerSweep(int milestoneTier)
+    {
+        if ((VisualRhythm.Instance?.Intensity ?? 0.0f) <= 0.0f)
+        {
+            return;
+        }
+
+        if (!FlashBudget.AllowsOneShot(OneShotFlashId.ShipGlowSweep, GameState.Instance.ReduceFlash))
+        {
+            return;
+        }
+
+        _sweepElapsed = 0.0f;
+        _sweepAmp = _sweepAmpBase * EventSweep.AmplitudeFactor(milestoneTier, _sweepBoost);
+    }
+
+    /// <summary>扫光逐帧推进（**模拟时间**，§2.10：走的是游戏世界内部推进了多少，故吃 delta 而不是墙钟）。
+    /// 走到时长即写回 0 并停用——半途停下会留下一块常驻亮带（只在画面上看得见，引擎零报错）。
+    /// 调用点在 _PhysicsProcess 的早退之前：死亡/锁输入期若停在半途，同样会留下常驻亮带。</summary>
+    private void UpdateEventSweep(float delta)
+    {
+        if (_sweepElapsed < 0.0f)
+        {
+            return;
+        }
+
+        _sweepElapsed += delta;
+        if (_sweepElapsed >= _sweepTime)
+        {
+            _sweepElapsed = -1.0f;
+            ShipEnergyFx.SetSweep(_energyLayer, 0.0f, 0.0f);
+            return;
+        }
+
+        ShipEnergyFx.SetSweep(_energyLayer, EventSweep.Progress01(_sweepElapsed, _sweepTime), _sweepAmp);
     }
 
     /// <summary>残影逐帧淡出（渲染帧）——委托 PlayerVisuals。</summary>
@@ -432,6 +537,11 @@ public partial class Player : CharacterBody2D
             CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
             CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
         _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
+        // 事件流光：时长钳 0.05 下限（0 会让进度一帧跳满，等于没有扫过过程；且它是 Tick 型计时），
+        // 幅度只钳非负——负幅度在着色器里是减光
+        _sweepTime = CfgFx.Float("effects.motion.sweep_time", _sweepTime, CfgFx.IntervalFloor);
+        _sweepAmpBase = CfgFx.Float("effects.motion.sweep_amp", _sweepAmpBase, 0.0f);
+        _sweepBoost = CfgFx.Float("effects.motion.sweep_milestone_boost", _sweepBoost, 0.0f);
         // aim_assist.input/falloff 域钳经 core——负值磁吸力/衰减域反转，与 AimFrameLayer 的
         // 读取点同口径（那侧才是磁吸算术的消费方，本侧同名参数只喂诊断读口 AimAssistParams）
         (_magnetInputMin, _magnetInputFull) = Core.Combat.AimAssistParams.MagnetWindow(
@@ -560,8 +670,9 @@ public partial class Player : CharacterBody2D
         _sprite.AddChild(_glow);
         // 能量发光层（GlowLayer，tscn 挂载于主贴图下）：琥珀 tint 呼应尾焰，强度克制入配置；
         // 受击帧切换时遮罩不动（遮罩只含能量图元，不含损伤结构）
+        _energyLayer = _sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName);
         ShipEnergyFx.Apply(
-            _sprite.GetNodeOrNull<Sprite2D>(ShipEnergyFx.NodeName),
+            _energyLayer,
             ShipEnergyFx.CfgColor("effects.ship_energy.tint_player", new Color(1.0f, 0.65f, 0.18f)),
             CfgFx.Float("effects.ship_energy.intensity_player", 0.45f, 0.0f));
         // 碰撞点指示：受击判定点闪烁小光点 + 淡色光圈
@@ -959,6 +1070,8 @@ public partial class Player : CharacterBody2D
         var gs = GameState.Instance;
         // 表现层相位基准 = 累计模拟时间（原墙钟 Time.GetTicksMsec；帧率/性能无关，见 §5）
         _simTime += d;
+        // 扫光推进在早退之前：死亡/锁输入期停在半途会留下一块常驻亮带（不回写 0 就永不消失）
+        UpdateEventSweep(d);
         if (_dead)
         {
             return;
@@ -1673,6 +1786,7 @@ public partial class Player : CharacterBody2D
         // 与弹幕系「擦弹=贪分」的惯例相反）
         GameState.Instance.AddScore((int)Math.Round(GameState.Instance.GrazeScoreFor(GrazeScore)));
         _visuals.SetGrazeFlash(GrazeFlashTime);
+        TriggerSweep(0); // 擦弹（既有内联点）：舰体扫过一道能量，与擦弹计分/音效同帧
         Explosion.SpawnAt(GetParent(), GlobalPosition, 0.25f);
         GameState.Instance.PlaySfx(SfxId.AugmentPick);
     }
@@ -1913,6 +2027,16 @@ public partial class Player : CharacterBody2D
                 fogEvents.Disconnect(FogEventManager.SignalName.FogDirectionShift, _onFogDirectionShift);
             }
 
+            if (gs.IsConnected(GameState.SignalName.ComboChanged, _onComboChanged))
+            {
+                gs.Disconnect(GameState.SignalName.ComboChanged, _onComboChanged);
+            }
+
+            if (gs.IsConnected(GameState.SignalName.PlayerDamaged, _onPlayerDamagedSweep))
+            {
+                gs.Disconnect(GameState.SignalName.PlayerDamaged, _onPlayerDamagedSweep);
+            }
+
             if (gs.PlayerRef == this)
             {
                 gs.PlayerRef = null;
@@ -1925,6 +2049,11 @@ public partial class Player : CharacterBody2D
         }
 
         // 子节点信号断开（本节点自身资源，不因 autoload 缺失跳过）
+        if (IsConnected(SignalName.ParryLanded, _onParryLanded))
+        {
+            Disconnect(SignalName.ParryLanded, _onParryLanded);
+        }
+
         var grazeArea = GetNodeOrNull<Area2D>("GrazeArea");
         if (grazeArea != null && grazeArea.IsConnected(Area2D.SignalName.AreaEntered, _onGrazeEntered))
         {

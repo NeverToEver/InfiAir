@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Visual;
 
 namespace InfiAir;
 
@@ -46,6 +47,29 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
     private float _bodyRadius;
     /// <summary>辅助瞄准标记登记态（编队机自入场即可打，登记随 _Ready/_ExitTree 成对）。</summary>
     private bool _aimMarked;
+
+    // ---- 入场落位与相位波（纯视觉：只动 Sprite2D 的缩放与位移；节点位置/朝向/侧倾/碰撞半径零改动） ----
+    private static bool _motionCfgLoaded;
+    /// <summary>入场时长（effects.motion.enemy_entry_time）：与普通敌机同一时长口径。</summary>
+    private static float _entryTime = 0.3f;
+    /// <summary>名次相位间隔（effects.motion.formation_phase_delay）：每个名次晚这么多秒落位。</summary>
+    private static float _phaseDelay = 0.15f;
+
+    /// <summary>入场起点缩放与上方位移（局部 +Y：本机根节点按航向旋转 π 时即屏上「从上方滑入」）。
+    /// 比普通敌机更明显一档——编队是整组自屏外压下来，落位要读得出来才不算白做。</summary>
+    private const float EntryStartScale = 0.72f;
+
+    private const float EntryRise = 34.0f;
+
+    /// <summary>投弹名次（<c>FormationPlan.DropRank</c> 的既有排序取值；0 = 长机档）。</summary>
+    private int _entryRank;
+    private float _entryElapsed;
+    /// <summary>名次相位等待剩余（秒；到达屏上后才开始扣）。</summary>
+    private float _entryDelay;
+    /// <summary>已到屏上开始计时（编队自屏顶外压入，屏外起算的入场动效玩家看不到）。</summary>
+    private bool _entryArmed;
+    private bool _entryDone = true;
+    private Vector2 _entryBaseScale = Vector2.One;
 
     // ---- IAimTarget 契约（辅助瞄准扫描只读量） ----
 
@@ -112,6 +136,100 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
         SetAimMarked(true); // 编队机自入场即可打：纳入辅助瞄准标记
         // 击杀震动强度缓存
         _shakeDie = (float)GameState.Instance.Cfg("effects.shake.enemy_die", _shakeDie).AsDouble();
+        LoadMotionCfg();
+        BeginEntry(_entryRank); // 默认长机档；事件在入树后按投弹名次重起一次（相位波）
+    }
+
+    /// <summary>入场名次注入（编队事件按 <c>FormationPlan.DropRank</c> 传入；入树后调用——
+    /// 贴图精灵在 _Ready 才构建）。名次越靠后入场越晚：相位间隔单源在 balance
+    /// （`effects.motion.formation_phase_delay`），本类不另存一份。</summary>
+    public void SetEntryRank(int rank)
+    {
+        _entryRank = Mathf.Max(rank, 0);
+        LoadMotionCfg();
+        BeginEntry(_entryRank);
+    }
+
+    /// <summary>入场落位配置（effects.motion.*；懒加载一次，静态标量共享）。</summary>
+    private static void LoadMotionCfg()
+    {
+        if (_motionCfgLoaded)
+        {
+            return;
+        }
+
+        _entryTime = CfgFx.Float("effects.motion.enemy_entry_time", _entryTime, 0.0f);
+        _phaseDelay = CfgFx.Float("effects.motion.formation_phase_delay", _phaseDelay, 0.0f);
+        _motionCfgLoaded = true;
+    }
+
+    /// <summary>写入入场起点姿态（名次相位在等待期里保持这一姿态：机体在视野里「还没落位」，
+    /// 落位过程因此读得出先后）。只写 Sprite2D 子节点，节点自身的缩放（侧倾压坡）与碰撞不受影响。</summary>
+    private void BeginEntry(int rank)
+    {
+        _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
+        if (_sprite == null)
+        {
+            _entryDone = true;
+            return;
+        }
+
+        _entryBaseScale = _sprite.Scale;
+        _entryRank = Mathf.Max(rank, 0);
+        _entryDelay = _entryRank * _phaseDelay;
+        _entryArmed = false;
+        _entryElapsed = 0.0f;
+        _entryDone = !(_entryTime > 0.0f); // 时长坏配置：直接落位，不留「永久偏小」的姿态
+        if (_entryDone)
+        {
+            _sprite.Scale = _entryBaseScale;
+            _sprite.Position = Vector2.Zero;
+            return;
+        }
+
+        _sprite.Scale = _entryBaseScale * EntryStartScale;
+        _sprite.Position = new Vector2(0.0f, EntryRise * (float)GameState.Instance.WorldScale);
+    }
+
+    /// <summary>入场落位逐帧推进（模拟时间；缓动算式在 core <see cref="UnitEntry"/>）。
+    /// **到屏上才起算**：编队自屏顶外整组压下来，从建队那一刻起算会让先头机体的落位在屏外跑完；
+    /// 到屏上后先按名次等待，再走一遍缓动——读感是「一架一架压进视野落位」。
+    /// 排在受击闪白之前：闪白的绝对值后写覆盖入场值（缩放回弹是高优先的打击感读数）。</summary>
+    private void UpdateEntry(float delta)
+    {
+        if (_entryDone || _sprite == null)
+        {
+            return;
+        }
+
+        if (!_entryArmed)
+        {
+            if (GlobalPosition.Y < FrameCache.ViewRect().Position.Y)
+            {
+                return; // 仍在屏顶之外：先攒着，进场那一刻才起算
+            }
+
+            _entryArmed = true;
+        }
+
+        if (_entryDelay > 0.0f)
+        {
+            _entryDelay -= delta;
+            return;
+        }
+
+        _entryElapsed += delta;
+        var k = UnitEntry.Placement01(_entryElapsed, _entryTime);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(EntryStartScale, 1.0f, k);
+        _sprite.Position = new Vector2(0.0f, EntryRise * (1.0f - k) * (float)GameState.Instance.WorldScale);
+        if (k < 1.0f)
+        {
+            return;
+        }
+
+        _entryDone = true;
+        _sprite.Scale = _entryBaseScale;
+        _sprite.Position = Vector2.Zero;
     }
 
     /// <summary>侧倾写入（事件按转弯/离场进度调用）：节点横向压缩模拟俯视压坡。</summary>
@@ -144,10 +262,12 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
         }
     }
 
-    /// <summary>受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。</summary>
+    /// <summary>受击闪白逐帧衰减（编队机自身无移动回调，独立物理帧推进闪白；FlashFx 共享实现）。
+    /// 入场落位在闪白之前推进：闪白写的缩放绝对值后落笔（高优先的打击感读数）。</summary>
     public override void _PhysicsProcess(double delta)
     {
         var d = (float)delta;
+        UpdateEntry(d);
         if (_flashTimer > 0.0f && _sprite != null)
         {
             FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White, ref _flashBaseScale);
@@ -211,6 +331,13 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
         // 受击闪白 + 缩放回弹（_sprite 在 _Ready 构建；防御性判空与 _PhysicsProcess 同口径）
         if (_sprite != null)
         {
+            if (!_entryDone)
+            {
+                // 入场中受击：闪白回位的基准必须是**落位后**的缩放（入场起点的小缩放若被当成基准
+                // 捕获，闪白结束会把机体写回那个小缩放并就此固定——画面上只是一架「略小」的僚机）
+                _sprite.Scale = _entryBaseScale;
+            }
+
             FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale);
         }
         else
