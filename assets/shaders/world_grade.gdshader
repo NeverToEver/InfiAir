@@ -65,7 +65,8 @@ vec3 bright(vec2 uv) {
 }
 
 void fragment() {
-    vec3 base = texture(screen_texture, SCREEN_UV).rgb;
+    vec3 center = texture(screen_texture, SCREEN_UV).rgb; // 本像素原色：色差与亮部提取共用，只取一次
+    vec3 base = center;
 
     // ---- 动态全局色差（仅 ramp 非零）：红/蓝通道反向横移；中性时回退单采样，逐位不变 ----
     if (u_chroma > 0.0001) {
@@ -79,7 +80,8 @@ void fragment() {
     float k1 = 0.7071;
     vec2 o1 = vec2(1.0, 0.0);
     vec2 o2 = vec2(k1, k1);
-    vec3 bloom = bright(SCREEN_UV) * 0.28;
+    // 中心 tap 直接用上面那次采样（同一 sampler、同一 UV、同一 LOD，逐位等价）——不复取全屏纹理
+    vec3 bloom = max(center - vec3(u_bloom_threshold), vec3(0.0)) * 0.28;
     bloom += bright(SCREEN_UV + o1 * u_texel * r);
     bloom += bright(SCREEN_UV - o1 * u_texel * r);
     bloom += bright(SCREEN_UV + vec2(0.0, 1.0) * u_texel * r);
