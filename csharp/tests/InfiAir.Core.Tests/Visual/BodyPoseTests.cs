@@ -243,4 +243,79 @@ public sealed class BodyPoseTests
         Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, double.NaN, 1.6));
         Assert.Equal(0.0, BodyPose.BobOffsetPx(1.0, 0.6, double.NaN));
     }
+
+    // ---------------- StretchFactor / CounterScale（§2.17 速度伸缩） ----------------
+
+    [Fact]
+    public void StretchFactor_SignedByForwardSpeed_AndClamped()
+    {
+        const double maxStretch = 0.08;
+        Assert.Equal(maxStretch, BodyPose.StretchFactor(1.0, maxStretch), 9);   // 全速前伸
+        Assert.Equal(0.0, BodyPose.StretchFactor(0.0, maxStretch), 9);          // 静止无形变
+        Assert.Equal(-maxStretch, BodyPose.StretchFactor(-1.0, maxStretch), 9); // 倒退压缩
+        Assert.Equal(maxStretch / 2.0, BodyPose.StretchFactor(0.5, maxStretch), 9);
+        // 加速档超速按满强度钳制
+        Assert.Equal(maxStretch, BodyPose.StretchFactor(1.8, maxStretch), 9);
+        Assert.Equal(-maxStretch, BodyPose.StretchFactor(-1.8, maxStretch), 9);
+    }
+
+    [Fact]
+    public void StretchFactor_InvalidInputs_ReturnZero()
+    {
+        Assert.Equal(0.0, BodyPose.StretchFactor(double.NaN, 0.08));
+        Assert.Equal(0.0, BodyPose.StretchFactor(1.0, double.NaN));
+        Assert.Equal(0.0, BodyPose.StretchFactor(1.0, 0.0));
+        Assert.Equal(0.0, BodyPose.StretchFactor(1.0, -0.08));
+        Assert.Equal(0.0, BodyPose.StretchFactor(double.PositiveInfinity, 0.08));
+    }
+
+    [Fact]
+    public void CounterScale_CompensatesCrossAxis_AndGuards()
+    {
+        // 拉伸 0.08 时交叉轴按 0.5 收缩 0.04
+        Assert.Equal(0.96, BodyPose.CounterScale(0.08, 0.5), 9);
+        Assert.Equal(1.0, BodyPose.CounterScale(0.0, 0.5), 9);
+        // 负形变（压缩）时交叉轴放大——对称补偿
+        Assert.Equal(1.04, BodyPose.CounterScale(-0.08, 0.5), 9);
+        // ratio 1.0 = 全补偿
+        Assert.Equal(0.92, BodyPose.CounterScale(0.08, 1.0), 9);
+        // 非法：不补偿
+        Assert.Equal(1.0, BodyPose.CounterScale(double.NaN, 0.5));
+        Assert.Equal(1.0, BodyPose.CounterScale(0.08, double.NaN));
+        Assert.Equal(1.0, BodyPose.CounterScale(0.08, 0.0));
+        Assert.Equal(1.0, BodyPose.CounterScale(0.08, -0.5));
+    }
+
+    // ---------------- SputterFactor（§2.17 引擎喘振） ----------------
+
+    [Fact]
+    public void SputterFactor_DeterministicBoundedIrregular()
+    {
+        const double hz = 7.0;
+        // 确定性：同相位同值（无随机源）
+        Assert.Equal(BodyPose.SputterFactor(0.37, hz), BodyPose.SputterFactor(0.37, hz), 12);
+        // 有界 [-1, 1] 且确实在变化（不规则——两个不可通约频率叠加）
+        var min = double.MaxValue;
+        var max = double.MinValue;
+        for (var i = 0; i < 400; i++)
+        {
+            var v = BodyPose.SputterFactor(i * 0.01, hz);
+            Assert.InRange(v, -1.0, 1.0);
+            min = Math.Min(min, v);
+            max = Math.Max(max, v);
+        }
+
+        Assert.True(max - min > 1.0, "喘振幅度不足：叠加项退化为常量");
+        // t=0 起点为 0（两正弦同相起）
+        Assert.Equal(0.0, BodyPose.SputterFactor(0.0, hz), 9);
+    }
+
+    [Fact]
+    public void SputterFactor_InvalidInputs_ReturnZero()
+    {
+        Assert.Equal(0.0, BodyPose.SputterFactor(double.NaN, 7.0));
+        Assert.Equal(0.0, BodyPose.SputterFactor(1.0, 0.0));
+        Assert.Equal(0.0, BodyPose.SputterFactor(1.0, -7.0));
+        Assert.Equal(0.0, BodyPose.SputterFactor(1.0, double.NaN));
+    }
 }

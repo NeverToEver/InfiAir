@@ -72,6 +72,45 @@ public class PlayerVisuals
     private const float ThrusterKickAmp = 0.35f;
     private const float ThrusterKickTime = 0.15f;
 
+    // ---- 机身反馈与损伤状态（DESIGN_BASELINE §2.17）：开火机身光、速度伸缩、受击压缩、
+    // 损伤烟与引擎喘振、导航灯、机动喷口。与 §2.13/§2.16 同口径——只写贴图节点及其子节点
+    // 的变换/调制，机体根节点与碰撞体不动；振幅乘动效强度（fx_intensity），0 = 本批之前画面。
+    private float _fireLightAmp = 0.35f;  // effects.motion.player_fire_light_amp（已乘动效强度）
+    private float _fireLightTau = 0.07f;  // effects.motion.player_fire_light_tau
+    private float _stretchMax = 0.08f;    // effects.motion.player_stretch_max（已乘动效强度）
+    private float _stretchRate = 10.0f;   // effects.motion.player_stretch_rate
+    private float _stretch;               // 当前速度伸缩量（正=沿机头拉伸），指数平滑逼近
+    private float _hitSquashAmp = 0.12f;  // effects.motion.player_hit_squash（已乘动效强度）
+    private float _hitSquashTau = 0.10f;  // effects.motion.player_hit_squash_tau
+    private float _hitAge = 10.0f;        // 距上次受击的秒数（初值大于 3τ：开机无残余压缩）
+    private float _sputterAmp = 0.35f;    // effects.motion.player_sputter_amp（已乘动效强度）
+    private float _sputterHz = 7.0f;      // effects.motion.player_sputter_hz
+    private int _damageLevel;             // 受击帧等级（0 正常 / 1 轻伤 / 2 重伤；SetDamageLevel 置位）
+    private float _smokeRatio = 0.6f;     // effects.motion.player_damage_smoke_ratio（已乘动效强度）
+    private float _smokeCur;              // 损伤烟当前排放比（指数平滑，防开关跳变）
+    private GpuParticles2D? _smoke;
+    private float _nozzleAmp = 0.45f;     // effects.motion.player_nozzle_alpha（已乘动效强度）
+    private Sprite2D? _nozzleLeft;        // 机动喷口（RCS 语汇：推力反向点火）
+    private Sprite2D? _nozzleRight;
+    private Sprite2D? _nozzleRetro;
+    private float _nozzleLeftA;           // 三喷口当前 alpha（指数平滑；余量随加速度）
+    private float _nozzleRightA;
+    private float _nozzleRetroA;
+    private Sprite2D? _navPort;           // 航行灯（左红/右绿常亮微呼吸 + 尾部白色双闪频闪）
+    private Sprite2D? _navStarboard;
+    private Sprite2D? _navStrobe;
+    private float _navAmp = 0.5f;         // 航行灯亮度上限（已乘动效强度）
+    private static readonly Color NavPortColor = new(1.0f, 0.28f, 0.22f);
+    private static readonly Color NavStarboardColor = new(0.35f, 1.0f, 0.5f);
+    private static readonly Color NavStrobeColor = new(1.0f, 0.98f, 0.9f);
+    private const float NavStrobePeriod = 1.8f;  // 双闪周期（s）
+    private const float NavStrobeFlash = 0.07f;  // 单次闪光时长（s）
+    private const float NavStrobeGap = 0.16f;    // 双闪间隔（s）
+    private const float NavBreathHz = 0.38f;     // 左右航行灯呼吸频率（Hz）
+    private const float StretchCrossRatio = 0.5f; // 速度伸缩的交叉轴补偿比例（面积近似守恒）
+    private const float HitSquashCrossRatio = 0.7f; // 受击压缩的交叉轴补偿比例（横向鼓、纵向扁）
+    private bool _scaleDirty;             // 上一帧写入了非基准缩放（退出时补写一次归位）
+
     /// <summary>机体底色（暖族提亮，DESIGN_BASELINE §2.1/§2.3 的战术琥珀）：全站唯一一份——
     /// Player._Ready 的初值与 UpdateFrame 的每帧写共用本常量（两份同名常量分叉时，运行时生效的是
     /// 每帧写的那份，初值侧被静默架空；原先的冷色是全息青退役残留）。</summary>
@@ -153,14 +192,121 @@ public class PlayerVisuals
         _thrusterRate = CfgFx.Float("effects.motion.player_thruster_rate", _thrusterRate, 0.0f);
         // 弹跳初始即「已出窗」（time+1）：即使误配超长窗（≥10s）也不会在开机时把机体弹一下
         _popAge = _popTime + 1.0f;
+        // 机身反馈与损伤状态（§2.17）：同 §2.16 口径（振幅乘动效强度、频率/速率不乘）
+        _fireLightAmp = CfgFx.Float("effects.motion.player_fire_light_amp", _fireLightAmp, 0.0f) * fx;
+        _fireLightTau = CfgFx.Float("effects.motion.player_fire_light_tau", _fireLightTau, 0.0f);
+        _stretchMax = CfgFx.Float("effects.motion.player_stretch_max", _stretchMax, 0.0f) * fx;
+        _stretchRate = CfgFx.Float("effects.motion.player_stretch_rate", _stretchRate, 0.0f);
+        _hitSquashAmp = CfgFx.Float("effects.motion.player_hit_squash", _hitSquashAmp, 0.0f) * fx;
+        _hitSquashTau = CfgFx.Float("effects.motion.player_hit_squash_tau", _hitSquashTau, 0.0f);
+        _sputterAmp = CfgFx.Float("effects.motion.player_sputter_amp", _sputterAmp, 0.0f) * fx;
+        _sputterHz = CfgFx.Float("effects.motion.player_sputter_hz", _sputterHz, 0.0f);
+        _smokeRatio = CfgFx.Float("effects.motion.player_damage_smoke_ratio", _smokeRatio, 0.0f, 1.0f) * fx;
+        _nozzleAmp = CfgFx.Float("effects.motion.player_nozzle_alpha", _nozzleAmp, 0.0f, 1.0f) * fx;
+        _navAmp = 0.5f * fx;
+        BuildDamageSmoke();
+        BuildManeuverNozzles();
+        BuildNavLights();
         _spriteScaleBase = sprite.Scale;
     }
 
     /// <summary>动效强度（0..1）：设置项 fx_intensity 的每帧直读（取值口单源在设置服务）。</summary>
     private static float FxIntensity() => (float)GameState.Instance.FxIntensity;
 
-    /// <summary>开火后坐力置位（FireInternal 每发调用）：重置后坐计时，贴图向机尾回弹由 UpdateFrame 推进。</summary>
+    /// <summary>开火后坐力置位（FireInternal 每发调用）：重置后坐计时，贴图向机尾回弹由 UpdateFrame 推进。
+    /// 机身光反馈（§2.17）复用同一计时——开火瞬间机体被枪口火光照亮一瞬。</summary>
     public void NotifyFired() => _recoilAge = 0.0f;
+
+    /// <summary>受击置位（扣血生效路径）：贴图横向压扁回弹（受击压缩，§2.17）。</summary>
+    public void NotifyHit() => _hitAge = 0.0f;
+
+    /// <summary>受击帧等级下发（Player.UpdateDamageFrame 变化时调用）：重伤档开启损伤烟与引擎喘振。</summary>
+    public void SetDamageLevel(int level) => _damageLevel = level;
+
+    /// <summary>损伤烟粒子（重伤档点亮）：暗灰软点、自机身后方慢速飘散，普通混合（非加色——
+    /// 烟是遮挡不是发光）。排放比由 UpdateScale 按伤害等级平滑驱动（0 = 停发）。</summary>
+    private void BuildDamageSmoke()
+    {
+        var ws = (float)GameState.Instance.WorldScale;
+        var mat = new ParticleProcessMaterial
+        {
+            Direction = new Vector3(0.0f, 1.0f, 0.0f),
+            Spread = 32.0f,
+            InitialVelocityMin = 20.0f * ws,
+            InitialVelocityMax = 60.0f * ws,
+            DampingMin = 20.0f * ws,
+            DampingMax = 50.0f * ws,
+            ScaleMin = 8.0f * ws / CinematicFx.SoftTexSize,
+            ScaleMax = 18.0f * ws / CinematicFx.SoftTexSize,
+            ColorRamp = SmokeRamp(),
+        };
+        _smoke = new GpuParticles2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Position = new Vector2(0.0f, 4.0f * ws),
+            Amount = 12,
+            Lifetime = 1.1f,
+            AmountRatio = 0.0f,
+            Emitting = false,
+            ProcessMaterial = mat,
+            ZIndex = -2, // 垫在机体与 GlowLayer 之下：烟从机身后面冒
+        };
+        _sprite.AddChild(_smoke);
+    }
+
+    /// <summary>烟色阶：中灰渐暗、两端透明（加色辉光场景里靠不透明度变化读作「冒烟」）。</summary>
+    private static GradientTexture1D SmokeRamp()
+    {
+        var g = new Gradient
+        {
+            Offsets = new[] { 0.0f, 0.25f, 1.0f },
+            Colors = new[]
+            {
+                new Color(0.42f, 0.40f, 0.38f, 0.0f),
+                new Color(0.34f, 0.32f, 0.30f, 0.55f),
+                new Color(0.20f, 0.19f, 0.18f, 0.0f),
+            },
+        };
+        return new GradientTexture1D { Gradient = g };
+    }
+
+    /// <summary>机动喷口三枚（RCS 语汇，§2.17）：左右两枚朝外侧、机首一枚朝前（反推）。
+    /// 加色软点、挂在贴图下（随机体姿态/伸缩联动）；alpha 由 UpdateFrame 按机体本地系加速度
+    /// 逐帧驱动——推力永远与加速度反向点火（向右加速 → 左喷口亮，制动 → 机首反推亮）。</summary>
+    private void BuildManeuverNozzles()
+    {
+        var ws = (float)GameState.Instance.WorldScale;
+        var size = 11.0f * ws;
+        _nozzleLeft = MakeHullLight(new Vector2(-15.0f * ws, 3.0f * ws), size, new Color(1.0f, 0.72f, 0.35f));
+        _nozzleRight = MakeHullLight(new Vector2(15.0f * ws, 3.0f * ws), size, new Color(1.0f, 0.72f, 0.35f));
+        _nozzleRetro = MakeHullLight(new Vector2(0.0f, -17.0f * ws), size, new Color(1.0f, 0.78f, 0.42f));
+    }
+
+    /// <summary>航行灯三枚（§2.17）：左舷红 / 右舷绿（慢呼吸常亮）+ 尾部白色双闪频闪。
+    /// 贴图下挂载、加色小点（面积远低于 XAG 118 的 20% 屏线，不构成「闪」）；相位取模拟时间
+    /// （无头固定步长可重复）。</summary>
+    private void BuildNavLights()
+    {
+        var ws = (float)GameState.Instance.WorldScale;
+        _navPort = MakeHullLight(new Vector2(-8.0f * ws, -2.0f * ws), 5.0f * ws, NavPortColor);
+        _navStarboard = MakeHullLight(new Vector2(8.0f * ws, -2.0f * ws), 5.0f * ws, NavStarboardColor);
+        _navStrobe = MakeHullLight(new Vector2(0.0f, 12.0f * ws), 6.0f * ws, NavStrobeColor);
+    }
+
+    /// <summary>机身挂点小光点（加色软点，初始全灭）：机动喷口与航行灯共用构造。</summary>
+    private Sprite2D MakeHullLight(Vector2 pos, float size, Color color)
+    {
+        var s = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Material = CinematicFx.AdditiveMaterial(),
+            Scale = Vector2.One * (size / CinematicFx.SoftTexSize),
+            Modulate = new Color(color.R, color.G, color.B, 0.0f),
+            Position = pos,
+        };
+        _sprite.AddChild(s);
+        return s;
+    }
 
     /// <summary>核心喷口三层软点（白芯/琥珀/红外，additive）：作为喷口根部的持续亮核，
     /// 叠加在 GpuParticles 尾焰之上；挂在 Thruster 节点下随其位置/缩放。数值 effects.thruster_core.*。</summary>
@@ -223,7 +369,11 @@ public class PlayerVisuals
 
         _thrusterKickAge += delta;
         var kick = Mathf.Max(1.0f - _thrusterKickAge / ThrusterKickTime, 0.0f);
-        var kickedAlpha = Mathf.Min(_thrusterCur.Alpha * (1.0f + ThrusterKickAmp * kick), 1.0f);
+        // 引擎喘振（§2.17，仅重伤档）：确定性不规则抖动，喷口读数「失稳」
+        var sputter = _damageLevel >= 2
+            ? 1.0f + _sputterAmp * (float)Core.Visual.BodyPose.SputterFactor(simTime, _sputterHz)
+            : 1.0f;
+        var kickedAlpha = Mathf.Min(_thrusterCur.Alpha * (1.0f + ThrusterKickAmp * kick) * sputter, 1.0f);
         _thruster.SpeedScale = _thrusterCur.Speed;
         _thruster.AmountRatio = _thrusterCur.Amount;
         _thruster.SelfModulate = new Color(1.0f, 1.0f, 1.0f, kickedAlpha) * engineTint;
@@ -312,19 +462,20 @@ public class PlayerVisuals
         }
     }
 
-    /// <summary>机身色调四源 + 受击点脉动 + 姿态/活性（横移侧倾、转向跟随、运动滞后漂移、
-    /// 悬停浮动、开火后坐力）逐帧驱动。擦弹闪光在此递减（原 _physics_process 视觉分支）；
-    /// 无敌倒计时递减留在 player（战斗状态）。
+    /// <summary>机身色调四源 + 受击点脉动 + 姿态/活性/机身反馈（横移侧倾、转向跟随、运动滞后漂移、
+    /// 悬停浮动、开火后坐力、开火机身光、速度伸缩、机动喷口、航行灯）逐帧驱动。擦弹闪光在此递减
+    /// （原 _physics_process 视觉分支）；无敌倒计时递减留在 player（战斗状态）。
     /// simTime = Player 累计模拟时间（秒），脉动/浮动的相位基准（无头固定步长可重复）。
     /// lateral01 = 横向速度占比（速度在机体右向量上的投影 ÷ MaxSpeed，Player 归一化后传入，
     /// 加速档可超 1 后由算式钳制），驱动横移侧倾；
     /// turnDelta = 本帧机体根节点转向量（rad，已规范到 -π..π），驱动转向跟随角惯性；
     /// accelLocalX/Y = 机体本地系加速度 ÷ 参考上限（帧间速度差分，Player 换算后传入），
-    /// 驱动运动滞后漂移；
-    /// 以上姿态/活性只写贴图节点的 Rotation/Position（Scale 归冲刺弹跳独占，见 UpdateDashPop），
-    /// 机体根节点与判定几何不动（§2.13/§2.16）。</summary>
+    /// 驱动运动滞后漂移与机动喷口；
+    /// forwardSpeed01 = 速度在机头方向的投影 ÷ MaxSpeed，驱动速度伸缩；
+    /// 以上姿态/活性只写贴图节点的 Rotation/Position（Scale 归 UpdateScale 独占），
+    /// 机体根节点与判定几何不动（§2.13/§2.16/§2.17）。</summary>
     public void UpdateFrame(float delta, float parryTint, float invincible, float simTime, float lateral01,
-        float turnDelta, float accelLocalX, float accelLocalY)
+        float turnDelta, float accelLocalX, float accelLocalY, float forwardSpeed01)
     {
         // 横移侧倾：目标角按横向占比，指数平滑逼近（机头朝移动方向偏）
         var target = Core.Visual.BodyPose.BankTarget(lateral01, 1.0f, _bankMax);
@@ -337,35 +488,97 @@ public class PlayerVisuals
         _lagX = (float)Core.Visual.BodyPose.Approach(_lagX, Core.Visual.BodyPose.LagTargetPx(accelLocalX, _lagPx), _lagRate, delta);
         _lagY = (float)Core.Visual.BodyPose.Approach(_lagY, Core.Visual.BodyPose.LagTargetPx(accelLocalY, _lagPx), _lagRate, delta);
 
+        // 速度伸缩（§2.17）：前飞沿机头拉伸、倒退压缩，交叉轴补偿；写点归 UpdateScale（渲染帧）
+        var stretchTarget = Core.Visual.BodyPose.StretchFactor(forwardSpeed01, _stretchMax);
+        _stretch = (float)Core.Visual.BodyPose.Approach(_stretch, stretchTarget, _stretchRate, delta);
+
         // 开火后坐力：贴图沿机尾（本地 +Y，贴图机头朝上）回弹；悬停浮动叠加同一轴向
         _recoilAge += delta;
         var recoil = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _recoilTau) * _recoilPx;
         var bob = (float)Core.Visual.BodyPose.BobOffsetPx(simTime, _bobHz, _bobPx);
         _sprite.Position = new Vector2(_lagX, _lagY + recoil + bob);
 
+        UpdateManeuverNozzles(accelLocalX, accelLocalY, simTime, delta);
+        UpdateNavLights(simTime);
+
+        // 开火机身光（§2.17）：与后坐力同计时——枪口火光照亮机体一瞬（暖向提亮，衰减 ~3τ）
+        var fireLight = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _fireLightTau) * _fireLightAmp;
+
+        Color m;
         if (parryTint > 0.0f)
         {
-            _sprite.Modulate = BodyTintBase.Lerp(new Color(1.7f, 1.25f, 0.5f), parryTint);
+            m = BodyTintBase.Lerp(new Color(1.7f, 1.25f, 0.5f), parryTint);
         }
         else if (_grazeFlash > 0.0f)
         {
             _grazeFlash -= delta;
-            _sprite.Modulate = BodyTintBase.Lerp(new Color(1.7f, 1.35f, 0.5f), 1.0f);
+            m = BodyTintBase.Lerp(new Color(1.7f, 1.35f, 0.5f), 1.0f);
         }
         else if (invincible > 0.0f)
         {
-            var m = BodyTintBase;
+            m = BodyTintBase;
             m.A = 0.35f + 0.65f * Mathf.Abs(Enemy.SinFast(simTime * 20.0f));
-            _sprite.Modulate = m;
         }
         else
         {
-            _sprite.Modulate = BodyTintBase;
+            m = BodyTintBase;
         }
+
+        if (fireLight > 0.0f)
+        {
+            m = new Color(m.R * (1.0f + fireLight), m.G * (1.0f + fireLight * 0.6f), m.B * (1.0f + fireLight * 0.25f), m.A);
+        }
+
+        _sprite.Modulate = m;
 
         var hd = _hitboxDot.Modulate;
         hd.A = 0.45f + 0.55f * Mathf.Abs(Enemy.SinFast(simTime * 6.0f));
         _hitboxDot.Modulate = hd;
+    }
+
+    /// <summary>机动喷口逐帧驱动（§2.17）：推力与加速度反向点火——右加速 → 左喷口亮，
+    /// 左加速 → 右喷口亮，向机尾加速（前进中制动/倒退）→ 机首反推亮。余量 = 该轴加速度占比
+    /// 钳 [0,1]，指数平滑（同一 lag 速率）防方向抖动时闪烁；亮度再乘确定性微闪（点火不稳）。</summary>
+    private void UpdateManeuverNozzles(float accelLocalX, float accelLocalY, float simTime, float delta)
+    {
+        if (_nozzleLeft == null || _nozzleRight == null || _nozzleRetro == null)
+        {
+            return;
+        }
+
+        var flicker = 1.0f + 0.18f * (float)Core.Visual.BodyPose.SputterFactor(simTime, 11.0f);
+        var leftTarget = Mathf.Clamp(accelLocalX, 0.0f, 1.0f) * _nozzleAmp;
+        var rightTarget = Mathf.Clamp(-accelLocalX, 0.0f, 1.0f) * _nozzleAmp;
+        var retroTarget = Mathf.Clamp(accelLocalY, 0.0f, 1.0f) * _nozzleAmp;
+        _nozzleLeftA = (float)Core.Visual.BodyPose.Approach(_nozzleLeftA, leftTarget, _lagRate, delta);
+        _nozzleRightA = (float)Core.Visual.BodyPose.Approach(_nozzleRightA, rightTarget, _lagRate, delta);
+        _nozzleRetroA = (float)Core.Visual.BodyPose.Approach(_nozzleRetroA, retroTarget, _lagRate, delta);
+        SetLightAlpha(_nozzleLeft, _nozzleLeftA, flicker);
+        SetLightAlpha(_nozzleRight, _nozzleRightA, flicker);
+        SetLightAlpha(_nozzleRetro, _nozzleRetroA, flicker);
+    }
+
+    /// <summary>航行灯逐帧驱动（§2.17）：左右红绿慢呼吸常亮（错相），尾部白色双闪频闪
+    /// （每 NavStrobePeriod 两次短闪）。纯模拟时间相位、零随机。</summary>
+    private void UpdateNavLights(float simTime)
+    {
+        if (_navPort == null || _navStarboard == null || _navStrobe == null)
+        {
+            return;
+        }
+
+        var breath = Mathf.Sin(simTime * Mathf.Tau * NavBreathHz);
+        SetLightAlpha(_navPort, _navAmp * (0.55f + 0.25f * breath), 1.0f);
+        SetLightAlpha(_navStarboard, _navAmp * (0.55f - 0.25f * breath), 1.0f);
+        var t = simTime % NavStrobePeriod;
+        var flash = t < NavStrobeFlash || (t >= NavStrobeGap && t < NavStrobeGap + NavStrobeFlash);
+        SetLightAlpha(_navStrobe, flash ? _navAmp : 0.0f, 1.0f);
+    }
+
+    private static void SetLightAlpha(Sprite2D light, float alpha, float mul)
+    {
+        var c = light.Modulate;
+        light.Modulate = new Color(c.R, c.G, c.B, Mathf.Clamp(alpha * mul, 0.0f, 1.0f));
     }
 
     /// <summary>擦弹机身金色短闪置位（_on_graze_entered 反馈三件套之一；时长 balance player.graze.flash_time）。</summary>
@@ -375,18 +588,51 @@ public class PlayerVisuals
     /// （抛物线包络，峰值 1+amp）；渲染帧推进（_Process），物理早退的冲刺期也在走。</summary>
     public void NotifyDashPop() => _popAge = 0.0f;
 
-    /// <summary>冲刺弹跳逐渲染帧推进：写贴图 Scale（Init 捕获的设计缩放 × 弹跳系数）。
-    /// 弹跳窗外的写是幂等回位（上一帧残留在窗内值时归位），出窗后零开销早退。</summary>
-    public void UpdateDashPop(float delta)
+    /// <summary>贴图缩放的唯一写者（逐渲染帧推进）：冲刺弹跳 × 速度伸缩（轴向，交叉轴体积补偿）
+    /// × 受击压缩（横向压扁回弹），并顺带驱动损伤烟的排放比（重伤档点亮、指数平滑开关）。
+    /// 物理早退区间（冲刺/入场/锁输入）也在走——弹跳与压缩的包络不该被物理早退冻住。
+    /// 出窗后零开销早退（三个包络都归位时不再写 Scale）。</summary>
+    public void UpdateScale(float delta)
     {
-        if (_popAge >= _popTime)
+        var pop = (float)Core.Visual.BodyPose.PopScale(_popAge, _popTime, _popAmp);
+        var hit = (float)Core.Visual.BodyPose.RecoilFactor(_hitAge, _hitSquashTau) * _hitSquashAmp;
+        if (_popAge < _popTime || _hitAge < 3.0f * _hitSquashTau || _stretch != 0.0f || _scaleDirty)
+        {
+            _popAge += delta;
+            _hitAge += delta;
+            // 纵向 = 伸缩 × 受击压扁的交叉轴补偿；横向 = 伸缩的交叉轴补偿 × 受击压扁
+            var sy = (1.0f + _stretch) * (float)Core.Visual.BodyPose.CounterScale(hit, HitSquashCrossRatio);
+            var sx = (float)Core.Visual.BodyPose.CounterScale(_stretch, StretchCrossRatio) * (1.0f + hit);
+            _sprite.Scale = new Vector2(_spriteScaleBase.X * sx * pop, _spriteScaleBase.Y * sy * pop);
+            _scaleDirty = _stretch != 0.0f;
+        }
+
+        UpdateDamageSmoke(delta);
+    }
+
+    /// <summary>损伤烟排放比驱动（§2.17）：重伤档（damage level 2）目标 = smoke_ratio，否则 0；
+    /// 指数平滑开关（防档位切换时烟骤开骤停），归零即停发（Emitting=false，不留常驻模拟开销）。</summary>
+    private void UpdateDamageSmoke(float delta)
+    {
+        if (_smoke == null)
         {
             return;
         }
 
-        _popAge += delta;
-        var pop = (float)Core.Visual.BodyPose.PopScale(_popAge, _popTime, _popAmp);
-        _sprite.Scale = _spriteScaleBase * pop;
+        var target = _damageLevel >= 2 ? _smokeRatio : 0.0f;
+        if (_smokeCur <= 0.0f && target <= 0.0f)
+        {
+            if (_smoke.Emitting)
+            {
+                _smoke.Emitting = false;
+            }
+
+            return;
+        }
+
+        _smokeCur = (float)Core.Visual.BodyPose.Approach(_smokeCur, target, _lagRate, delta);
+        _smoke.AmountRatio = _smokeCur;
+        _smoke.Emitting = _smokeCur > 0.01f;
     }
 
     /// <summary>弹反命中闪光置位（Player 盾区反射成功时调用）：边缘白金色提亮 + 外扩脉冲。</summary>

@@ -371,7 +371,11 @@ public partial class Player : CharacterBody2D
     }
 
     /// <summary>受击（扣血生效路径）。闪避/护盾吸收分支不发该信号，故不会白扫一次。</summary>
-    private void OnPlayerDamagedSweep(float amount, Vector2 fromPos) => TriggerSweep(0);
+    private void OnPlayerDamagedSweep(float amount, Vector2 fromPos)
+    {
+        TriggerSweep(0);
+        _visuals.NotifyHit(); // 受击压缩（§2.17）：贴图横向压扁回弹
+    }
 
     /// <summary>弹反成功（既有信号）。</summary>
     private void OnParryLanded() => TriggerSweep(0);
@@ -426,7 +430,7 @@ public partial class Player : CharacterBody2D
     public override void _Process(double delta)
     {
         _visuals.UpdateAfterimages((float)delta);
-        _visuals.UpdateDashPop((float)delta);
+        _visuals.UpdateScale((float)delta);
         UpdateDamageFrame();
         // 枪口辉光指数衰减（半衰 ~60ms，急促闪光感）
         if (_muzzleGlowA > 0.01f && _muzzleGlow != null)
@@ -458,6 +462,7 @@ public partial class Player : CharacterBody2D
             _ => _texNormal,
         };
         if (_glow != null) _glow.Texture = _sprite.Texture;
+        _visuals.SetDamageLevel(level); // 重伤档：损伤烟 + 引擎喘振（§2.17）
     }
 
     /// <summary>数值配置缓存（启动一次读入，避免每帧 Dictionary 路径查找）。</summary>
@@ -1357,8 +1362,9 @@ public partial class Player : CharacterBody2D
         var right = new Vector2(Mathf.Cos(Rotation), Mathf.Sin(Rotation));
         var lateral01 = Velocity.Dot(right) / Mathf.Max(MaxSpeed, 1.0f);
         // 横向速度占比（机体右向量 = 本帧瞄准角旋转后的 (cos, sin)），驱动贴图 banking；
+        // 机头方向速度占比驱动速度伸缩（§2.17，机头 = 本地 -Y：Rotation-π/2 的世界方向）；
         // 本帧转向量（规范到 -π..π）驱动贴图转向跟随；机体本地系加速度（帧间速度差分，
-        // 参考上限取加速/减速的大者）驱动贴图运动滞后漂移——三者都是贴图本地表现量
+        // 参考上限取加速/减速的大者）驱动贴图运动滞后漂移与机动喷口——都是贴图本地表现量
         var turnDelta = _hasPrevRotation ? Mathf.Wrap(Rotation - _prevRotation, -Mathf.Pi, Mathf.Pi) : 0.0f;
         _prevRotation = Rotation;
         _hasPrevRotation = true;
@@ -1371,7 +1377,9 @@ public partial class Player : CharacterBody2D
 
         _prevVelocity = Velocity;
         _hasPrevVelocity = true;
-        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime, lateral01, turnDelta, accelLocal.X, accelLocal.Y);
+        var nose = new Vector2(Mathf.Sin(Rotation), -Mathf.Cos(Rotation));
+        var forward01 = Velocity.Dot(nose) / Mathf.Max(MaxSpeed, 1.0f);
+        _visuals.UpdateFrame(d, _parry.TintStrength(), Invincible, _simTime, lateral01, turnDelta, accelLocal.X, accelLocal.Y, forward01);
         // 回血（委托 PlayerDamage）
         _damage.HealTick(d);
     }

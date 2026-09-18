@@ -154,6 +154,46 @@ public static class BodyPose
         return ampPx * Math.Sin(2.0 * Math.PI * hz * simTimeSeconds);
     }
 
+    /// <summary>速度伸缩系数（正=沿机头拉伸、负=压缩）：forwardSpeed01 是速度在机头方向的投影
+    /// ÷ 满速（-1..1 钳制，加速档超速按满强度），乘 maxStretch 得轴向形变量。maxStretch ≤ 0 或
+    /// 任一入参非有限返回 0（无形变）。交叉轴补偿走 <see cref="CounterScale"/>。</summary>
+    public static double StretchFactor(double forwardSpeed01, double maxStretch)
+    {
+        if (!double.IsFinite(forwardSpeed01) || !double.IsFinite(maxStretch) || maxStretch <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return Math.Clamp(forwardSpeed01, -1.0, 1.0) * maxStretch;
+    }
+
+    /// <summary>体积补偿的交叉轴缩放（1 - deform×ratio）：轴向拉伸时交叉轴按 ratio 收缩，
+    /// 形变体积近似守恒（0.5 = 面积守恒；1.0 = 全补偿）。非有限入参或 ratio ≤ 0 返回 1
+    /// （不补偿）。</summary>
+    public static double CounterScale(double deform01, double ratio)
+    {
+        if (!double.IsFinite(deform01) || !double.IsFinite(ratio) || ratio <= 0.0)
+        {
+            return 1.0;
+        }
+
+        return 1.0 - deform01 * ratio;
+    }
+
+    /// <summary>引擎喘振系数（-1..1，**确定性**）：两个不可通约频率（1 : 1.37）的正弦叠加，
+    /// 相位只取模拟时间——无随机源，无头固定步长下可重复（§4 确定性硬规则）。消费方把它
+    /// 映射成「幅度 ±amp 的不规则抖动」（损伤状态引擎失稳的读数）。hz ≤ 0 或非有限返回 0。</summary>
+    public static double SputterFactor(double simTimeSeconds, double hz)
+    {
+        if (!double.IsFinite(simTimeSeconds) || !double.IsFinite(hz) || hz <= 0.0)
+        {
+            return 0.0;
+        }
+
+        var w = 2.0 * Math.PI * hz * simTimeSeconds;
+        return 0.5 * (Math.Sin(w) + Math.Sin(w * 1.37));
+    }
+
     /// <summary>把任意角规范到 (-π, π]（供钳制上限语义用；消费方若用连续逼近，不必先规范）。</summary>
     private static double NormalizeSigned(double angle)
     {
