@@ -467,6 +467,9 @@ public partial class Bullet : Area2D, IParryable
 
                 // 直击反馈（玩法结算之后）：非致命也有一枚火花，暴击另加星芒
                 CombatVfx.DirectHit(GetParent(), area.GlobalPosition, -Direction, isCrit, GameState.Instance.ReduceFlash);
+                // 命中音（§2.14 输入回应层）：命中是频次最高的交互，此前只有击杀有爆炸音；
+                // 刷屏由 SfxPlayer 目录表限频（45ms 最小间隔 + 复音 2）拦截
+                GameState.Instance.PlaySfx(SfxId.Hit);
                 // 命中顿帧：暴击高一档（时序取 balance effects.hit_stop.*；同帧多命中取较大者不叠加）
                 GameState.Instance.RequestHitStop(isCrit ? HitStopTier.Crit : HitStopTier.Normal);
             }

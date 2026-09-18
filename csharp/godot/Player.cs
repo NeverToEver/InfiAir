@@ -1850,7 +1850,8 @@ public partial class Player : CharacterBody2D
         CombatVfx.ParryRing(GetParent(), GlobalPosition, GameState.Instance.ReduceFlash);
         RumbleService.Parry(); // 弹反成功震动
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);
-        GameState.Instance.PlaySfx(SfxId.Dash);
+        // 弹反专属确认音（§2.14）：旧实现借用冲刺扫频，唯一防御机制的成功瞬间与「移动」听感混同
+        GameState.Instance.PlaySfx(SfxId.ParrySuccess);
         EmitSignal(SignalName.ParryLanded);
     }
 

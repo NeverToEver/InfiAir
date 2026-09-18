@@ -14,6 +14,8 @@
 - ui_cancel.wav       界面·取消（下行两音，与确认互为反向手势）
 - ui_toggle.wav       界面·切换（单音短点，档位/开关变化）
 - ui_deny.wav         界面·受阻（低频双脉冲回绝）
+- hit_tick.wav        战斗·命中（非谐双音轻金属点，玩家弹命中反馈）
+- parry_success.wav   战斗·弹反确认（上行两音 + 金属泛音，成功防御高光）
 - bgm_loop.wav       40s 无缝循环氛围电子 BGM（和弦垫 + 琶音 + 低音）
 - bgm_boss.wav       Boss 战曲：同族音色、更快的驱动琶音与和声小调进行（32s 无缝循环）
 - bgm_base.wav       基地休整曲：同族音色、慢速大七和弦垫 + 稀疏钟音琶音（40s 无缝循环）
@@ -279,6 +281,57 @@ def make_ui_deny() -> list:
     return out
 
 
+# ---------------- 战斗确认族（命中 / 弹反，纯音零随机） ----------------
+# 与界面反馈族同纪律：纯合成、不消费随机流，接在同段写入不影响既有产物字节。
+# 音量分工与界面族不同：这两枚是**战斗信息**（打上了/挡下了），采样峰值归一
+# 在 tune_sfx.py 按战斗音级（-9~-10dBFS）处理，SfxPlayer.BaseDb 也按战斗档给。
+
+def make_hit_tick() -> list:
+    """战斗·命中（0.07s）：非谐双音快衰减 + 短促低频体感——只回答「打上了」。
+
+    命中是频次最高的战斗事件（连发下每秒可有多枚同帧命中），音色必须「短到能叠、
+    轻到不抢」：3400Hz 亮芯 + 1.53 倍非谐泛音（金属质感来自非谐性，谐波堆叠会读成
+    铃声），820Hz 体感成分给「打实了」的一点点分量；刷屏由 SfxPlayer 目录表限频
+    （45ms 最小间隔 + 复音 2）拦截，不在采样里解决。
+    """
+    dur = 0.07
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        clink = min(t / 0.002, 1.0) * math.exp(-t * 120.0)
+        body = min(t / 0.003, 1.0) * math.exp(-t * 70.0)
+        s = (math.sin(2.0 * math.pi * 3400.0 * t) * clink
+             + 0.5 * math.sin(2.0 * math.pi * 5200.0 * t) * clink
+             + 0.45 * math.sin(2.0 * math.pi * 820.0 * t) * body)
+        out.append(0.6 * s)
+    return out
+
+
+def make_parry_chime() -> list:
+    """战斗·弹反确认（0.22s）：上行两音（A5→E6）+ 金属二次谐波——成功防御的高光确认。
+
+    与 ui_confirm 同族的上行手势，但更高更亮、战斗音量级：弹反是本作唯一防御机制，
+    成功瞬间须与「移动」在音色上区分（旧实现借用 dash 扫频，听感混同）——
+    铃音读「干净利落地挡下」，双音上行保留与界面确认同源的正反馈语汇。
+    """
+    dur = 0.22
+    n = int(SR * dur)
+    out = []
+    for i in range(n):
+        t = i / SR
+        s = 0.0
+        for t0, freq, decay in ((0.0, 880.0, 26.0), (0.07, 1318.5, 18.0)):
+            if t >= t0:
+                lt = t - t0
+                env = min(lt / 0.003, 1.0) * math.exp(-lt * decay)
+                s += env * (math.sin(2.0 * math.pi * freq * lt)
+                            + 0.35 * math.sin(4.0 * math.pi * freq * lt)
+                            + 0.15 * math.sin(6.0 * math.pi * freq * lt))
+        out.append(0.6 * s)
+    return out
+
+
 # ---------------- BGM ----------------
 
 # 战斗曲速度（战斗 / Boss / 基地三档的唯一事实另一侧：视觉节拍层按
@@ -509,6 +562,10 @@ def main() -> None:
     write_wav("ui_cancel.wav", make_ui_cancel())
     write_wav("ui_toggle.wav", make_ui_toggle())
     write_wav("ui_deny.wav", make_ui_deny())
+    # 战斗确认族（命中/弹反）：同为纯音零 random，接在界面族同段写入——
+    # 既有产物的随机流位置不变，可复现不变式照旧
+    write_wav("hit_tick.wav", make_hit_tick())
+    write_wav("parry_success.wav", make_parry_chime())
 
 
 if __name__ == "__main__":

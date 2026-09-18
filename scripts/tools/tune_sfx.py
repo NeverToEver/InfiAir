@@ -177,6 +177,9 @@ TUNING = {
     "ui_cancel.wav": {"filters": [], "target_db": -11.0},
     "ui_toggle.wav": {"filters": [], "target_db": -11.0},
     "ui_deny.wav": {"filters": [], "target_db": -10.0},  # 被拒是最需要被听见的一枚，仍低于战斗音
+    # 战斗确认族：纯音无噪声尾巴不整形；战斗信息按战斗音级（轻于爆炸、重于 UI）
+    "hit_tick.wav": {"filters": [], "target_db": -10.0},  # 高频连发靠 SfxPlayer 45ms 限频，采样只管「打得清」
+    "parry_success.wav": {"filters": [], "target_db": -9.0},  # 成功防御的高光确认，命中与爆炸之间
 }
 HPF_HZ = 30  # 全部先过 30Hz 高通：去直流 + 次声吃掉却听不到的动态余量
 
