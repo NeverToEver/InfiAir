@@ -51,6 +51,14 @@ uniform float u_hit_pulse = 0.0;
 uniform float u_chroma = 0.0;
 uniform float u_scanline = 0.0;
 
+// 全屏慢呼吸（本轮动效的**唯一**全屏同步脉动源，DESIGN_BASELINE §2.12 判据 4）：带符号系数，
+// 由 VisualRhythm 一处产出（相位取自音乐播放位置），WorldPostFx 每帧上传。
+// 振幅上界由 core Rhythm.FullScreenPeakToTroughCap 与 FlashBudget 把关（峰谷亮度差 <10%），
+// 低于 XAG 118 对「闪」的定义线（≥10% 亮度变化）——低于定义线即不构成 flash，面积判据随之不适用，
+// 故本项不受「≥20% 屏」那条约束。解析式、零额外采样。
+// u_rhythm 精确为 0（关闭 / 减闪 / 动效强度 0）时因子精确等于 1.0，输出逐位等于改造前。
+uniform float u_rhythm = 0.0;
+
 vec3 bright(vec2 uv) {
     vec3 c = texture(screen_texture, uv).rgb;
     return max(c - vec3(u_bloom_threshold), vec3(0.0));
@@ -118,6 +126,9 @@ void fragment() {
         float g = fract(sin(dot(px, vec2(12.9898, 78.233)) + u_time * 19.7) * 43758.5453);
         c += (g - 0.5) * u_grain;
     }
+
+    // ---- 全屏慢呼吸（解析式乘性微调，零额外采样；u_rhythm=0 时因子精确为 1.0，逐位等于改造前） ----
+    c *= 1.0 + u_rhythm;
 
     COLOR = vec4(clamp(c, vec3(0.0), vec3(1.0)), 1.0);
 }

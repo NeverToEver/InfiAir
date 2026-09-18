@@ -126,6 +126,8 @@ public partial class Main : Node2D
     private MetaHealthFX _metaFx = null!;
     /// <summary>世界层画面增强层（_ready 创建，先于 MetaFX——同 layer=1 靠树序：世界→增强→Meta→HUD）</summary>
     private WorldPostFx _worldPostFx = null!;
+    /// <summary>节奏服务（_ready 创建，早于 WorldPostFx 入树；每帧产出的拍点/呼吸供各表现层从属）</summary>
+    private VisualRhythm _visualRhythm = null!;
     /// <summary>辅助瞄准框覆盖层（_ready 创建；世界坐标单节点画全部标记敌框，登记 GameState.aim_frame_layer）</summary>
     private AimFrameLayer _aimFrames = null!;
     private bool _breathWasActive;
@@ -206,6 +208,12 @@ public partial class Main : Node2D
         GameState.Instance.SetRunActive(true);
         // 视角缩放：应用到相机（震动只写 offset，与 zoom 互不干扰）；注册供可见区域计算
         GameState.Instance.CameraRef = _camera;
+        // 节奏服务（节拍/呼吸的单一同步源，见 VisualRhythm）：与其它视觉服务同处创建、**不在任何
+        // 分支里**（练习局、读档直入、开机交接三条路径都要有）；先于 WorldPostFx 入树——每帧处理序即
+        // 树序，后处理层读到的就是本帧的节奏读数而不是上一帧的。此时 MusicDirector 尚未建立，
+        // 由下方 SetMusic 补注入（未注入期间走降级路径，不会空引用）
+        _visualRhythm = new VisualRhythm();
+        AddChild(_visualRhythm);
         // 世界层画面增强（layer=1，世界之上、HUD 之下）：先于 MetaFX 入树——同 layer 靠树序，
         // 使 MetaFX 的屏幕采样包含辉光/分级结果（世界 → 增强 → Meta → HUD）
         _worldPostFx = new WorldPostFx();
@@ -235,6 +243,9 @@ public partial class Main : Node2D
         // 音乐编排（延后到首帧之后装载三首曲目，见 MusicDirector.StartAsync）
         _music = new MusicDirector();
         AddChild(_music);
+        // 音乐交给节奏服务：相位基准取自播放位置（真实时间面，仅视觉层消费、绝不进判定）；
+        // 三首曲目尚未装载的这段窗口与 headless dummy 驱动下它自动降级为模拟时钟
+        _visualRhythm.SetMusic(_music);
 
         // 蓄力虚影（长按 H 蓄力期间显示）：复用真实母舰场景实例做半透明预告，
         // 禁用状态机（仅外观，不移动/不对接），停驻高度取实例配置 HOVER_Y

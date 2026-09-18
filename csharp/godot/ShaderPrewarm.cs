@@ -18,6 +18,8 @@ namespace InfiAir;
 /// 口径与边界：
 ///   - **材质取自场景树并按 Shader 去重**，不另立着色器路径清单——清单是第二处事实源，新增着色器
 ///     时会漂。一张都扫不到时 PushError：静默空转等于预热没做而启动照常。
+///   - **扫不到的材质走登记面**（<see cref="RegisterExtraSeed"/>）：懒创建池化的材质（弹体）在开机
+///     那一刻不在树上，由创建方登记后与场景树材质合流、同样按 Shader 去重预热。
 ///   - 只画一帧：1×1 代理面片贴在左上角，整屏黑盖（本节点自成一图层）压在上面——玩家看到的是
 ///     开机黑场而不是一帧战场，且与标题屏的黑场淡入同色，衔接无跳变。
 ///   - **有意留白两处**：MetaHealthFX 的 SubViewport 烘焙材质（开局首帧才创建，按既有设计本就是
@@ -33,13 +35,53 @@ public partial class ShaderPrewarm : CanvasLayer
     /// <summary>预热帧绘制完成（已至少画过一帧）后触发；调用方在此接手后续流程（开机交接标题屏）。</summary>
     public event Action? Completed;
 
+    /// <summary>额外预热材质（不在开机场景树里的那些）。</summary>
+    private static readonly List<WeakReference<ShaderMaterial>> ExtraSeeds = new();
+
+    /// <summary>登记去重用的材质 id（GetInstanceId）：池化材质按阵营/外观各建一张时避免重复登记。</summary>
+    private static readonly HashSet<ulong> ExtraSeedIds = new();
+
     private bool _drawn;
+
+    /// <summary>
+    /// 把不在开机场景树里的材质纳入预热（只收 <see cref="ShaderMaterial"/>：预热面就是着色器编译，
+    /// 主场景树的收集面同此口径）。弹体材质是懒创建池化的——第一次开火前它不在树上，预热扫不到，
+    /// 于是着色器编译落在「第一发开火」那一帧上，正是 <see cref="FrameCache.MaxStepDelta"/> 要兜住的
+    /// 那种巨帧，不注册就会当场顿一下。静态只持**弱引用**：材质本体由持有方（对象池）保管，本机制不
+    /// 延长其生命周期——静态强持 Godot 对象会在引擎退出 finalize 期 segfault（本仓库踩过），
+    /// 且未走预热路径的场景（标题屏 / 练习 / 从标题屏直入）根本不会清空这张表。
+    /// 登记须早于开机那一轮的预热：预热已跑完后登记是空操作（不排队、不补画）。
+    /// </summary>
+    public static void RegisterExtraSeed(ShaderMaterial material)
+    {
+        if (material == null || !GodotObject.IsInstanceValid(material))
+        {
+            return;
+        }
+
+        if (ExtraSeedIds.Add(material.GetInstanceId()))
+        {
+            ExtraSeeds.Add(new WeakReference<ShaderMaterial>(material));
+        }
+    }
 
     public override void _Ready()
     {
         Layer = CoverLayer;
         var seenShaders = new HashSet<ulong>();
         var mats = new List<Material>();
+        // 注册面先合并（scene 树收集会按 shader 去重，两边合流后各 shader 只画一次）
+        foreach (var weak in ExtraSeeds)
+        {
+            if (weak.TryGetTarget(out var extra) && GodotObject.IsInstanceValid(extra)
+                && extra.Shader != null && seenShaders.Add(extra.Shader.GetInstanceId()))
+            {
+                mats.Add(extra);
+            }
+        }
+
+        ExtraSeeds.Clear();
+        ExtraSeedIds.Clear(); // 静态不留 Godot 引用（也不会跨场景残留）
         Collect(GetTree().Root, seenShaders, mats);
         foreach (var mat in mats)
         {

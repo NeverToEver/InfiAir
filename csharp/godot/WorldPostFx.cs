@@ -11,6 +11,8 @@ namespace InfiAir;
 /// 性能纪律：
 /// - 关闭（设置 WorldPostFx=false）时整层 Visible=false，常态零 GPU；
 /// - reduce_flash 时颗粒置零、辉光强度减半（不改变亮部阈值，保持画面结构）；
+/// - 全屏呼吸（u_rhythm）由节奏服务给出，关闭 / 减闪 / 动效强度 0 时它都是精确 0——
+///   本层只上传，相位、硬线与强度缩放全在 VisualRhythm（单一同步源，判据 4）；
 /// - quality 档（effects.world_post.quality）控制环采样数（≥0.5 双环 8 tap / 否则单环 4 tap）；
 /// - 参数仅在变化时上传（epsilon 检测），时间 uniform 每帧更新（颗粒/无）。
 ///
@@ -84,6 +86,7 @@ public partial class WorldPostFx : CanvasLayer
     private static readonly StringName UHitPulse = new("u_hit_pulse");
     private static readonly StringName UChroma = new("u_chroma");
     private static readonly StringName UScanline = new("u_scanline");
+    private static readonly StringName URhythm = new("u_rhythm");
 
     public WorldPostFx()
     {
@@ -209,6 +212,14 @@ public partial class WorldPostFx : CanvasLayer
         {
             _rect.Visible = _enabled;
         }
+
+        // 关闭＝回到改造前：把全屏呼吸显式写回精确 0。隐藏层不绘制，但值要回中性——
+        // 重新打开的那一帧不该先亮一下残留振幅；_last 同步置位，守卫的比较基准与材质实际值必须一致
+        if (!_enabled && _mat != null)
+        {
+            _last[URhythm] = 0.0f;
+            _mat.SetShaderParameter(URhythm, 0.0f);
+        }
     }
 
     private void OnWorldPostFxChanged(bool enabled)
@@ -248,9 +259,9 @@ public partial class WorldPostFx : CanvasLayer
         SetIfChanged(UGrain, grain);
     }
 
-    /// <summary>动态战斗分级 + 重击脉冲：只读 Engine.TimeScale 与震屏信号，
-    /// 写出 u_combat_ramp / u_hit_pulse / u_chroma / u_scanline（全部 epsilon 守卫）。
-    /// 中性时四者恒为精确 0，shader 分支跳过——不产生永久观感偏移、零额外 GPU 成本。</summary>
+    /// <summary>动态战斗分级 + 重击脉冲 + 全屏呼吸：只读 Engine.TimeScale、震屏信号与节奏服务，
+    /// 写出 u_combat_ramp / u_hit_pulse / u_chroma / u_scanline / u_rhythm（全部 epsilon 守卫）。
+    /// 中性时五者恒为精确 0，shader 分支跳过——不产生永久观感偏移、零额外 GPU 成本。</summary>
     private void UpdateCombatLayer(float d)
     {
         var ts = (float)Engine.TimeScale;
@@ -271,10 +282,15 @@ public partial class WorldPostFx : CanvasLayer
         // 减少闪光：色差/扫描线属可触发附加层，直接置零；重击脉冲减半
         var chroma = _reduceFlash ? 0.0f : _combatRamp * CombatChromaMax;
         var scanline = _reduceFlash ? 0.0f : _combatRamp * CombatScanlineMax;
+        // 全屏呼吸：唯一同步源在 VisualRhythm（相位/减闪归零/峰谷硬线/动效强度都在它那边算完），
+        // 本层只做上传。取不到服务即中性 0（标题屏等无节奏服务的场景）；非有限值落 0——
+        // NaN 会顺乘法污染整屏输出而引擎零报错
+        var rhythm = VisualRhythm.Instance?.FullScreenRhythm ?? 0.0f;
         SetIfChanged(UCombatRamp, _combatRamp);
         SetIfChanged(UHitPulse, pulse);
         SetIfChanged(UChroma, chroma);
         SetIfChanged(UScanline, scanline);
+        SetIfChanged(URhythm, float.IsFinite(rhythm) ? rhythm : 0.0f);
     }
 
     /// <summary>震屏信号：仅重击（强度达阈）触发瞬时泛光/晕影脉冲；弱震不参与。</summary>
