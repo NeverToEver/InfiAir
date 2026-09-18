@@ -151,11 +151,23 @@
 
 来源：`docs.godotengine.org/en/stable/tutorials/rendering/renderers.html`、`.../tutorials/audio/sync_with_audio.html`、`learn.microsoft.com/en-us/xbox/accessibility/xbox-accessibility-guidelines/118`、`mystpixel.com/posts/5-visual-clutter-culprits-ruining-your-indie-game-s-combat-readability/`、`book.leveldesignbook.com/process/combat/enemy`、`sparen.github.io/ph3tutorials/ddsga2.html`（检索入口：`html.duckduckgo.com`）
 
+### 4.8 输入回应与交互性调研（2026-09-19）
+
+| 实践 | 本项目现状 |
+| --- | --- |
+| **game feel 三层模型**（Steve Swink《Game Feel》：实时控制 → 可预测空间 → polish；顺序不可倒——控制不即时，polish 只是把迟滞放大） | 输入路径已无迟滞（直接 `_PhysicsProcess` 读 `IsActionJustPressed`）；polish 五轮已收口；缺口在「请求被拒时的回应」 |
+| **输入宽容**：input buffering（早按的键在动作就绪瞬间生效）+ coyote time，窗口**远小于 150ms** | **本轮落地**：弹反/冲刺输入缓冲 0.1s（`player.input_buffer_window`；coyote time 是平台跳语境，本作无此形态，不做） |
+| **每个动作都要回应**；「silent actions」与「shake/flash on everything」并列手感杀手（Vlambeer 手法表：muzzle flash + hit sound 让每次射击「violent and immediate」） | **本轮落地**：命中 tick 音 + 弹反专属确认音 + 冷却/燃料拒绝回应；开火/冲刺/击杀/受击/事件反馈此前已成套（§2.7–§2.13） |
+| **声音承担一半权重**，是最被低估的通道；高频战斗音效须在声源限频防连发噪声 | 命中音走 SfxPlayer 目录表（45ms 最小间隔 + 复音 2 + 音高抖动防梳状滤波），与既有目录纪律一致 |
+| **关键帧 hit-stop**、**绝不让人在想做动作时等待**、动画忌匀速直线（Sakurai「on Creating Games」频道，按主题重构见 en.senkohome.com） | 顿帧已收口（§2.9）；「想做时别丢按键」由输入缓冲直接回应；缓动已在 §2.8 全面使用 |
+
+来源：`egmatic.com/blog/how-to-make-your-game-feel-good`（2026-07，game feel 手法表与三层模型综述）、`en.senkohome.com/sakurai-game-dev-specification/`（Sakurai 频道 18 期按主题重构；原频道 youtube.com/@sora_sakurai_en）、`gamedesignskills.com/game-design/game-feel/`（Swink 三层模型的通识转述）
+
 ## 5 参考来源（本次实际可访问）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`、`wiki.creativecommons.org/wiki/Recommended_practices_for_attribution`
 **素材站**：`kenney.nl/support`、`kenney.nl/assets/category:Audio`、`opengameart.org/content/faq`、`freesound.org/help/faq/`、`game-icons.net/about.html`、`polyhaven.com/license`、`ambientcg.com/license`、`godotshaders.com/faq/`、`incompetech.com/music/royalty-free/faq.html`、`freepd.com`、`lucide.dev/license`、`github.com/feathericons/feather`、`github.com/google/material-design-icons`、`github.com/chr15m/jsfxr`
-**玩法与无障碍**：`hardcoregaming101.net/battle-garegga`、`.../dodonpachi`、`.../touhou`、`gdcvault.com/play/1023470`、`hardingfpa.com`、`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`accessible.games/accessible-player-experiences/`
+**玩法与无障碍**：`hardcoregaming101.net/battle-garegga`、`.../dodonpachi`、`.../touhou`、`gdcvault.com/play/1023470`、`hardingfpa.com`、`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`accessible.games/accessible-player-experiences/`、`egmatic.com/blog/how-to-make-your-game-feel-good`、`en.senkohome.com/sakurai-game-dev-specification/`、`youtube.com/@sora_sakurai_en`、`gamedesignskills.com/game-design/game-feel/`
 **测试与引擎**：`arxiv.org/abs/2202.12777`、`.../2208.07811`、`.../2107.12061`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,physics/interpolation/index,scripting/c_sharp/*}`
 **智能体指令与规则治理**：`code.claude.com/docs/en/{memory,best-practices,skills}`、`cursor.com/docs/context/rules`、`docs.cline.bot/features/cline-rules`、`code.visualstudio.com/docs/copilot/customization/custom-instructions`、`docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions`、`agents.md`、`github.com/openai/codex`（`codex-rs/core/gpt_5_2_prompt.md`）、`github.com/anthropics/skills`（skill-creator）、`anthropic.com/engineering/effective-context-engineering-for-ai-agents`、`humanlayer.dev/blog/writing-a-good-claude-md`、`trychroma.com/research/context-rot`、`arxiv.org/abs/2507.11538`（IFScale）、`.../2602.11988`（ETH Zurich 上下文文件实测，预印本）、`.../2307.03172`（lost-in-the-middle）、`.../2404.02060`、`.../2608.11095`（指令生命周期实测，预印本）、`martinfowler.com/bliki/ArchitectureDecisionRecord.html`、`martinfowler.com/articles/continuousIntegration.html`、`kubernetes.io/docs/reference/using-api/deprecation-policy/`、`peps.python.org/pep-0387/`、`openjdk.org/jeps/182`、`bazel.build/{release/backward-compatibility,reference/be/common-definitions}`、`eslint.org/docs/latest/use/rule-deprecation`、`docs.gitlab.com/ee/development/documentation/{workflow,styleguide}.html`、`abseil.io/resources/swe-book/html/{ch08,ch10,ch11,ch20,ch23}.html`、`arxiv.org/abs/1810.05286`（Meta 预测式选测）、`learn.microsoft.com/en-us/azure/devops/pipelines/{test/test-impact-analysis,test/flaky-test-management}`
 
