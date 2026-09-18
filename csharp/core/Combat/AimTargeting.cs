@@ -20,6 +20,24 @@ public static class AimTargeting
     public static bool InFrame(float px, float py, float cx, float cy, float half)
         => Abs(px - cx) <= half && Abs(py - cy) <= half;
 
+    /// <summary>点是否落在圆内（含边界）：方框粗筛省平方；负/NaN 半径（数据损坏）恒不含。</summary>
+    public static bool InCircle(float px, float py, float cx, float cy, float radius)
+    {
+        if (!(radius >= 0.0f))
+        {
+            return false;
+        }
+
+        var dx = Abs(px - cx);
+        var dy = Abs(py - cy);
+        if (dx > radius || dy > radius)
+        {
+            return false;
+        }
+
+        return dx * dx + dy * dy <= radius * radius;
+    }
+
     /// <summary>框沿距（点未入框时的欧氏距离，入框为 0）：只取框外分量——
     /// 单轴出框时另一轴为负，把负分量计入长度会系统性偏近（磁吸偏弱、range 边界误判）。</summary>
     public static float FrameEdgeDistance(float px, float py, float cx, float cy, float half)

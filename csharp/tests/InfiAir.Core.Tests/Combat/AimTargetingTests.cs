@@ -29,6 +29,21 @@ public sealed class AimTargetingTests
     }
 
     [Fact]
+    public void InCircle_BoundaryAndRoughReject()
+    {
+        // 3-4-5：恰在圆周上算含（含边界），框内但圆外不算
+        Assert.True(AimTargeting.InCircle(3.0f, 4.0f, 0.0f, 0.0f, 5.0f));
+        Assert.False(AimTargeting.InCircle(3.0f, 4.0f, 0.0f, 0.0f, 4.9f));
+
+        // 圆含于方框：框内但出圆的角点必须排除（坏实现只做方框粗筛即此红）
+        Assert.False(AimTargeting.InCircle(4.4f, 4.4f, 0.0f, 0.0f, 5.0f));
+
+        // 数据损坏（负/NaN 半径）恒不含，不得抛出或误含
+        Assert.False(AimTargeting.InCircle(0.0f, 0.0f, 0.0f, 0.0f, -1.0f));
+        Assert.False(AimTargeting.InCircle(0.0f, 0.0f, 0.0f, 0.0f, float.NaN));
+    }
+
+    [Fact]
     public void FrameEdgeDistance_UsesOnlyOutsideComponent()
     {
         // 单轴出框（x 出 5，y 在框内 → y 的分量为负）：只计框外分量，长度 = 5
