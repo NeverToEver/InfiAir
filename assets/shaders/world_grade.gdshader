@@ -64,6 +64,16 @@ vec3 bright(vec2 uv) {
     return max(c - vec3(u_bloom_threshold), vec3(0.0));
 }
 
+// 胶片颗粒哈希（Hash without Sine，D. Hoskins）。**不用 sin**：GL 驱动上的 sin 是大参数近似实现，
+// 各家结果不同（同一帧在不同 GPU 上颗粒花样不一样），且精度随参数增大退化——u_time 无上界，
+// 长局里 sin 的参数会涨到 1e5 量级，落到「每次采样都不可靠」的一侧。本式全程只有乘加与 fract，
+// 输入再大也只是精度缓降，不会退化成结构化条带。
+float grain_hash(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.zyx + 31.32);
+    return fract((p.x + p.y) * p.z);
+}
+
 void fragment() {
     vec3 center = texture(screen_texture, SCREEN_UV).rgb; // 本像素原色：色差与亮部提取共用，只取一次
     vec3 base = center;
@@ -80,7 +90,7 @@ void fragment() {
     float k1 = 0.7071;
     vec2 o1 = vec2(1.0, 0.0);
     vec2 o2 = vec2(k1, k1);
-    // 中心 tap 直接用上面那次采样（同一 sampler、同一 UV、同一 LOD，逐位等价）——不复取全屏纹理
+    // 中心 tap 直接用上面那次采样（同一 sampler、同一 UV、同一 LOD，逐位等价），不重复取全屏纹理
     vec3 bloom = max(center - vec3(u_bloom_threshold), vec3(0.0)) * 0.28;
     bloom += bright(SCREEN_UV + o1 * u_texel * r);
     bloom += bright(SCREEN_UV - o1 * u_texel * r);
@@ -112,7 +122,10 @@ void fragment() {
 
     // ---- 晕影：中心 1 → 边缘压暗（ramp 加深；重击脉冲瞬时加深） ----
     float d = distance(SCREEN_UV, vec2(0.5)) * 1.4142; // 归一化到角部 ≈1
-    float vig = smoothstep(0.95, 0.35, d);
+    // 边序写正、取补：GLSL ES 规范里 smoothstep 的 edge0 ≥ edge1 是**未定义行为**
+    // （实现普遍按 clamp((x−e0)/(e1−e0)) 算，落到哪一侧看驱动）。数学上 1−smoothstep(a,b,x)
+    // 与 smoothstep(b,a,x) 恒等（S 曲线满足 f(1−t)=1−f(t)），故本写法与原式等价而不再是 UB。
+    float vig = 1.0 - smoothstep(0.35, 0.95, d);
     float vig_amt = clamp(u_vignette + u_combat_ramp * 0.12 + u_hit_pulse * 0.22, 0.0, 1.0);
     c *= mix(1.0, vig, vig_amt);
 
@@ -124,8 +137,7 @@ void fragment() {
 
     // ---- 胶片颗粒（静态灰噪 + 时间抖动；reduce_flash 时 u_grain=0） ----
     if (u_grain > 0.0001) {
-        vec2 px = FRAGCOORD.xy;
-        float g = fract(sin(dot(px, vec2(12.9898, 78.233)) + u_time * 19.7) * 43758.5453);
+        float g = grain_hash(vec3(FRAGCOORD.xy, u_time * 19.7));
         c += (g - 0.5) * u_grain;
     }
 
