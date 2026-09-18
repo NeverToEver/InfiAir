@@ -56,13 +56,16 @@
 #      （那份产物根本没被重写）＝覆盖静默缩小。scripts/tools 下每个 .py 要么被 regenerate_all
 #      调用、要么登记进 TOOLS_IGNORE（独立工具，逐条写理由）、要么是被调用生成器 import 的共享
 #      模块——新生成器忘挂进 regenerate_all 即红。
-#   g) AGENTS.md 的体积预算（AGENTS §6 铁律 4）：该文件每轮注入智能体上下文，膨胀是**静默成本**
-#      ——没有报错、没有日志，只是每轮多付一点，直到读的人开始整段跳过。超预算即红，使「再加
-#      一条规则」必须同时是「先删或先精简」或「显式抬高预算」的有意识决定（改数会出现在 diff 里）；
-#      另判下限：文件被清空 / 截断时只判上限会平凡通过，故两侧都判。
+#   g) 活跃文档的体积预算（AGENTS §6 铁律 4）：`AGENTS.md` 每轮注入上下文、`ROADMAP.md` 是每次
+#      定位方向的第一读，膨胀都是**静默成本**——没有报错、没有日志，只是每轮多付一点，直到读的
+#      人开始整段跳过。超预算即红，使「再加一批内容」必须同时是「先删或先归档」或「显式抬高预算」
+#      的有意识决定（改数会出现在 diff 里）；另判下限：文件被清空 / 截断时只判上限会平凡通过。
+#   h) 门禁命中台账（`docs/GATE_LEDGER.md`）与 gates.py 的步骤登记集一一对应：新增门禁不带一行
+#      = 未来提议退役时它没有可查的依据面；台账里的行指向不存在的门禁 = 改名/删除后台账未同步，
+#      退役决策会基于不存在的判据。台账的「最近命中有没有记」是人工维护的，本门禁只判行集完整。
 # 「取不到判据」防线：脚本集为空、gates.py 登记集为空、ci.yml 调用集为空、CI 步骤解析不出、
-# 趟次为 0、帧数非正整数、配置项找不到、发布包候选枚举为空、生成器集合为空、版本断言解析不出，
-# 一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
+# 趟次为 0、帧数非正整数、配置项找不到、发布包候选枚举为空、生成器集合为空、版本断言解析不出、
+# 台账解析不出任何行，一律红（AGENTS §6 铁律 2：取不到判据必须显式失败）。
 #
 # 本门禁是**元门禁**（judge 门禁自身），不判业务行为，故不产生质量信号；
 # 但它判的是「判据是否存在」，静默错误的代价与质量门禁同级，故计入质量门禁表。
@@ -92,14 +95,23 @@ TOOLS_IGNORE = {
 
 errors: list[str] = []
 MISSING = object()
-# 纪律单源文件的体积预算（AGENTS §6 铁律 4）：该文件每轮注入上下文，膨胀是静默成本。
-# 预算只比当前实测略高，取「再加一条规则就会越线」的量级——越线时先删或先精简，或显式抬高本值。
-AGENTS_MD = ROOT / "AGENTS.md"
-AGENTS_MD_BUDGET = 11000
+# 活跃文档的体积预算（AGENTS §6 铁律 4）：`AGENTS.md` 每轮注入上下文，`ROADMAP.md` 是每次定位
+# 方向的第一读——两者的膨胀都是**静默成本**（没有报错、没有日志，只是每轮/每次多付一点）。
+# 预算只比当前实测略高，取「再加一批内容就会越线」的量级：越线时先删或先归档，或显式抬高本值
+# （改数会出现在 diff 里，是一次决定而非漂移）。
+SIZE_BUDGETS = (
+    (ROOT / "AGENTS.md", 11000, "该文件每轮注入上下文：先删或先精简再加"),
+    (ROOT / "docs" / "ROADMAP.md", 28000,
+     "通读成本：按 Maintenance 把最旧的决策原文搬进 docs/DECISIONS_ARCHIVE.md"),
+)
+SIZE_FLOOR_RATIO = 3   # 低于预算的 1/3 视为「文件被清空 / 截断」（只判上限时这种形态会平凡通过）
+# 门禁命中台账：与 gates.py 的步骤登记集一一对应（缺行 = 新门禁没有可查的退役依据）
+LEDGER = ROOT / "docs" / "GATE_LEDGER.md"
 # 结论行要报的计数（在各自的判定段里填充；取不到判据时对应的错误已另报，结论行只在零错误时打印）
 package_candidates = 0                # e3：发布包候选文件数（被 exclude 覆盖的那些）
 generator_called: set[str] = set()    # f：regenerate_all.sh 实际调用的生成器
-agents_size = 0                       # g：AGENTS.md 字符数
+size_report: list[str] = []           # g：各活跃文档的体积读数
+ledger_rows: set[str] = set()         # h：台账里登记的门禁
 
 
 def read(path: pathlib.Path):
@@ -977,20 +989,47 @@ if smoke_text is not None:
             "——字符串写错则该断言永不可能通过；只出现在注释或非打印文案里都不算打印点"
         )
 
-# g) 纪律单源文件的体积预算（两侧都判：只判上限时，文件被清空/截断会平凡通过）
-agents_text = read(AGENTS_MD)
-if agents_text is not None:
-    agents_size = len(agents_text)
-    if agents_size > AGENTS_MD_BUDGET:
+# g) 活跃文档的体积预算（两侧都判：只判上限时，文件被清空/截断会平凡通过）
+for budget_path, budget, budget_hint in SIZE_BUDGETS:
+    budget_text = read(budget_path)
+    if budget_text is None:
+        continue
+    budget_size = len(budget_text)
+    size_report.append(f"{budget_path.name} {budget_size}/{budget}")
+    if budget_size > budget:
         errors.append(
-            f"AGENTS.md 已 {agents_size} 字符，超出预算 {AGENTS_MD_BUDGET}——该文件每轮注入上下文，"
-            "膨胀是静默成本（没有报错、只是每轮多付一点）。先删或先精简既有表述再加；"
-            "确有必要则显式抬高 AGENTS_MD_BUDGET，并在提交正文说明为什么值得"
+            f"{budget_path.relative_to(ROOT).as_posix()} 已 {budget_size} 字符，超出预算 {budget}"
+            f"——{budget_hint}；确有必要则显式抬高预算，并在提交正文说明为什么值得"
         )
-    elif agents_size < AGENTS_MD_BUDGET // 3:
+    elif budget_size < budget // SIZE_FLOOR_RATIO:
         errors.append(
-            f"AGENTS.md 只有 {agents_size} 字符（不足预算 {AGENTS_MD_BUDGET} 的三分之一）"
-            "——文件被清空或路径漂移？取不到判据，拒绝判 clean"
+            f"{budget_path.relative_to(ROOT).as_posix()} 只有 {budget_size} 字符"
+            f"（不足预算 {budget} 的三分之一）——文件被清空或路径漂移？取不到判据，拒绝判 clean"
+        )
+
+# h) 门禁命中台账与步骤登记集一一对应（AGENTS §6 准入门槛：新门禁要写退役条件，而退役条件
+#    要靠台账判；新门禁不带一行 = 未来提议退役时它没有可查的依据面）
+ledger_text = read(LEDGER)
+if ledger_text is not None:
+    for row in re.findall(r"(?m)^\|([^|]+)\|", ledger_text):
+        cell = row.strip().strip("`").strip()
+        if cell and cell != "门禁" and not set(cell) <= {"-", ":", " "}:
+            ledger_rows.add(cell)
+    if not ledger_rows:
+        errors.append(
+            f"{LEDGER.relative_to(ROOT).as_posix()} 未解析出任何门禁行——表格结构漂移？"
+            "取不到判据，拒绝判 clean"
+        )
+    for step in gates_order:
+        if step not in ledger_rows:
+            errors.append(
+                f"门禁 {step} 在 {LEDGER.relative_to(ROOT).as_posix()} 里没有对应行"
+                "——新增门禁必须同提交带上台账行（退役条件的唯一依据面）"
+            )
+    for row_name in sorted(ledger_rows - set(gates_order)):
+        errors.append(
+            f"{LEDGER.relative_to(ROOT).as_posix()} 里的「{row_name}」不是 gates.py 登记的门禁"
+            "——门禁改名/删除后台账未同步，退役决策会基于不存在的判据"
         )
 
 if errors:
@@ -1004,7 +1043,7 @@ print(
     f"{len(ci_steps) if ci_steps else 0} 个 CI 步骤无容错属性；另有 {len(HELPER_MODULES)} 个共用模块被门禁 import）；"
     f"冒烟 {len(cases)} 趟各自配对完成标记断言（下限 {MIN_SMOKE_CASES}）、标记均有对应打印点；"
     f"发布包候选 {package_candidates} 个（ProbeHost/探针场景/tests 树）全被 exclude 覆盖；"
-    f"AGENTS.md {agents_size}/{AGENTS_MD_BUDGET} 字符；"
+    f"{'、'.join(size_report)} 字符（预算内）；台账 {len(ledger_rows)} 行与登记集一致；"
     f"regenerate_all 覆盖 {len(generator_called)} 个生成器"
 )
 PY
