@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
@@ -170,10 +171,12 @@ public partial class SegmentedBar : Control
     private static readonly Color GhostColor = new(UITheme.Danger, 0.5f);
 
     /// <summary>分段模式下让第 index 段短闪（Boss 掉血时指向刚被消耗的那段）。
-    /// ReduceFlash 开启时直接跳过——无障碍下不做亮度泵动。</summary>
+    /// 减少闪光下直接跳过（判据单源在 core FlashBudget）——无障碍下不做亮度泵动，
+    /// 掉的是哪一段仍由残影段表达。</summary>
     public void FlashSegment(int index)
     {
-        if (index < 0 || index >= Segments || GameState.Instance.ReduceFlash)
+        if (index < 0 || index >= Segments
+            || !FlashBudget.AllowsOneShot(OneShotFlashId.HealthBarSegment, GameState.Instance.ReduceFlash))
         {
             return;
         }

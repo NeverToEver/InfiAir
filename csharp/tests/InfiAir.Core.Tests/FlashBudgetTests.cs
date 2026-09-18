@@ -80,4 +80,25 @@ public sealed class FlashBudgetTests
             Assert.Equal(0.5f, FlashBudget.Amplitude(0.5f, src.Id, reduceFlash: false));
         }
     }
+
+    [Fact]
+    public void OneShots_RowOrderMatchesEnum_AndGateHasBothHalves()
+    {
+        // 一次性闪光无频率可言（不进频率表），门控同样单源在这里：行序错位时 AllowsOneShot
+        // 会读到别人的处置，而调用点看到的仍是「合法值」
+        Assert.Equal(Enum.GetValues<OneShotFlashId>().Length, FlashBudget.OneShots.Length);
+        for (var i = 0; i < FlashBudget.OneShots.Length; i++)
+        {
+            Assert.Equal((OneShotFlashId)i, FlashBudget.OneShots[i].Id);
+
+            var id = (OneShotFlashId)i;
+            Assert.True(
+                FlashBudget.OneShots[i].SuppressedByReduceFlash,
+                $"{id} 登记为减闪下不抑制——加例外须同时改本判据与理由");
+            Assert.False(FlashBudget.AllowsOneShot(id, reduceFlash: true));
+            // 非减闪那半同样要判：一律返回 false 的实现会让「减少闪光下仍闪一下」退化成
+            // 「什么都不闪」——玩家没开减闪时本该看到这些确认反馈
+            Assert.True(FlashBudget.AllowsOneShot(id, reduceFlash: false));
+        }
+    }
 }

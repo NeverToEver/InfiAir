@@ -22,6 +22,28 @@ public enum PulseId
     StarfieldTwinkle,
 }
 
+/// <summary>一次性闪光的标识（枚举顺序即 <see cref="FlashBudget.OneShots"/> 的行序）。</summary>
+public enum OneShotFlashId
+{
+    /// <summary>能力槽（相位冲刺 / 弧光弹反）由未就绪转就绪瞬间的外扩脉冲。</summary>
+    AbilityReadyPulse,
+
+    /// <summary>血条掉段闪：Boss 掉血时指向刚被消耗的那一段。</summary>
+    HealthBarSegment,
+
+    /// <summary>Boss 阶段切换瞬间的整条血条提亮。</summary>
+    BossPhase,
+}
+
+/// <summary>一次性闪光登记行：无频率可言（不进 <see cref="FlashBudget.Sources"/>），但同样受「减少闪光」约束。</summary>
+/// <param name="Id">枚举下标即表序（单测钉住两者对齐，防插入行时错位）。</param>
+/// <param name="SuppressedByReduceFlash">减少闪光下是否抑制——本表全部为真，加例外须同时改单测。</param>
+/// <param name="Note">为什么这样登记（核对时比 Id 本身重要）：抑制后哪一半读数仍在。</param>
+public readonly record struct OneShotFlash(
+    OneShotFlashId Id,
+    bool SuppressedByReduceFlash,
+    string Note);
+
 /// <summary>登记行：频率一律以 Hz 表达（周期型来源在表里换算后登记）。</summary>
 /// <param name="Id">枚举下标即表序（单测钉住两者对齐，防插入行时错位）。</param>
 /// <param name="Hz">该源的最高闪烁频率。</param>
@@ -56,7 +78,9 @@ public readonly record struct PulseSource(
 ///     激光辉光、轮盘开机物化频闪都属面积豁免之列（它们各自受不受「减少闪光」约束，见各自实现）。
 ///   - 标题屏的远景爆炸、光带与按键提示是「待人类裁定」条目的处置对象（见 `docs/ROADMAP.md`），
 ///     也不是本表的判据面。
-///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪）无频率可言。
+///   - 表只登记**周期型**脉冲；一次性闪光（就绪脉冲、血条掉段闪、Boss 阶段闪）无频率可言，
+///     不进频率表——但它们的减闪门控同样单源在本类（<see cref="AllowsOneShot"/>），
+///     三个站点各自引它，判据面是「core 单测的两半互补 + 探针按正反两半各采样一次」。
 /// </summary>
 public static class FlashBudget
 {
@@ -101,6 +125,26 @@ public static class FlashBudget
 
     /// <summary>登记行（下标即枚举值）。</summary>
     public static PulseSource Source(PulseId id) => Sources[(int)id];
+
+    /// <summary>一次性闪光登记表：行序与 <see cref="OneShotFlashId"/> 枚举一致（单测钉住）。</summary>
+    public static readonly OneShotFlash[] OneShots =
+    {
+        new(Id: OneShotFlashId.AbilityReadyPulse, SuppressedByReduceFlash: true,
+            Note: "就绪仍以字形点亮与满环表达，抑制后读数不丢"),
+        new(Id: OneShotFlashId.HealthBarSegment, SuppressedByReduceFlash: true,
+            Note: "掉的是哪一段仍由残影段表达"),
+        new(Id: OneShotFlashId.BossPhase, SuppressedByReduceFlash: true,
+            Note: "名牌与阶段标签照常刷新，只停整条提亮"),
+    };
+
+    /// <summary>登记行（下标即枚举值）。</summary>
+    public static OneShotFlash OneShot(OneShotFlashId id) => OneShots[(int)id];
+
+    /// <summary>一次性闪光是否放行——生产的唯一判据口（三个站点各自引它，不留本地布尔副本）。
+    /// 两半互补：只有「非减闪一律放行」会让写反的实现混过，只有「减闪下一律抑制」会让
+    /// 「一律不闪」混过，故单测两半都判。</summary>
+    public static bool AllowsOneShot(OneShotFlashId id, bool reduceFlash)
+        => !reduceFlash || !OneShot(id).SuppressedByReduceFlash;
 
     /// <summary>振幅预算：减少闪光下，登记为「归零」的脉冲源一律返回 0，其余原样返回。
     /// 生产把各自的振幅经这里过一道——「开关认了、某处脉冲没认」这类静默残留就只剩一处可写。</summary>

@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core;
 
 namespace InfiAir;
 
@@ -97,7 +98,7 @@ public partial class AbilitySocket : Control
         }
 
         _ready = ready;
-        if (ready && !_reduceFlash)
+        if (ready && FlashBudget.AllowsOneShot(OneShotFlashId.AbilityReadyPulse, _reduceFlash))
         {
             _pulse = 0.0f; // 就绪瞬间的确认反馈：外扩一圈后收紧，此后不再动
             SetProcess(true);

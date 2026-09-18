@@ -1360,13 +1360,14 @@ public partial class Hud : CanvasLayer
         RefreshBossName();
     }
 
-    /// <summary>阶段切换瞬间血条短闪（§4.2）。ReduceFlash 下只刷新名牌——整条 600px 血条被抬到
-    /// 2.2 倍亮度再回落正是该开关要挡的光敏脉冲（同血条的掉段闪已在 SegmentedBar 内门控）。</summary>
+    /// <summary>阶段切换瞬间血条短闪（§4.2）。减少闪光下只刷新名牌——整条 600px 血条被抬到
+    /// 2.2 倍亮度再回落正是该开关要挡的光敏脉冲（门控判据单源在 core FlashBudget，
+    /// 同血条的掉段闪在 SegmentedBar 内走同一处）。</summary>
     private void OnBossPhaseChanged(int phase)
     {
         _bossPhase = phase;
         RefreshBossName();
-        if (GameState.Instance.ReduceFlash)
+        if (!FlashBudget.AllowsOneShot(OneShotFlashId.BossPhase, GameState.Instance.ReduceFlash))
         {
             _bossBar.Modulate = Colors.White; // 峰值 1.0 即等同无闪（并清掉上一次可能残留的提亮）
             return;
