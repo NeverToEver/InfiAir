@@ -84,10 +84,18 @@ public partial class Bullet : Area2D, IParryable
     private float _pulsePhase; // 激活时随机，全场弹相位错开防同步闪烁
 
     /// <summary>共享图集 Sprite2D（弹体 + 白芯 + 双层辉光 + 能量尾迹光栅化进单张共享纹理）。
-    /// 48×16 图集：弹头贴右缘（几何与原 24×8 一致），左侧余量画弹尾渐变拖尾；
-    /// 视觉缩放不变，屏幕观感与判定对应关系不变。</summary>
+    /// 48×16 图集：弹体落在贴图正中，左侧余量画弹尾渐变拖尾。
+    /// **不变式：弹体多边形（<see cref="ArrowBody"/>）的几何中心＝贴图中心＝节点原点**——
+    /// Sprite2D 默认 centered（代码与 bullet.tscn 都没有改写 Offset/Centered/region），
+    /// 贴图中心即节点原点，而碰撞圆（<see cref="CollisionRadius"/>）也在原点；两者一旦错开，
+    /// 可见弹体就沿飞行方向整体前移，在 2.8px 判定核下表现为「明明躲过了却中弹」。
+    /// 由来：图集从 24×8 加宽到 48×16（弹尾与双层辉光入库）时 TexOffset 由 (11,4) 改成 (35,8)，
+    /// 而 ArrowBody 的几何中心在 x = +1（x∈[−10,+12]），于是中心落在 35+1 = 36、贴图中心却是 24
+    /// ——前移 12 图集像素（玩家弹 ×1.3 ≈ 15.6px、敌弹 ×2.4 ≈ 28.8px）。
+    /// 现取值 23 = 24 − 1 把弹体中心拉回贴图中心；改此值必须同时核对全部绘制元素不越 48×16
+    /// （弹体 px 13..38、描边 px 12..40、尾迹 px 1..16）并同步 shader 的 u_tail_end。</summary>
     private static readonly Vector2I TexSize = new(48, 16);
-    private static readonly Vector2 TexOffset = new(35.0f, 8.0f);
+    private static readonly Vector2 TexOffset = new(23.0f, 8.0f);
     private static readonly Vector2[] ArrowBody =
     {
         new(-10, -3), new(4, -3), new(12, 0), new(4, 3), new(-10, 3),
@@ -629,6 +637,11 @@ public partial class Bullet : Area2D, IParryable
         // modulate 复位为白（玩家弹呼吸脉冲亮度残留——反射/换阵营复用同实例）
         _sprite.SelfModulate = Colors.White;
         _sprite.Modulate = Colors.White;
+        // 弹尾能量动效：共享材质（VisualRhythm 持有并逐帧上传 u_beat/u_intensity）——同一张纹理、
+        // 同一个四边形内的 UV 域调制，零新增 draw call 与采样。取不到节奏服务时**保持不赋值**
+        // （教程/标题等没有节奏层的场景照常绘制：少一份尾部动效，不是错误路径）。
+        // 每弹赋值一次即可（activate/换阵营都经本方法），逐弹新建材质会各带一份 uniform 状态。
+        _sprite.Material = VisualRhythm.Instance?.BulletMaterial;
         // 不在此复位 bullet_type meta：写入侧已全部退役、全库无读取点
         if (IsPlayerBullet)
         {

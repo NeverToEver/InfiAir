@@ -99,6 +99,15 @@ public partial class WorldPostFx : CanvasLayer
     public override void _Ready()
     {
         Layer = 1;
+        // 节奏层自举：title.tscn / tutorial.tscn 没有 Main，本层是这两个场景里唯一必然存在的视觉服务
+        // ——没有它就没有节奏源（全屏呼吸取不到即中性 0），弹体也拿不到共享材质（Bullet 在取不到
+        // 实例时保持不赋值，尾部动效静默缺失）。main.tscn 里 Main 先建 VisualRhythm 再建本层
+        // （_EnterTree 即置位实例），故这里不会产生第二个实例——「每场景一份」由本判据保证。
+        if (VisualRhythm.Instance == null)
+        {
+            AddChild(new VisualRhythm());
+        }
+
         LoadCfg();
         _enabled = GameState.Instance.WorldPostFx;
         _reduceFlash = GameState.Instance.ReduceFlash;

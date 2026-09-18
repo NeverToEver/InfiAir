@@ -65,6 +65,14 @@ public partial class VisualRhythm : Node
     /// ——shader 侧 `c *= 1.0 + u_rhythm` 在 0 时逐位等于改造前的输出。</summary>
     public float FullScreenRhythm { get; private set; }
 
+    /// <summary>弹体共享材质（`assets/shaders/bullet_energy.gdshader`，全部弹体共用一份）：
+    /// 弹尾的能量流动与拍点微亮都在弹体自身四边形内完成——不新增 draw call、不新增采样、不新增几何
+    /// （Compatibility 后端不支持 `Particle trails`，且滞后几何会骗玩家，见 shader 头注释）。
+    /// <see cref="Bullet"/> 在 `ApplyFaction` 里取它；**取不到实例时保持不赋值**（优雅降级：
+    /// 少一份尾部动效，不是错误路径）。加载失败时为 null，同上。
+    /// 静态字段禁止持 Godot 对象（本仓库退出期 segfault 实测根因），故是实例字段。</summary>
+    public ShaderMaterial? BulletMaterial { get; private set; }
+
     // balance 缓存（`effects.motion.*`，_Ready 读一次；热路径零字典查）。
     // 默认值与 data/balance.json 同值：json 缺失/损坏时回退到同值而不是旧常数（§2.11）。
     private double _bpmBattle = 120.0;
@@ -75,6 +83,19 @@ public partial class VisualRhythm : Node
     private double _breathAmp = 0.025;
     private double _beatAttack = 0.08;
     private double _beatRelease = 0.2;
+    // 弹尾动效（B2）静态参数：流动相位速度与总亮度预算（`effects.motion.bullet_tail_*`，同上口径）
+    private float _tailFlowHz = 0.35f;
+    private float _tailAmp = 0.12f;
+
+    // 弹体共享材质的 uniform 名与上传守卫。守卫的比较基准初值必须**等于材质里的默认值**
+    // （u_beat 0 / u_intensity 1），否则「值没变就不写」会漏掉第一帧、材质停在默认值上。
+    private static readonly StringName UBulletBeat = new("u_beat");
+    private static readonly StringName UBulletIntensity = new("u_intensity");
+    private static readonly StringName UBulletFlowHz = new("u_flow_hz");
+    private static readonly StringName UBulletTailAmp = new("u_tail_amp");
+    private const float MaterialEpsilon = 0.001f;
+    private float _lastTailBeat;
+    private float _lastTailIntensity = 1.0f;
 
     /// <summary>音乐编排（Main 注入；未注入 / 尚未装载 / 无播放器时为 null → 降级路径）。</summary>
     private MusicDirector? _music;
@@ -118,6 +139,38 @@ public partial class VisualRhythm : Node
         _breathAmp = CfgFx.Float("effects.motion.breath_amp", (float)_breathAmp, 0.0f);
         _beatAttack = CfgFx.Float("effects.motion.beat_attack", (float)_beatAttack, 0.0f, 1.0f);
         _beatRelease = CfgFx.Float("effects.motion.beat_release", (float)_beatRelease, 0.0f, 1.0f);
+        // 弹尾动效：频率与预算是静态量（每帧变的只有拍点与强度），钳制防手改 JSON 写出零频率
+        // 或天文预算。**amp 是乘性增益的上限，不是亮度增量**——受控区只有弹尾的低 alpha 段
+        // （可见值约 0.02–0.17），增量式取值（如 0.12）实测只有 1–2/255 的变化、等于看不见；
+        // 取增益才有可读的脉动。上界 3.0（尾部最亮处 ×4）已远超任何合理观感，仅作护栏。
+        _tailFlowHz = CfgFx.Float("effects.motion.bullet_tail_flow_hz", _tailFlowHz, 0.0f, 10.0f);
+        _tailAmp = CfgFx.Float("effects.motion.bullet_tail_amp", _tailAmp, 0.0f, 3.0f);
+        CreateBulletMaterial();
+    }
+
+    /// <summary>
+    /// 建立弹体共享材质并把静态参数写进去（_Ready 一次）。
+    /// 为什么登记预热种子：弹体是懒创建池化的，开机那一刻**不在场景树里**——预热扫树扫不到它，
+    /// 不登记则着色器编译落在「第一发开火」那一帧（<see cref="FrameCache.MaxStepDelta"/> 要兜的巨帧）。
+    /// 附带收益是这条链把着色器语法错误变成**冒烟可判**的失败：预热那一帧会绘制本材质，
+    /// 编译错误由引擎打 `SHADER ERROR`（冒烟的错误正则含通用 `ERROR:` 前缀），而不是等玩家开火。
+    /// 加载失败（路径错 / 导出漏包）显式 PushError 并留 null：冒烟判红，且消费方本就按
+    /// 「取不到材质就不赋值」处理（静默降级会让「尾部动效没做」与「材质丢了」在画面上无从分辨）。
+    /// </summary>
+    private void CreateBulletMaterial()
+    {
+        var shader = GD.Load<Shader>("res://assets/shaders/bullet_energy.gdshader");
+        if (shader == null)
+        {
+            GD.PushError("[motion] 弹体能量 shader 加载失败：assets/shaders/bullet_energy.gdshader 取不到，弹尾动效缺失");
+            return;
+        }
+
+        var material = new ShaderMaterial { Shader = shader };
+        material.SetShaderParameter(UBulletFlowHz, _tailFlowHz);
+        material.SetShaderParameter(UBulletTailAmp, _tailAmp);
+        BulletMaterial = material;
+        ShaderPrewarm.RegisterExtraSeed(material);
     }
 
     /// <summary>注入音乐编排（Main 在建立 MusicDirector 之后调用）。未注入或注入 null 都走降级路径：
@@ -164,6 +217,39 @@ public partial class VisualRhythm : Node
         var wave = Breath01 * 2.0 - 1.0;
         var amp = FlashBudget.Amplitude((float)(_breathAmp * Intensity), PulseId.WorldBreath, GameState.Instance.ReduceFlash);
         FullScreenRhythm = (float)(wave * Rhythm.FullScreenHalfAmplitude(amp));
+
+        UploadBulletTail();
+    }
+
+    /// <summary>
+    /// 弹体共享材质的每帧上传（只有两项：拍点包络与动效强度）。零分配、零节点增删、不逐弹写参数
+    /// ——一份材质、两个 uniform 覆盖全场弹体。
+    /// 减少闪光下拍点归零：弹尾是屏占远低于 20% 的局部元素（不进 <see cref="FlashBudget"/> 频率表，
+    /// 拍点本就下放局部），但「闪烁/提亮脉冲在减闪下递减或停用」是既有纪律，故这里只关拍点、
+    /// **不动流动**——流动是慢渐变不是脉动，关掉它等于把本批动效整体撤掉（那是「动效强度」0 的语义，
+    /// 由 shader 侧的 u_intensity 分支兜住）。
+    /// epsilon 守卫：值不变时不写（与 WorldPostFx 同纪律，空闲帧零 GPU 参数更新）。
+    /// </summary>
+    private void UploadBulletTail()
+    {
+        var material = BulletMaterial;
+        if (material == null || !GodotObject.IsInstanceValid(material))
+        {
+            return;
+        }
+
+        var beat = GameState.Instance.ReduceFlash ? 0.0f : Beat01;
+        if (Mathf.Abs(beat - _lastTailBeat) > MaterialEpsilon)
+        {
+            _lastTailBeat = beat;
+            material.SetShaderParameter(UBulletBeat, beat);
+        }
+
+        if (Mathf.Abs(Intensity - _lastTailIntensity) > MaterialEpsilon)
+        {
+            _lastTailIntensity = Intensity;
+            material.SetShaderParameter(UBulletIntensity, Intensity);
+        }
     }
 
     /// <summary>

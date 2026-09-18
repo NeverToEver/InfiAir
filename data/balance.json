@@ -1213,7 +1213,9 @@
 			"breath_amp": 0.025,
 			"beat_attack": 0.08,
 			"beat_release": 0.2,
-			"beat_amp_local": 0.08
+			"beat_amp_local": 0.08,
+			"bullet_tail_flow_hz": 0.35,
+			"bullet_tail_amp": 1.5
 		}
 	},
 	"elite_turret_event": {
