@@ -39,7 +39,7 @@ Endless（§1.4），无固定结局；终局 = **必死曲线**（玩家成长�
 - **曲线公式**（core `Progression/`）：`mult = 1 + progression.per_boss_kill(0.6) × boss_kills + time`；时间项按 `time_step_seconds`(30s) 量化：`floor(run_time/30) × 0.075`（= `per_ten_minutes` 1.5 / 10min）；只计本局 `run_time`（树暂停与非本局场景不计）。`RecomputeDifficulty()` 统一入口（击杀 + 时间档 + 读档还原），广播 `DifficultyChanged`。
 - **敌方成长**：Boss HP `×(1 + boss.hp_ramp_factor(0.55) × (D−1))`（独立于杂兵；50s 逃逸阀门 = DPS 检查）；杂兵/精英 HP `enemies.hp_ramp_factor`(0.40) / 伤害 0.20 / 速度硬顶 `speed_ramp_cap`(×1.8)；事件单位（炮塔 / 编队）HP × `GameState.EnemyHpRamp()`。
 - **难度档成对口径**：分数倍率与里程碑阈值倍率成对给出（easy 1/1、medium 2/1、hard 3/1.5）。净点数节奏 = 分数倍率 ÷ 里程碑阈值倍率：easy **1×** / medium **2×** / hard **2×**。hard 的定位是「以更强的敌机（HP ×1.5 / 速度 ×1.2 / 刷怪间隔 ×0.8）换取同等成长节奏与更高荣誉分」，**不是更快成型**；要让 hard 真正最快须下调 `hard.milestone`。
-- **生存**：`extra_life` 上限 **10**（HP 100 + 500 = 600）；吸血 ≤10% 由 HP 上限与 ramp 抵消。
+- **生存**：`extra_life` 上限 **10**（HP 100 + 500 = 600）；吸血＝击杀回复 **基础上限 ×5%**（定额 5，core `LifestealHeal`）——伤害是定额，治疗不随 extra_life 抬升的当前上限复利；母舰召回冷却因子 **0.75**/级（60s→45s→34s），满补节奏不短于典型交战周期。
 - **本局达成**：Boss 击杀 **10** 只或存活 **20 分钟**，**任一满足即达成**（`progression.goal_boss_kills` / `goal_survive_seconds`）；达成方式取**固定优先级**（Boss 击杀 > 存活）而非先到者——判定是当前状态的纯函数（core `RunGoal`）。**达成不终止本局**。
 - **命名难度档位**：D 映射 6 档（巡航 / 接敌 / 高压 / 危险 / 临界 / 绝境），阈值 `progression.tier_thresholds` = `[1.0, 1.6, 2.4, 3.6, 5.5, 8.0]`；HUD 标签显示「难度 xN.NN · <档名> · <难度档设置>」（core `DifficultyTier`，单调不回退）。可见性：HUD 常驻目标进度（显示更接近达成的那条）、达成给横幅、结算页有「本局目标：已达成 / 未达成」一行。
 - **Boss 阶段门控**：血量单调不增（受击只钳下界 0、永不上抬，致死一击走 `Die()` 不进狂暴）；「锁血」是**狂暴序列期间**的免疫（`EnrageSequence._healthLock`）而非受击回血，触发＝未触发过 + 存活 + 血量 ≤ `boss.enrage.hp_ratio` × 上限；**转阶段优先于狂暴**（单发跨 70% + 30% 双线时先转二阶段再判狂暴，否则跳过 P2 转场）。两条线由 core `BossPhaseGate` 判定（含非法输入护栏）。

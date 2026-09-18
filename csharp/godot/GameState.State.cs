@@ -148,7 +148,7 @@ public partial class GameState : Node
         _combat.ApplyHealthConfig(
             Mathf.Max(Cfg("player.max_health", _combat.MaxHpBase).AsDouble(), 0.1),
             Mathf.Max(Cfg("augments.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
-            Mathf.Max(Cfg("augments.lifesteal.max_hp_fraction", 0.1).AsDouble(), 0.0));
+            Mathf.Max(Cfg("augments.lifesteal.base_hp_fraction", 0.05).AsDouble(), 0.0));
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);

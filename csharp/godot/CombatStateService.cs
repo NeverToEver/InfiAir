@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Combat;
 
 namespace InfiAir;
 
@@ -36,10 +37,12 @@ public sealed partial class CombatStateService : RefCounted
     /// （生存轴收紧意图相悖）；ApplyBalance 注入钳制后的值。</summary>
     public double MaxHpBonus { get; set; } = 50.0;
 
-    /// <summary>吸血比例缓存（_apply_balance 刷新，击杀帧免 cfg 路径解析）。</summary>
-    private double _lifestealFraction = 0.1;
+    /// <summary>吸血比例缓存（_apply_balance 刷新，击杀帧免 cfg 路径解析）。
+    /// 默认值须与 balance.json 默认一致（augments.lifesteal.base_hp_fraction=0.05）。</summary>
+    private double _lifestealFraction = 0.05;
 
-    /// <summary>吸血增幅：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
+    /// <summary>吸血增幅：击杀回复 基础上限 × 5% 取整（定额——不随 extra_life 抬升的当前上限复利，
+    /// 口径见 core LifestealHeal），每帧至多结算一次</summary>
     private long _lifestealFrame = -1;
 
     /// <summary>生命变化（LoseHealth/Heal）；GameState 订阅后转发为 HealthChanged 信号。</summary>
@@ -106,7 +109,7 @@ public sealed partial class CombatStateService : RefCounted
         }
 
         _lifestealFrame = frame;
-        Heal(Mathf.Max(1, (int)(MaxHealth() * _lifestealFraction)));
+        Heal(LifestealHeal.PerKill(MaxHpBase, _lifestealFraction));
     }
 
     public int AugmentLevel(StringName id) => (int)Augments.GetValueOrDefault(id, 0).AsInt64();

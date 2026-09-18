@@ -783,7 +783,7 @@
 			"max_stacks": 1
 		},
 		"lifesteal": {
-			"max_hp_fraction": 0.1,
+			"base_hp_fraction": 0.05,
 			"max_stacks": 1
 		},
 		"armor": {
@@ -810,7 +810,7 @@
 			"max_stacks": 2
 		},
 		"mothership_recall": {
-			"cooldown_factor": 0.5,
+			"cooldown_factor": 0.75,
 			"max_stacks": 2
 		},
 		"crit_shot": {

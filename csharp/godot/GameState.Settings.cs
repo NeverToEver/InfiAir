@@ -182,7 +182,7 @@ public partial class GameState : Node
     /// <summary>治疗（单点封顶 max_health，调用侧不再各自判断）</summary>
     public void Heal(double amount) => _combat.Heal(amount);
 
-    /// <summary>吸血增幅：击杀回复 int(上限 × 10%)（对齐原作 LIFESTEAL_FRACTION），每帧至多结算一次</summary>
+    /// <summary>吸血增幅：击杀回复 基础上限 × 5% 取整（定额，core LifestealHeal），每帧至多结算一次</summary>
     public void TryLifesteal() => _combat.TryLifesteal();
 
     public int AugmentLevel(StringName id) => _combat.AugmentLevel(id);
