@@ -81,6 +81,10 @@ public partial class ProbeHost : Node
     /// <summary>Boss 逃跑倒计时门控的采样窗口（帧）：闪烁半周期 0.5s（30 帧）+ 0.1s 轮询余量。</summary>
     private const int BossCountdownWindowFrames = 40;
 
+    /// <summary>一次性闪光（掉段闪 / 阶段闪）的采样窗口（帧）：掉段闪 0.28s、阶段闪 tween 0.3s，
+    /// 取 24 帧（0.4s）罩住峰值段；狂暴期的子弹时间会把两者都拉慢，故减闪对照窗只需更短也更稳。</summary>
+    private const int BossFlashWindowFrames = 24;
+
     /// <summary>Boss 探针狂暴锁血等待上限（帧）：狂暴序列 transition 0.9 + active 6 + hold 0.7 +
     /// return 0.8 ≈ 8.4s，取 20s 余量。超时即判失败（锁血残留＝Boss 永久无敌）。</summary>
     private const int BossProbeLockTimeoutFrames = 1200;
@@ -282,12 +286,34 @@ public partial class ProbeHost : Node
     /// 留一拍余量再开始采样，免得把「警戒态还没进来」记成「脉冲没跑」。</summary>
     private const int SettingsWarnSettleFrames = 8;
 
+    /// <summary>就绪脉冲采样单半的观测上限（帧）：一次弹反流程 + 硬冷却 ≈ 3.8s（balance
+    /// player.parry 0.8 + 3.0），就绪翻转落在约 233 帧处；上限取 340 帧（翻转点 + 脉冲尾窗），
+    /// 超时即显式判红——翻转没等来与「不闪」是两回事，不能都记成绿。</summary>
+    private const int SettingsReadyPulseBoundFrames = 340;
+
+    /// <summary>就绪脉冲尾窗（帧）：翻转后继续采样的长度，脉冲时长 0.42s（约 25 帧）取 30 帧罩住。</summary>
+    private const int SettingsReadyPulseTailFrames = 30;
+
     /// <summary>设置页探针的阶段与观测态（0 起 → 4 收尾；sawBlink 是正对照的判据）。</summary>
     private int _settingsProbeStep;
 
     private int _settingsProbeFrame;
     private bool _settingsProbeSawBlink;
     private RadialWheel? _settingsWheel;
+
+    /// <summary>开页前的就绪脉冲两半采样（一次性闪光）的步序与观测态：0 未开始 / 1 正对照采样 /
+    /// 2 第二次按下（减闪）/ 3 减闪采样。prevReady 用来取翻转的**边沿**——只判「当前是就绪」
+    /// 会在按下当帧就成立，判据随即在真正的翻转之前收尾。</summary>
+    private bool _settingsReadyProbe;
+
+    private int _settingsReadyStep;
+    private int _settingsReadyPressFrame;
+    private int _settingsReadyFlipFrame = -1;
+    private int _settingsReadyReleaseIn;
+    private bool _settingsReadySawFlip;
+    private bool _settingsReadySawPulse;
+    private int _settingsReadyPulseFrame = -1;
+    private bool _settingsReadyPrevReady = true;
 
     /// <summary>模态退场鼠标命中断言的步序与取样按钮表（0 未开始 / 1 待退场回调 / 2 待重开复查）。</summary>
     private int _modalStep;
@@ -443,6 +469,11 @@ public partial class ProbeHost : Node
     private int _bossCountdownFrame;
     private bool _bossCountdownSawFlip;
     private bool _bossCountdownDone;
+
+    /// <summary>一次性闪光（掉段闪 / 阶段闪）两次采样窗的观测态：正对照窗内是否见到两种闪。</summary>
+    private int _bossFlashFrame;
+    private bool _bossFlashSawPhase;
+    private bool _bossFlashSawSegment;
 
 
     private bool _killAllProbe;
@@ -1924,13 +1955,16 @@ public partial class ProbeHost : Node
     }
 
     /// <summary>设置页探针：开页并逐页切过——五页内容都在 ShowSettings 之后才构建，
-    /// 平时的 300 帧基线碰不到它们（玩家点开即崩的写法在这里暴露）。
+    /// 平时的开机基线趟碰不到它们（玩家点开即崩的写法在这里暴露）。
     /// 找不到设置节点就不打完成标记——空转同样「零错误退出」，缺标记即红。
     ///
-    /// 另断两处「减少闪光」门控（借开页顺带覆盖，不额外起趟）：轮盘开机物化的全息频闪
-    /// （Modulate 按 0.028s 步进在 0.45/0.95 之间跳）与危险横幅的明暗闪烁循环。两者都是
-    /// 「开关认了、两处频闪没认」的静默残留，且**两半互补**：必须先在没有减少闪光时观测到
-    /// 闪烁（否则「根本没显示」会让减闪段退化成空转绿），再在减少闪光下断恒定全亮。</summary>
+    /// 另断三处「减少闪光」门控（借开页顺带覆盖，不额外起趟）：轮盘开机物化的全息频闪
+    /// （Modulate 按 0.028s 步进在 0.45/0.95 之间跳）与危险横幅的明暗闪烁循环，加低燃料警戒的
+    /// 亮度泵动。三者都是「开关认了、那处频闪没认」的静默残留，且**两半互补**：必须先在没有
+    /// 减少闪光时观测到闪烁（否则「根本没显示」会让减闪段退化成空转绿），再在减少闪光下断恒定。
+    /// 开页之前先跑一段**一次性闪光**的同类采样（能力槽就绪脉冲，见 <see cref="TickReadyPulseProbe"/>）：
+    /// 它无频率可言、进不了 core FlashBudget 的频率表，而弹反冷却约 3.8s 的等待窗口开页后
+    /// 会与轮盘/横幅的采样帧序纠缠，故放在本步之前。</summary>
     private void TickSettingsProbe()
     {
         var settings = GetTree().GetFirstNodeInGroup("settings_ui") as SettingsUi;
@@ -1938,6 +1972,22 @@ public partial class ProbeHost : Node
         {
             GD.PushError("[settings-probe] 未找到设置页节点，无法覆盖五页构建");
             _settingsProbe = false;
+            return;
+        }
+
+        if (_settingsReadyProbe)
+        {
+            if (!TickReadyPulseProbe())
+            {
+                return; // 采样未完成，或已判失败（失败时本趟已停，完成标记不会出现）
+            }
+
+            _settingsReadyProbe = false;
+            GameState.Instance.SetReduceFlash(false);
+            settings.ShowSettings(null); // 每次开页都重放 AutoplayBoot
+            _settingsProbeStep = 1;
+            _settingsProbeFrame = 0;
+            _settingsProbeSawBlink = false;
             return;
         }
 
@@ -1963,10 +2013,7 @@ public partial class ProbeHost : Node
             }
 
             GameState.Instance.SetReduceFlash(false);
-            settings.ShowSettings(null); // 每次开页都重放 AutoplayBoot
-            _settingsProbeStep = 1;
-            _settingsProbeFrame = 0;
-            _settingsProbeSawBlink = false;
+            _settingsReadyProbe = true; // 先跑一次就绪脉冲两半采样，开页在它收尾处
             return;
         }
 
@@ -2184,6 +2231,156 @@ public partial class ProbeHost : Node
         {
             TickModalCloseProbe(settings);
         }
+    }
+
+    /// <summary>能力槽就绪脉冲（一次性闪光）的两半采样：先在没有减少闪光时断「就绪翻转后确实播了
+    /// 脉冲」，再在减少闪光下断「同一次翻转不播」。返回 true 表示两半都过（失败时本趟已停，
+    /// 完成标记不会出现）。
+    ///
+    /// 为什么必须判：门控是 AbilitySocket 里的一句布尔分支，写坏只表现为「开了减少闪光还闪一下」——
+    /// 不崩、不报错；而一次性闪光无频率可言，进不了 core FlashBudget 的频率表，本趟原有的三段采样
+    /// （轮盘开机 / 危险横幅 / 低燃料警戒）又全是周期型。两半互补：只判「减闪下不闪」时，
+    /// 脉冲压根没触发（冷却没走完、输入没送达）同样判绿——故两半都先要求**看到就绪翻转**
+    /// （ParrySocketReady 的 false→true 边沿，它正是脉冲的触发条件），翻转没出现即显式判红。
+    ///
+    /// 为什么借弹反槽：冲刺槽在没有相位冲刺增幅的局里整体锁定（就绪恒假，采不到翻转）；
+    /// 两个槽是同一构件的两个实例，翻转语义与门控同源（两实例的开关接线另由 core 侧结构判定钉住）。
+    /// 触发走生产输入面（同教程/坞态趟的注入方式：按下保持两帧，同帧按下即松会让玩家侧的
+    /// rising edge 采不到），不是直调 SetReady——绕过输入面就断不到「这条确认反馈在玩法里还在不在」。</summary>
+    private bool TickReadyPulseProbe()
+    {
+        var hud = GetTree().GetFirstNodeInGroup("hud") as Hud;
+        if (hud == null)
+        {
+            GD.PushError("[settings-probe] 未找到 HUD 节点——就绪脉冲的减少闪光门控断言取不到判据");
+            _settingsProbe = false;
+            return false;
+        }
+
+        if (_settingsReadyReleaseIn > 0 && --_settingsReadyReleaseIn == 0)
+        {
+            Input.ActionRelease(ProbeActParry);
+        }
+
+        if (_settingsReadyStep == 0)
+        {
+            if (!PressParryForReadyPulse("正对照"))
+            {
+                return false;
+            }
+
+            GameState.Instance.SetReduceFlash(false);
+            _settingsReadyStep = 1;
+            return false;
+        }
+
+        if (_settingsReadyStep == 1)
+        {
+            if (!StepReadyPulseSampling(hud))
+            {
+                return false;
+            }
+
+            if (!_settingsReadySawFlip)
+            {
+                GD.PushError($"[settings-probe] 按下弹反后 {SettingsReadyPulseBoundFrames} 帧内未观测到就绪翻转"
+                    + "（冷却没走完或输入没送达）——脉冲触发前提不成立，两半判据会退化成空转绿");
+                _settingsProbe = false;
+                return false;
+            }
+
+            if (!_settingsReadySawPulse)
+            {
+                GD.PushError("[settings-probe] 无减少闪光时就绪翻转后未观测到脉冲——"
+                    + "就绪的确认反馈丢失（AbilityReadyPulse 被无条件抑制？）");
+                _settingsProbe = false;
+                return false;
+            }
+
+            if (!PressParryForReadyPulse("减闪对照"))
+            {
+                return false;
+            }
+
+            GameState.Instance.SetReduceFlash(true);
+            _settingsReadyStep = 2;
+            return false;
+        }
+
+        if (!StepReadyPulseSampling(hud))
+        {
+            return false;
+        }
+
+        if (!_settingsReadySawFlip)
+        {
+            GD.PushError($"[settings-probe] 减少闪光下按下弹反后 {SettingsReadyPulseBoundFrames} 帧内未观测到就绪翻转"
+                + "——判据上半失效（没有翻转就没有可抑制的脉冲），不能按「不闪」收下这次采样");
+            _settingsProbe = false;
+            return false;
+        }
+
+        if (_settingsReadySawPulse)
+        {
+            GD.PushError($"[settings-probe] 减少闪光下就绪翻转仍在播脉冲（第 {_settingsReadyPulseFrame} 帧观测到）"
+                + "——一次性闪光未按 core FlashBudget 抑制");
+            _settingsProbe = false;
+            return false;
+        }
+
+        Input.ActionRelease(ProbeActParry);
+        return true;
+    }
+
+    /// <summary>就绪脉冲采样的一次按下（生产输入面）：清零上一半的观测态并按压两帧。
+    /// 按下前校验弹反在待机相位——冷却未走完时这次按压会被生产链正常拒掉，
+    /// 采样会退化成「没翻转也没脉冲」的空转绿，故宁可显式判红。</summary>
+    private bool PressParryForReadyPulse(string halfName)
+    {
+        if (_player.ParryPhase() != (int)InfiAir.Core.Combat.ParryPhase.Idle)
+        {
+            GD.PushError($"[settings-probe] {halfName}的弹反不在待机相位（相位 {_player.ParryPhase()}）——"
+                + "此时按压会被生产链拒掉，就绪脉冲判据取不到触发点");
+            _settingsProbe = false;
+            return false;
+        }
+
+        Input.ActionPress(ProbeActParry);
+        _settingsReadyReleaseIn = 2; // 按下保持两帧再松（同帧按下即松采不到 rising edge）
+        _settingsReadyPressFrame = _frame;
+        _settingsReadyFlipFrame = -1;
+        _settingsReadySawFlip = false;
+        _settingsReadySawPulse = false;
+        _settingsReadyPulseFrame = -1;
+        _settingsReadyPrevReady = true; // 此刻弹反能量满格，就绪态为真；翻转按 false→true 边沿判
+        return true;
+    }
+
+    /// <summary>就绪脉冲采样的一帧：记录就绪翻转的边沿与脉冲读数；返回 true 表示本半结束
+    /// （翻转已见且脉冲尾窗走完，或到观测上限）。</summary>
+    private bool StepReadyPulseSampling(Hud hud)
+    {
+        var ready = hud.ParrySocketReady;
+        if (!_settingsReadySawFlip && !_settingsReadyPrevReady && ready)
+        {
+            _settingsReadySawFlip = true;
+            _settingsReadyFlipFrame = _frame;
+        }
+
+        _settingsReadyPrevReady = ready;
+        if (hud.ParrySocketPulse >= 0.0f && _settingsReadyPulseFrame < 0)
+        {
+            _settingsReadyPulseFrame = _frame; // 报错要指向观测到的那一帧，不是判红的那一帧
+        }
+
+        _settingsReadySawPulse |= hud.ParrySocketPulse >= 0.0f;
+
+        if (_settingsReadySawFlip && _frame - _settingsReadyFlipFrame >= SettingsReadyPulseTailFrames)
+        {
+            return true;
+        }
+
+        return _frame - _settingsReadyPressFrame >= SettingsReadyPulseBoundFrames;
     }
 
     /// <summary>高对比弹体接线的两半判据（借设置趟顺带覆盖，不额外起趟）。
@@ -2962,6 +3159,42 @@ public partial class ProbeHost : Node
                 _bossBulletsBeforeClear = GameState.Instance.EnemyBullets.Count;
                 _bossSawPhase2BulletsBeforeClear |= _bossBulletsBeforeClear > 0;
                 _bossClearCheckFrame = _frame + 1;
+                // 一次性闪光的**正对照**：转场当帧的掉段闪与阶段闪（整条血条提亮）都得看得见——
+                // 少了这半，减闪段的「没观测到」会被「本来就不闪」冒充（同倒计时段的两半结构）
+                _bossFlashSawPhase = false;
+                _bossFlashSawSegment = false;
+                _bossFlashFrame = _frame;
+                _bossStage = 6;
+                return;
+
+            case 6:
+                // 正对照采样窗：掉段闪 0.28s、阶段闪 tween 0.3s，都罩在窗内逐帧采样
+                if (_bossHud == null)
+                {
+                    BossProbeFail("未找到 HUD 节点——一次性闪光的减闪门控断言取不到判据");
+                    return;
+                }
+
+                _bossFlashSawPhase |= _bossHud.BossBarModulate.R > 1.05f;
+                _bossFlashSawSegment |= _bossHud.BossBarFlashAmount > 0.0f;
+                if (_frame - _bossFlashFrame < BossFlashWindowFrames)
+                {
+                    return;
+                }
+
+                if (!_bossFlashSawPhase)
+                {
+                    BossProbeFail("无减少闪光下 P1→P2 转场未观测到阶段闪（血条提亮）——"
+                        + "减闪段会退化成空转绿（没在闪与压掉了分不出来）");
+                    return;
+                }
+
+                if (!_bossFlashSawSegment)
+                {
+                    BossProbeFail("无减少闪光下 P1→P2 转场未观测到掉段闪——同上，减闪段会退化成空转绿");
+                    return;
+                }
+
                 _bossStage = 3;
                 return;
 
@@ -2978,6 +3211,9 @@ public partial class ProbeHost : Node
                     return;
                 }
 
+                // 一次性闪光的**减闪对照**：转场之前就打开开关，跨线后掉段闪与阶段闪都不得出现。
+                // 转场本身照旧发生（下面当场断 ENRAGE），故这一半不是「什么都没发生」的空转绿
+                GameState.Instance.SetReduceFlash(true);
                 BossProbeCrossLine(boss, boss.EnrageHpRatio);
                 if (!boss.IsEnraged() || boss.FightPhaseValue() != (int)Boss.FightPhase.ENRAGE)
                 {
@@ -2985,6 +3221,40 @@ public partial class ProbeHost : Node
                     return;
                 }
 
+                _bossFlashSawPhase = false;
+                _bossFlashSawSegment = false;
+                _bossFlashFrame = _frame;
+                _bossStage = 7;
+                return;
+
+            case 7:
+                // 减闪对照采样窗：与正对照同窗长，逐帧断「两个一次性闪光都没出现」
+                if (_bossHud == null)
+                {
+                    BossProbeFail("未找到 HUD 节点——一次性闪光的减闪门控断言取不到判据");
+                    return;
+                }
+
+                if (_bossHud.BossBarModulate.R > 1.02f)
+                {
+                    BossProbeFail($"减少闪光下 P2→狂暴转场仍在提亮血条（第 {_frame} 帧，"
+                        + $"modulate={_bossHud.BossBarModulate.R:0.##}）——阶段闪未按 core FlashBudget 抑制");
+                    return;
+                }
+
+                if (_bossHud.BossBarFlashAmount > 0.0f)
+                {
+                    BossProbeFail($"减少闪光下 P2→狂暴转场仍触发掉段闪（第 {_frame} 帧，"
+                        + $"进度 {_bossHud.BossBarFlashAmount:0.##}）——一次性闪光未按 core FlashBudget 抑制");
+                    return;
+                }
+
+                if (_frame - _bossFlashFrame < BossFlashWindowFrames)
+                {
+                    return;
+                }
+
+                GameState.Instance.SetReduceFlash(false);
                 _bossStage = 4;
                 _bossLastTickFrame = _frame;
                 return;

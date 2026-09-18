@@ -75,7 +75,6 @@ ALLOW = (
     ("csharp/godot/GameState.Talent.cs", "TalentCap", "天赋门面 API：Level/EffLevel/CapFor 成对读口（上限口径）"),
     # Hud 探针读口（注释声明）。
     ("csharp/godot/Hud.cs", "InfoBannerAlpha", "探针读口（注释声明）：横幅停留被并行语义吞掉时只在此暴露"),
-    ("csharp/godot/Hud.cs", "BossBarModulate", "探针读口（注释声明）：减少闪光下阶段切换不得提亮"),
     # Main 实机调参观察面（代码内注释声明的保留理由段）。
     ("csharp/godot/Main.cs", "MetaFx", "实机调参观察面（注释声明成段保留：演出量读数由本类独占编排）"),
     ("csharp/godot/Main.cs", "GiveUpCharge", "实机调参观察面（注释声明成段保留：放弃充能读数）"),

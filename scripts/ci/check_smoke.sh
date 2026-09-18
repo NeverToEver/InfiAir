@@ -209,8 +209,11 @@ smoke_main() {
 }
 
 smoke_settings() {
-  # 帧数含四段频闪采样（轮盘开机 A/B + 危险横幅 A/B，各 30/45 帧）与五页切换，取 300 帧余量。
-  run_case "settings page smoke" 300 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
+  # 帧数含两段就绪脉冲采样（正对照 + 减闪对照，各约 265 帧 = 弹反流程 0.8s + 硬冷却 3.0s 后的
+  # 就绪翻转 + 30 帧脉冲尾窗）、四段频闪采样（轮盘开机 A/B + 危险横幅 A/B，各 30/45 帧）、
+  # 低燃料段与五页切换。实测最短约 780 帧；取 1000 覆盖两半各自的观测上限（340×2）加既有段，
+  # 这样采样失败时打出的是「未观测到翻转/脉冲」而不是被帧数截断。
+  run_case "settings page smoke" 1000 "${PROBE_LOG_BASE}.settings.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.settings.userdata" --settings-probe
   expect_marker "settings page 五页" "${PROBE_LOG_BASE}.settings.log" "[settings-probe] 五页切换完成"
 }
 
@@ -310,9 +313,10 @@ smoke_death_gate() {
 
 smoke_boss() {
   # Boss 阶段机全周期：生产触发链请出 Boss（分数门补到 boss_score_step 之上；时间门由生产链自己
-  # 走满 boss_min_interval）→ 生产受击链逐段越线 → P1→P2（转场清弹 + 玩家短暂无敌）→ ENRAGE
-  # （锁血自行解除）→ 击杀（BossKills 推进、生成器解槽）。帧数单源：入场 1.65s + boss_min_interval
-  # 80s + 越线/狂暴/击杀推进 ≈ 20s + 余量 = 107s × 60 = 6420。
+  # 走满 boss_min_interval）→ 生产受击链逐段越线 → P1→P2（转场清弹 + 玩家短暂无敌 + 一次性闪光
+  # 正对照采样窗 24 帧）→ ENRAGE（锁血自行解除 + 减闪对照采样窗 24 帧）→ 击杀（BossKills 推进、
+  # 生成器解槽）。帧数单源：入场 1.65s + boss_min_interval 80s + 越线/狂暴/击杀推进 ≈ 20s
+  # + 两个采样窗 0.8s + 余量 = 107s × 60 = 6420。
   run_case "boss phase machine smoke" 6420 "${PROBE_LOG_BASE}.boss.log" "$PROBE_SCENE" "${PROBE_LOG_BASE}.boss.userdata" --boss-probe
   expect_marker "boss 阶段机全周期" "${PROBE_LOG_BASE}.boss.log" "[boss-probe] 阶段机全周期完成"
 }

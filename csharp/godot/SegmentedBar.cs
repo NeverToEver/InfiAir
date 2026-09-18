@@ -187,6 +187,9 @@ public partial class SegmentedBar : Control
         QueueRedraw();
     }
 
+    /// <summary>掉段闪进度（探针读口）：0 表示未在闪（含减少闪光门控），1 为刚触发并逐帧衰减。</summary>
+    public float FlashAmount => _flashT;
+
     public override void _Ready()
     {
         // 未动画时彻底关闭逐帧回调（全部分段条默认零开销）

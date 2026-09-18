@@ -118,6 +118,19 @@ public partial class Hud : CanvasLayer
     /// <summary>燃料量槽当前 alpha（探针读口，零引用保留）：低燃料警戒脉冲的采样面——
     /// 减少闪光下应恒为 1（静置全亮），否则在 0.62↔1.0 之间泵动。见 ROADMAP 零引用成员口径。</summary>
     public float FuelTankAlpha => _fuelTank.Modulate.A;
+
+    /// <summary>Boss 血条掉段闪进度（探针读口，一次性闪光）：无减闪时应能采样到 &gt;0
+    /// （掉血当帧置 1 后逐帧衰减），减少闪光下恒为 0——后者单看是「没有闪」，
+    /// 必须与正对照同趟配对才不是空转绿。</summary>
+    public float BossBarFlashAmount => _bossBar.FlashAmount;
+
+    /// <summary>弹反槽就绪脉冲进度（探针读口，一次性闪光）：无减闪时由未就绪转就绪后
+    /// 应能采样到 0..1，减少闪光下恒为 -1（未在播）。</summary>
+    public float ParrySocketPulse => _parrySocket.ReadyPulsePhase;
+
+    /// <summary>弹反槽就绪态（探针读口）：就绪翻转是脉冲的触发条件——判据先要看到这次翻转
+    /// 真的发生，否则「减闪下不闪」会被「翻转根本没发生」冒充。</summary>
+    public bool ParrySocketReady => _parrySocket.IsReady;
     private Tween? _hitTween;
     private float _lastHpValue = -1.0f;
     private float _pulseTime;

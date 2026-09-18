@@ -107,6 +107,13 @@ public partial class AbilitySocket : Control
         QueueRedraw();
     }
 
+    /// <summary>就绪态（探针读口）：就绪翻转是脉冲的触发条件，两半判据都要读它——
+    /// 只看脉冲读数时「翻转根本没发生」会被读成「减闪下不闪」而判绿。</summary>
+    public bool IsReady => _ready;
+
+    /// <summary>就绪脉冲进度（探针读口）：-1 表示未在播（含减少闪光门控），0..1 为外扩中。</summary>
+    public float ReadyPulsePhase => _pulse;
+
     /// <summary>未解锁（如未取相位冲刺增幅）：整体压暗 + 锁定横杠，与「充能中」明确区分。</summary>
     public void SetLocked(bool locked)
     {
