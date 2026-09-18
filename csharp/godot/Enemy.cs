@@ -86,6 +86,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     /// <summary>当前损伤外观档（只在**改档**那一帧重写能量层参数，正常帧零开销）。</summary>
     private UnitDamageTier _damageTier = UnitDamageTier.Intact;
 
+    /// <summary>上次写入能量层时的动效强度（判据 6）：设置页滑杆可实时拖动，只在改档时重写会
+    /// 留下旧强度——受损机在强度被拖到 0 之后仍旧偏暗，与「0 ＝ 回到本批次之前的画面」不符。</summary>
+    private float _glowAppliedIntensity = -1.0f;
+
     /// <summary>下一股火花/烟的剩余间隔（低档受损才推进）。</summary>
     private float _damageFxTimer;
 
@@ -101,17 +105,20 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     /// <summary>入场动效是否已结束（结束后不再写 Sprite2D 的缩放/位移，把通道交回受击闪白）。</summary>
     private bool _entryDone = true;
 
-    /// <summary>入场起点缩放倍率（相对落位后基准）与上方位移（设计像素 × world_scale）。
+    /// <summary>入场起点缩放倍率（相对落位后基准）与上方位移（设计像素 × world_scale）：
+    /// `effects.motion.enemy_entry_start_scale` / `enemy_entry_rise`，默认值与 data/balance.json 同值（§2.11）。
     /// 位移取 Sprite2D 的**局部** Y：敌机根节点在 tscn 里旋转了 π（机头朝下），
     /// 故局部 +Y 在世界里表现为「从上方滑入」，与机头朝向一致。</summary>
-    private const float EntryStartScale = 0.82f;
+    private static float _entryStartScale = 0.82f;
 
-    private const float EntryRise = 26.0f;
+    private static float _entryRise = 26.0f;
 
-    /// <summary>火花方向的自增步进角（黄金角）：逐次转向即可扇开，无需随机源。</summary>
+    /// <summary>火花方向的自增步进角（黄金角）：逐次转向即可扇开，无需随机源。
+    /// 纯形状量（角度分配），不是可调幅值——不入 balance。</summary>
     private const float GoldenAngle = 2.3999632f;
 
-    /// <summary>「烟」用的爆炸规模分档（既有爆炸池的烟发射器；取值同擦弹 0.25 量级）。</summary>
+    /// <summary>「烟」用的爆炸规模分档（既有爆炸池的烟发射器；取值同擦弹 0.25 量级）。
+    /// 幅值，随动效强度按比例缩放（判据 6）。</summary>
     private const float DamageSmokeScale = 0.3f;
 
     // ---- 本局状态（Setup/Reactivate 写入；公开属性直读写） ----
@@ -484,6 +491,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         // 与 Spawner 脚本默认同源，防「表损坏 → 落到与设计值无关的旧常量」
         var sc = (float)config.GetValueOrDefault("scale", 0.80).AsDouble();
         sprite.Scale = new Vector2(sc, sc) * (float)GameState.Instance.WorldScale;
+        // 入场落位的基准缩放由**这里**写（唯一知道机型设计缩放的地方，池化复用每次重生重写一次）：
+        // BeginEntry 不现取当前 Scale——池化路径上 _Ready 与 Reactivate 会连续两次起入场，
+        // 现取会把「已被写成起点缩放的 Scale」当成新基准，落位后机体永久小一档（编队机即此形态）。
+        _entryBaseScale = sprite.Scale;
         var hitR = (float)config.GetValueOrDefault("radius", 41.0).AsDouble() * (float)GameState.Instance.WorldScale;
         if (shapeNode.Shape is CircleShape2D circle)
         {
@@ -525,7 +536,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     }
 
     /// <summary>按当前损伤档重写能量层强度（唯一的强度写入口：入场档位复位与受击改档都经它）。
-    /// 乘子单源在 core <see cref="DamageState"/>，本类不另存一份档位→亮度表。</summary>
+    /// 乘子单源在 core <see cref="DamageState"/>，本类不另存一份档位→亮度表。
+    /// 判据 6：动效强度按比例缩放**振幅**——强度 1 取档位乘子，强度 0 把整档差异收回到 1.0
+    /// （逐位等于无损伤分级那一档），中间线性插值（受损机不再变暗，但也不会更亮）。</summary>
     private void ApplyGlowIntensity()
     {
         if (_glowLayer == null)
@@ -534,11 +547,29 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         }
 
         var baseIntensity = IsElite ? _glowIntElite : _glowIntEnemy;
+        var intensity = FxIntensity();
         var multiplier = DamageState.GlowMultiplier(_damageTier, _damageGlowMid, _damageGlowLow);
+        _glowAppliedIntensity = intensity;
         ShipEnergyFx.Apply(
             _glowLayer,
             IsElite ? _glowTintElite : _glowTintEnemy,
-            baseIntensity * multiplier);
+            baseIntensity * (1.0f - (1.0f - multiplier) * intensity));
+    }
+
+    /// <summary>动效强度变化后重写能量层（判据 6）：强度是设置页里可实时拖动的读数，
+    /// 只在改档时重写会留下旧强度（拖到 0 之后受损机仍旧偏暗，而「0 ＝ 回到本批次之前的画面」）。
+    /// 完好档的乘子恒 1.0、没有随强度变的量，故只对受损档逐帧比一个 float——开销可忽略。</summary>
+    private void RefreshGlowForIntensity()
+    {
+        if (_damageTier == UnitDamageTier.Intact)
+        {
+            return;
+        }
+
+        if (Mathf.Abs(FxIntensity() - _glowAppliedIntensity) > 1.0e-4f)
+        {
+            ApplyGlowIntensity();
+        }
     }
 
     /// <summary>机体背光轮廓：贴图同源副本 + 加性材质 + 阵营染色，略放大垫在机体之下，
@@ -594,10 +625,19 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     /// <summary>低档受损的零星火花/烟（**低频、限量**）：走既有 <see cref="CombatVfx"/>（轻量特效在活
     /// 上限 24，满额自动跳过）与 <see cref="Explosion"/>（池保留上限）——不新增粒子系统、不新增无上限节点。
     /// 方向由自增计数按黄金角扇开，**零随机**（AGENTS §4：无头确定性不许依赖 GD.Rand* 默认序列）。
-    /// 减少闪光下只留火花（<see cref="CombatVfx.ImpactSpark"/> 自带压暗），不补烟——那一层带白炽核心闪帧。</summary>
+    /// 减少闪光下只留火花（<see cref="CombatVfx.ImpactSpark"/> 自带压暗），不补烟——那一层带白炽核心闪帧。
+    /// 判据 6：动效强度 0 不生成任何火花与烟（回到本批次之前的画面——低档受损此前只有能量层变暗）；
+    /// 0..1 之间只缩**振幅**（烟的爆炸规模乘强度；火花没有规模入参，改它的数额＝改密度/频率，
+    /// 不是「缩振幅」，故火花只受 0/非 0 门控）。</summary>
     private void UpdateDamageFx(float delta)
     {
         if (_damageTier != UnitDamageTier.Critical)
+        {
+            return;
+        }
+
+        var intensity = FxIntensity();
+        if (intensity <= 0.0f)
         {
             return;
         }
@@ -621,7 +661,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         CombatVfx.ImpactSpark(parent, GlobalPosition, dir, reduceFlash);
         if (!reduceFlash && _damageFxTick % 3 == 0)
         {
-            Explosion.SpawnAt(parent, GlobalPosition, DamageSmokeScale);
+            Explosion.SpawnAt(parent, GlobalPosition, DamageSmokeScale * intensity);
         }
     }
 
@@ -642,12 +682,27 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         _damageFxInterval = CfgFx.Float(
             "effects.motion.enemy_damage_fx_interval", _damageFxInterval, CfgFx.IntervalFloor);
         _entryTime = CfgFx.Float("effects.motion.enemy_entry_time", _entryTime, 0.0f);
+        _entryStartScale = CfgFx.Float("effects.motion.enemy_entry_start_scale", _entryStartScale, 0.0f, 2.0f);
+        _entryRise = CfgFx.Float("effects.motion.enemy_entry_rise", _entryRise, 0.0f, 1000.0f);
         _motionCfgLoaded = true;
+    }
+
+    /// <summary>动效强度（0..1）：设置项 `fx_intensity` 的直读值（取值口与钳制单源在设置服务）。
+    /// **不经 <see cref="VisualRhythm"/>**——本类也活在教程等没有节奏服务的场景里，经它取会在
+    /// 那些场景静默退化成「没有动效」，与「玩家把强度调到 0」在画面上无从分辨。
+    /// 取不到读数（autoload 拆树期）按 0 处理：不做动效是最安全的中性口径。</summary>
+    private static float FxIntensity()
+    {
+        var fx = GameState.Instance.FxIntensity;
+        return double.IsFinite(fx) ? (float)Math.Clamp(fx, 0.0, 1.0) : 0.0f;
     }
 
     /// <summary>开始入场落位（直实例化与池化复用两条出生路径各一次）：起点姿态在此写一遍，
     /// 随后逐帧由 <see cref="UpdateEntry"/> 推进。**只动 Sprite2D**（子节点）——节点位置、
-    /// 碰撞半径、移动策略与开火时序一律不受影响（判定零改动）。</summary>
+    /// 碰撞半径、移动策略与开火时序一律不受影响（判定零改动）。
+    /// **基准不在此现取**：<see cref="_entryBaseScale"/> 由 <c>Setup</c> 按机型设计缩放写一次
+    /// （池化路径上 _Ready 与 Reactivate 会连续两次起入场，现取会把起点缩放当成新基准捕获）。
+    /// 起点姿态按动效强度缩放（判据 6：强度 0 ＝ 回到本批次之前的画面——直接落地站稳）。</summary>
     private void BeginEntry()
     {
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
@@ -657,10 +712,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             return;
         }
 
-        _entryBaseScale = _sprite.Scale;
         _entryElapsed = 0.0f;
-        // 时长坏配置（≤0）直接落位：不留「永久偏小偏高」的入场姿态
-        _entryDone = !(_entryTime > 0.0f);
+        // 时长坏配置（≤0）与强度 0 都直接落位：不留「永久偏小偏高」的入场姿态
+        var intensity = FxIntensity();
+        _entryDone = !(_entryTime > 0.0f) || intensity <= 0.0f;
         if (_entryDone)
         {
             _sprite.Scale = _entryBaseScale;
@@ -668,13 +723,15 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             return;
         }
 
-        _sprite.Scale = _entryBaseScale * EntryStartScale;
-        _sprite.Position = new Vector2(0.0f, EntryRise * (float)GameState.Instance.WorldScale);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(1.0f, _entryStartScale, intensity);
+        _sprite.Position = new Vector2(0.0f, _entryRise * intensity * (float)GameState.Instance.WorldScale);
     }
 
     /// <summary>入场落位逐帧推进（模拟时间；缓动算式在 core <see cref="UnitEntry"/>）。
     /// 排在受击闪白之前：闪白期两者都要写 Sprite2D 的缩放，闪白的绝对值后写覆盖入场值——
-    /// 缩放回弹是高优先的打击感读数，而入场的起点缩放会自愈（下一帧照常写）。</summary>
+    /// 缩放回弹是高优先的打击感读数，而入场的起点缩放会自愈（下一帧照常写）。
+    /// 判据 6：强度 0 当帧落位（滑杆在入场途中拖到 0 也要立刻回到本批次之前的画面）；
+    /// 0..1 之间只缩**振幅**——起点缩放的偏离量与上浮距离按强度线性缩放，时长与缓动曲线不变。</summary>
     private void UpdateEntry(float delta)
     {
         if (_entryDone || _sprite == null)
@@ -682,10 +739,19 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             return;
         }
 
+        var intensity = FxIntensity();
+        if (intensity <= 0.0f)
+        {
+            _entryDone = true;
+            _sprite.Scale = _entryBaseScale;
+            _sprite.Position = Vector2.Zero;
+            return;
+        }
+
         _entryElapsed += delta;
         var k = UnitEntry.Placement01(_entryElapsed, _entryTime);
-        _sprite.Scale = _entryBaseScale * Mathf.Lerp(EntryStartScale, 1.0f, k);
-        _sprite.Position = new Vector2(0.0f, EntryRise * (1.0f - k) * (float)GameState.Instance.WorldScale);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(Mathf.Lerp(1.0f, _entryStartScale, intensity), 1.0f, k);
+        _sprite.Position = new Vector2(0.0f, _entryRise * intensity * (1.0f - k) * (float)GameState.Instance.WorldScale);
         if (k < 1.0f)
         {
             return;
@@ -1062,6 +1128,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         _time += d;
         UpdateEntry(d);       // 入场落位（视觉通道）
         UpdateDamageFx(d);    // 低档受损的零星火花/烟（低频，既有特效设施限量）
+        RefreshGlowForIntensity(); // 动效强度被拖动后重写能量层（判据 6）
         UpdateFlash(d);       // 受击闪白：Sprite2D 的缩放/Modulate 的最后一句话
         if (_exiting)
         {

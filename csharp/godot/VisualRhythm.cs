@@ -49,7 +49,9 @@ public partial class VisualRhythm : Node
     }
 
     /// <summary>拍点包络（0..1，整拍一脉冲；包络窗口之外恒 0）。拍点**一律下放局部元素**（判据 1：
-    /// 全屏层只允许慢呼吸），局部消费方按它取振幅；本批尚无生产消费方（B2/B3 的弹体尾部与舰体流光接它）。</summary>
+    /// 全屏层只允许慢呼吸），局部消费方按它取振幅；当前的生产消费方只有弹体尾部
+    /// （<see cref="UploadBulletTail"/> 上传 `u_beat`，B2 已接）——舰体事件流光是事件驱动的一次性
+    /// 扫光，不吃拍点。</summary>
     public float Beat01 { get; private set; }
 
     /// <summary>慢呼吸振荡（0..1，谷 0 / 峰 1）：绕中位摆动的波形，消费方自行乘振幅。</summary>
@@ -83,9 +85,11 @@ public partial class VisualRhythm : Node
     private double _breathAmp = 0.025;
     private double _beatAttack = 0.08;
     private double _beatRelease = 0.2;
-    // 弹尾动效（B2）静态参数：流动相位速度与总亮度预算（`effects.motion.bullet_tail_*`，同上口径）
+    // 弹尾动效（B2）静态参数：流动相位速度与总亮度预算（`effects.motion.bullet_tail_*`，同上口径）。
+    // 默认值与 data/balance.json 同值（§2.11 双事实源）：曾写成 0.12（增量式取值时代的旧数），
+    // json 缺失时会静默退化成「尾部动效看不见」。
     private float _tailFlowHz = 0.35f;
-    private float _tailAmp = 0.12f;
+    private float _tailAmp = 1.5f;
 
     // 弹体共享材质的 uniform 名与上传守卫。守卫的比较基准初值必须**等于材质里的默认值**
     // （u_beat 0 / u_intensity 1），否则「值没变就不写」会漏掉第一帧、材质停在默认值上。

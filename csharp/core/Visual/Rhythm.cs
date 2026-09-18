@@ -12,8 +12,8 @@ namespace InfiAir.Core.Visual;
 ///     这就是 <see cref="FullScreenPeakToTroughCap"/> 的由来，全屏呼吸的取值一律经
 ///     <see cref="FullScreenHalfAmplitude"/> 收口，不在各处留本地系数。
 ///     拍点脉冲**一律下放局部元素**（弹体尾部 / 舰体流光 / 仪表 / 亮星，各自屏占远低于 20%），
-///     故 <see cref="BeatPulse"/> 的振幅面不在全屏硬线内——它由 `effects.motion.beat_amp_local`
-///     与「动效强度」各管一半。
+///     故 <see cref="BeatPulse"/> 的振幅面不在全屏硬线内——生产侧的拍点振幅由各消费方自己的
+///     幅值键承担（弹尾取 `effects.motion.bullet_tail_amp` 的拍点份额）再乘「动效强度」。
 ///   - **全屏周期脉冲频率 < 3Hz**：登记在 core <see cref="FlashBudget"/>（含减闪归零）。
 ///     <see cref="BeatHz"/> 是「BPM 越阈值」的唯一换算口，单测按 balance 的三档 BPM 判它——
 ///     改 BPM 让整拍越过 3Hz 时判红，而不是等画面开始闪。

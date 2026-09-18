@@ -97,8 +97,22 @@ public partial class Starfield : Node2D
     public float WarpFactor { get; private set; } = 1.0f;
 
     /// <summary>当前滚动速度倍率 = 星光拉伸 × 战况（难度）倍率。同屏的速度线取它定线长
-    /// （<see cref="SpeedLines.Burst"/>），使两层的「快」是同一个读数而不是两套。</summary>
+    /// （<see cref="SpeedLines.Burst"/>），使两层的「快」是同一个读数而不是两套。
+    /// 逐帧在 <see cref="_Process"/> 里刷新；同帧内先改拉伸倍率再取读数的调用方走
+    /// <see cref="CurrentScrollK"/>（读本字段拿到的是上一帧的值）。</summary>
     public float ScrollK { get; private set; } = 1.0f;
+
+    /// <summary>当前应有的滚动倍率（现算口，与 <see cref="_Process"/> 写 <see cref="ScrollK"/> 同一条算式）。
+    /// 为什么需要：<see cref="Warp"/> / <see cref="WarpBoost"/> 只改倍率字段，而 <see cref="ScrollK"/>
+    /// 要到本节点下一趟 `_Process` 才刷新——同一帧里改完就读会拿到**上一帧**的旧值。返航跃迁即此：
+    /// 速度线按旧值定线长，跃迁那一跳的线条永远不变长（画面上无从分辨，只有读代码才看得出）。
+    /// 战况耦合（B4）：局内难度档线性映射到 [1, starfield_battle_speed_max] 再乘动效强度——
+    /// 强度 0 时精确回到 1.0（＝本批次之前的画面，判据 6）。只动速度，不动星数/亮度/闪烁频率。</summary>
+    public float CurrentScrollK()
+    {
+        var battleK = 1.0f + (BattleSpeedK() - 1.0f) * (VisualRhythm.Instance?.Intensity ?? 0.0f);
+        return WarpFactor * battleK;
+    }
 
     /// <summary>可见世界区域尺寸缓存（view_world_rect），不得硬编码 1920×1080。</summary>
     private Vector2 _areaSize = new(1920.0f, 1080.0f);
@@ -335,10 +349,8 @@ public partial class Starfield : Node2D
 
         _t += d;
         WarpFactor = Mathf.Lerp(WarpFactor, 1.0f, 1.5f * d);
-        // 战况耦合（B4）：局内难度档线性映射到 [1, starfield_battle_speed_max] 再乘动效强度——
-        // 强度 0 时精确回到 1.0（＝本批次之前的画面，判据 6）。只动速度，不动星数/亮度/闪烁频率。
-        var battleK = 1.0f + (BattleSpeedK() - 1.0f) * (VisualRhythm.Instance?.Intensity ?? 0.0f);
-        ScrollK = WarpFactor * battleK;
+        // 战况耦合与强度缩放的算式在 CurrentScrollK（现算口与逐帧写值共用一条算式，不会分叉）
+        ScrollK = CurrentScrollK();
         var wrapY = _origin.Y + _areaSize.Y; // 回绕基线随区域锚点（zoom>1 时非 0）
         for (int i = 0; i < _far.Length; i++)
         {

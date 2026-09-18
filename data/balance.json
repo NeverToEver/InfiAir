@@ -1213,7 +1213,6 @@
 			"breath_amp": 0.025,
 			"beat_attack": 0.08,
 			"beat_release": 0.2,
-			"beat_amp_local": 0.08,
 			"bullet_tail_flow_hz": 0.35,
 			"bullet_tail_amp": 1.5,
 			"sweep_time": 0.35,
@@ -1233,7 +1232,16 @@
 			"speedline_fade_out": 0.5,
 			"speedline_speed": 1800.0,
 			"starfield_battle_speed_max": 1.35,
-			"planet_spin_rad_s": 0.02
+			"planet_spin_rad_s": 0.02,
+			"enemy_entry_start_scale": 0.82,
+			"enemy_entry_rise": 26.0,
+			"formation_entry_start_scale": 0.72,
+			"formation_entry_rise": 34.0,
+			"warp_sprint_factor": 4.0,
+			"backdrop_parallax_max": 0.012,
+			"backdrop_parallax_planet_k": 0.35,
+			"backdrop_parallax_debris_k": 0.65,
+			"backdrop_parallax_dust_k": 1.0
 		}
 	},
 	"elite_turret_event": {

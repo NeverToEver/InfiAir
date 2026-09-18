@@ -18,9 +18,10 @@ public partial class Main : Node2D
     /// 不依赖时长自然到期。</summary>
     private const float SummonInvincibleSeconds = 999.0f;
 
-    /// <summary>大事件的星野冲刺倍率（B4 背景战况响应）：取小档，与返航跃迁的 18 区分量级——
-    /// 事件冲刺只该让人「感觉到一下」，不该把过场镜头的跃迁感抢过来。</summary>
-    private const float FxWarpSprint = 4.0f;
+    /// <summary>大事件的星野冲刺倍率（B4 背景战况响应）：默认 4.0 取小档，与返航跃迁的 18 区分量级——
+    /// 事件冲刺只该让人「感觉到一下」，不该把过场镜头的跃迁感抢过来。
+    /// 取值在 `effects.motion.warp_sprint_factor`（_Ready 读入；默认值与 data/balance.json 同值，§2.11）。</summary>
+    private float _fxWarpSprint = 4.0f;
 
     /// <summary>遭遇组空闲哨兵：_Process 每帧比较 ActiveId 时复用，避免 new StringName() 分配。</summary>
     private static readonly StringName NoActiveEncounter = new();
@@ -174,6 +175,8 @@ public partial class Main : Node2D
         ENRAGE_SLOW_SCALE = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.slow_scale", ENRAGE_SLOW_SCALE).AsDouble(), 0.01f); // =0 使狂暴慢速完全冻结
         ENRAGE_BULLET_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.bullet_time", ENRAGE_BULLET_TIME).AsDouble(), 0.01f); // =0 跳过子弹时间演出
         ENRAGE_RAMP_TIME = Mathf.Max((float)GameState.Instance.Cfg("boss.enrage.ramp_time", ENRAGE_RAMP_TIME).AsDouble(), 0.01f); // =0 时 _time_scale_ramp 除零
+        // 背景战况响应（B4）的事件冲刺倍率：≥1 保底（<1 会把星野拉慢、与「冲刺」语义相反）
+        _fxWarpSprint = CfgFx.Float("effects.motion.warp_sprint_factor", _fxWarpSprint, 1.0f, 40.0f);
         // 防御：上一场本局若在子弹时间内结束（死亡重开），确保演出倍率与顿帧残留一并复位
         GameState.Instance.ResetTimeScale();
         // 召唤窗口互斥旗帜复位（上局若在蓄力/小窗窗口内退出，GameEventManager 触发门控不残留压制）
@@ -864,8 +867,8 @@ public partial class Main : Node2D
             return;
         }
 
-        _speedLines.Burst(strength, _starfield.ScrollK);
-        _starfield.WarpBoost(1.0f + (FxWarpSprint - 1.0f) * intensity);
+        _speedLines.Burst(strength, _starfield.CurrentScrollK());
+        _starfield.WarpBoost(1.0f + (_fxWarpSprint - 1.0f) * intensity);
     }
 
     /// <summary>Boss 离场（击毁与逃跑同走 Died）：曲目上下文复位（回默认曲目或基地休整曲）。
@@ -1125,8 +1128,10 @@ public partial class Main : Node2D
         _events.EndActive(_events.GROUP_ENCOUNTER);
         _starfield.Warp(18.0f); // 保留：返航过场镜头 1 的星光拉伸自然衔接
         // 返航跃迁：触发点沿用上面这行既有调用点（跳过过场/过场未铺满的路径上，速度线就是这一跳
-        // 的读法；进程模式 Always 保证它不冻在半途）；不另给星野冲刺——Warp(18) 已是大得多的那一档
-        _speedLines.Burst(1.0f, _starfield.ScrollK);
+        // 的读法；进程模式 Always 保证它不冻在半途）；不另给星野冲刺——Warp(18) 已是大得多的那一档。
+        // 线长必须取**现算**的倍率：Warp 只改字段，ScrollK 要到 Starfield 下一趟 _Process 才刷新，
+        // 同帧读字段会把跃迁那一跳的线长按跃迁前的读数画（跃迁速度线不变长）
+        _speedLines.Burst(1.0f, _starfield.CurrentScrollK());
         PlayReturnCinematic();
     }
 

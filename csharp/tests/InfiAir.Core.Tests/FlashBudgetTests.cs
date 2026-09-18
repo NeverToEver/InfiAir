@@ -39,9 +39,10 @@ public sealed class FlashBudgetTests
     }
 
     /// <summary>本轮动效（`effects.motion`）的取值面判据（`DESIGN_BASELINE` §2.12 判据 1 与 5）：
-    /// 三档 BPM 换算出的**整拍**频率一律 < 3Hz；全屏呼吸的默认半振幅不越 core Rhythm 的硬线。
-    /// 守的静默错误＝表里登记的只有呼吸频率，「有人把 BPM 调到 200」（整拍 3.33Hz）时全屏节拍
-    /// 越过阈值，而频率表、减闪归零两半都照常全绿。</summary>
+    /// 三档 BPM 换算出的**整拍**频率一律 < 3Hz；全屏呼吸的默认半振幅不越 core Rhythm 的硬线，
+    /// 其频率上限与登记表的 WorldBreath 行同值且 < 3Hz。
+    /// 守的静默错误＝表里登记的只有呼吸频率，「有人把 BPM 调到 200」（整拍 3.33Hz）或
+    /// 「把 breath_hz_max 调到 3」时全屏尺度读数越过阈值，而频率表、减闪归零两半都照常全绿。</summary>
     [Fact]
     public void MotionBalance_BeatAndBreathStayUnderHardLines()
     {
@@ -66,6 +67,14 @@ public sealed class FlashBudgetTests
             2.0 * amp < 0.10,
             $"effects.motion.breath_amp={amp} 的峰谷亮度差达到 XAG 118 的「闪」定义线（≥10%）");
         Assert.Equal(amp, Rhythm.FullScreenHalfAmplitude(amp), 6);
+
+        // 呼吸频率上限（WorldBreath 行声明取自 balance，此前没有回读判定：把 breath_hz_max 调到 3
+        // 即全屏呼吸越阈值，而频率表、减闪归零、BPM 三半全绿）——值与表一致、值本身也在阈值下
+        var hzMax = motion.GetProperty("breath_hz_max").GetDouble();
+        Assert.Equal((float)hzMax, FlashBudget.Source(PulseId.WorldBreath).Hz, 5);
+        Assert.True(
+            hzMax < FlashBudget.HzLimit,
+            $"effects.motion.breath_hz_max={hzMax} 越过全屏尺度闪烁阈值 {FlashBudget.HzLimit}Hz（XAG 118）");
     }
 
     [Fact]

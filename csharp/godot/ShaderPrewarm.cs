@@ -41,6 +41,13 @@ public partial class ShaderPrewarm : CanvasLayer
     /// <summary>登记去重用的材质 id（GetInstanceId）：池化材质按阵营/外观各建一张时避免重复登记。</summary>
     private static readonly HashSet<ulong> ExtraSeedIds = new();
 
+    /// <summary>预热已跑过一轮（开机黑场那一帧）：此后 <see cref="RegisterExtraSeed"/> 一律空操作。
+    /// 为什么必须停收（不只是清表）：预热只在**首局**开机跑一次，而重开局/回标题屏每局都会重建
+    /// 节奏服务、每次都登记一张新材质——表只进不出，几局下来两份静态容器无界增长
+    /// （WeakReference 本身不延长材质寿命，泄漏的是容器条目与 id 集合）。
+    /// 预热帧已经画过全部着色器，之后登记的材质本就没有可补的编译成本——空操作不是丢功能。</summary>
+    private static bool _prewarmed;
+
     private bool _drawn;
 
     /// <summary>
@@ -50,10 +57,15 @@ public partial class ShaderPrewarm : CanvasLayer
     /// 那种巨帧，不注册就会当场顿一下。静态只持**弱引用**：材质本体由持有方（对象池）保管，本机制不
     /// 延长其生命周期——静态强持 Godot 对象会在引擎退出 finalize 期 segfault（本仓库踩过），
     /// 且未走预热路径的场景（标题屏 / 练习 / 从标题屏直入）根本不会清空这张表。
-    /// 登记须早于开机那一轮的预热：预热已跑完后登记是空操作（不排队、不补画）。
+    /// 登记须早于开机那一轮的预热：预热已跑完后登记是空操作（不排队、不补画，且静态登记表不再增长）。
     /// </summary>
     public static void RegisterExtraSeed(ShaderMaterial material)
     {
+        if (_prewarmed)
+        {
+            return; // 预热只发生一次；之后的重开局登记没有可补的编译成本，只会有界地撑大静态容器
+        }
+
         if (material == null || !GodotObject.IsInstanceValid(material))
         {
             return;
@@ -82,6 +94,7 @@ public partial class ShaderPrewarm : CanvasLayer
 
         ExtraSeeds.Clear();
         ExtraSeedIds.Clear(); // 静态不留 Godot 引用（也不会跨场景残留）
+        _prewarmed = true;    // 本轮之后一律停收（见 RegisterExtraSeed）
         Collect(GetTree().Root, seenShaders, mats);
         foreach (var mat in mats)
         {

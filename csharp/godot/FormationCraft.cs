@@ -56,10 +56,12 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
     private static float _phaseDelay = 0.15f;
 
     /// <summary>入场起点缩放与上方位移（局部 +Y：本机根节点按航向旋转 π 时即屏上「从上方滑入」）。
-    /// 比普通敌机更明显一档——编队是整组自屏外压下来，落位要读得出来才不算白做。</summary>
-    private const float EntryStartScale = 0.72f;
+    /// 比普通敌机更明显一档——编队是整组自屏外压下来，落位要读得出来才不算白做。
+    /// 取值在 `effects.motion.formation_entry_start_scale` / `formation_entry_rise`，
+    /// 默认值与 data/balance.json 同值（§2.11）。</summary>
+    private static float _entryStartScale = 0.72f;
 
-    private const float EntryRise = 34.0f;
+    private static float _entryRise = 34.0f;
 
     /// <summary>投弹名次（<c>FormationPlan.DropRank</c> 的既有排序取值；0 = 长机档）。</summary>
     private int _entryRank;
@@ -115,6 +117,10 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
             Modulate = FormationTint,
         };
         AddChild(_sprite);
+        // 入场基准 = 设计缩放，**只在这里写一次**：_Ready 与 SetEntryRank 会连续两次起入场
+        // （后者由编队事件在入树后调用）。基准若在 BeginEntry 里现取当前 Scale，第二次会把
+        // 「已被写成 0.72×基准 的 Scale」当成新基准捕获，落位后整个编队永久缩小 28%。
+        _entryBaseScale = _sprite.Scale;
         // 翼尖航行灯（编队身份）+ 机腹投弹舱照明（默认灭，投弹时亮起）
         var ws = (float)GameState.Instance.WorldScale;
         var portLight = CinematicFx.Glow(4.5f * ws, new Color(1.0f, 0.35f, 0.3f, 0.85f));
@@ -160,11 +166,26 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
 
         _entryTime = CfgFx.Float("effects.motion.enemy_entry_time", _entryTime, 0.0f);
         _phaseDelay = CfgFx.Float("effects.motion.formation_phase_delay", _phaseDelay, 0.0f);
+        _entryStartScale = CfgFx.Float("effects.motion.formation_entry_start_scale", _entryStartScale, 0.0f, 2.0f);
+        _entryRise = CfgFx.Float("effects.motion.formation_entry_rise", _entryRise, 0.0f, 1000.0f);
         _motionCfgLoaded = true;
     }
 
+    /// <summary>动效强度（0..1）：设置项 `fx_intensity` 的直读值（取值口与钳制单源在设置服务）。
+    /// **不经 <see cref="VisualRhythm"/>**——本类也活在教程/练习等没有节奏服务的场景里，经它取会在
+    /// 那些场景静默退化成「没有动效」，与「玩家把强度调到 0」在画面上无从分辨。
+    /// 取不到读数（autoload 拆树期）按 0 处理：不做动效是最安全的中性口径。</summary>
+    private static float FxIntensity()
+    {
+        var fx = GameState.Instance.FxIntensity;
+        return double.IsFinite(fx) ? (float)Math.Clamp(fx, 0.0, 1.0) : 0.0f;
+    }
+
     /// <summary>写入入场起点姿态（名次相位在等待期里保持这一姿态：机体在视野里「还没落位」，
-    /// 落位过程因此读得出先后）。只写 Sprite2D 子节点，节点自身的缩放（侧倾压坡）与碰撞不受影响。</summary>
+    /// 落位过程因此读得出先后）。只写 Sprite2D 子节点，节点自身的缩放（侧倾压坡）与碰撞不受影响。
+    /// **基准不在此现取**（<see cref="_entryBaseScale"/> 在 _Ready 写死为设计缩放）。
+    /// 起点姿态按动效强度缩放（判据 6：0 ＝ 回到本批次之前的画面——直接落地站稳，
+    /// 名次相位延迟随之失效，即各机同帧落位＝延迟 0；0..1 之间只缩振幅，时长不变）。</summary>
     private void BeginEntry(int rank)
     {
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
@@ -174,12 +195,13 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
             return;
         }
 
-        _entryBaseScale = _sprite.Scale;
         _entryRank = Mathf.Max(rank, 0);
         _entryDelay = _entryRank * _phaseDelay;
         _entryArmed = false;
         _entryElapsed = 0.0f;
-        _entryDone = !(_entryTime > 0.0f); // 时长坏配置：直接落位，不留「永久偏小」的姿态
+        // 时长坏配置（≤0）与强度 0 都直接落位，不留「永久偏小」的姿态
+        var intensity = FxIntensity();
+        _entryDone = !(_entryTime > 0.0f) || intensity <= 0.0f;
         if (_entryDone)
         {
             _sprite.Scale = _entryBaseScale;
@@ -187,18 +209,29 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
             return;
         }
 
-        _sprite.Scale = _entryBaseScale * EntryStartScale;
-        _sprite.Position = new Vector2(0.0f, EntryRise * (float)GameState.Instance.WorldScale);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(1.0f, _entryStartScale, intensity);
+        _sprite.Position = new Vector2(0.0f, _entryRise * intensity * (float)GameState.Instance.WorldScale);
     }
 
     /// <summary>入场落位逐帧推进（模拟时间；缓动算式在 core <see cref="UnitEntry"/>）。
     /// **到屏上才起算**：编队自屏顶外整组压下来，从建队那一刻起算会让先头机体的落位在屏外跑完；
     /// 到屏上后先按名次等待，再走一遍缓动——读感是「一架一架压进视野落位」。
-    /// 排在受击闪白之前：闪白的绝对值后写覆盖入场值（缩放回弹是高优先的打击感读数）。</summary>
+    /// 排在受击闪白之前：闪白的绝对值后写覆盖入场值（缩放回弹是高优先的打击感读数）。
+    /// 判据 6：强度 0 当帧落位（滑杆在入场途中拖到 0 也要立刻回到本批次之前的画面）；
+    /// 0..1 之间只缩**振幅**——起点缩放的偏离量与上浮距离按强度线性缩放，缓动曲线与时长不变。</summary>
     private void UpdateEntry(float delta)
     {
         if (_entryDone || _sprite == null)
         {
+            return;
+        }
+
+        var intensity = FxIntensity();
+        if (intensity <= 0.0f)
+        {
+            _entryDone = true;
+            _sprite.Scale = _entryBaseScale;
+            _sprite.Position = Vector2.Zero;
             return;
         }
 
@@ -220,8 +253,8 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
 
         _entryElapsed += delta;
         var k = UnitEntry.Placement01(_entryElapsed, _entryTime);
-        _sprite.Scale = _entryBaseScale * Mathf.Lerp(EntryStartScale, 1.0f, k);
-        _sprite.Position = new Vector2(0.0f, EntryRise * (1.0f - k) * (float)GameState.Instance.WorldScale);
+        _sprite.Scale = _entryBaseScale * Mathf.Lerp(Mathf.Lerp(1.0f, _entryStartScale, intensity), 1.0f, k);
+        _sprite.Position = new Vector2(0.0f, _entryRise * intensity * (1.0f - k) * (float)GameState.Instance.WorldScale);
         if (k < 1.0f)
         {
             return;

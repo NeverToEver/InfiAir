@@ -93,7 +93,9 @@ public partial class Bullet : Area2D, IParryable
     /// 而 ArrowBody 的几何中心在 x = +1（x∈[−10,+12]），于是中心落在 35+1 = 36、贴图中心却是 24
     /// ——前移 12 图集像素（玩家弹 ×1.3 ≈ 15.6px、敌弹 ×2.4 ≈ 28.8px）。
     /// 现取值 23 = 24 − 1 把弹体中心拉回贴图中心；改此值必须同时核对全部绘制元素不越 48×16
-    /// （弹体 px 13..38、描边 px 12..40、尾迹 px 1..16）并同步 shader 的 u_tail_end。</summary>
+    /// （几何：弹体 px 13..35 = TexOffset.X ± ArrowBody 的 x∈[−10,+12]、描边 px 11.6..36.4 =
+    /// 弹体 ± 1.4px 膨胀半径、尾迹 px 1..16；扫描线填充在顶点行会把边交点外推，实测最右到 px 40，
+    /// 仍在 48 以内）并同步 shader 的 u_tail_end。</summary>
     private static readonly Vector2I TexSize = new(48, 16);
     private static readonly Vector2 TexOffset = new(23.0f, 8.0f);
     private static readonly Vector2[] ArrowBody =

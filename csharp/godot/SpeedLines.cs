@@ -18,9 +18,9 @@ namespace InfiAir;
 ///
 /// 可读性（判据 3「不得遮盖弹体轮廓与前摇预告」）：`ZIndex = -1`，压在星野（-10）与
 /// 纵深背景（-5）之上、全部实体（0）之下——速度线只是背景层的运动提示，绝不压住敌弹/
-/// 敌机/玩家轮廓。亮度预算：峰值 alpha 硬顶 <see cref="AlphaCeiling"/>（0.45，背景层
-/// 亮度预算线；balance 里调高也会被钳回），线色取冷白（同星野），不用琥珀——战术主色留给
-/// 可交互物。
+/// 敌机/玩家轮廓。亮度：峰值 alpha 硬顶 <see cref="AlphaCeiling"/>（0.45，细线运动层的峰值
+/// alpha 口径——判据 3 的 25% 是背景**面**的亮度预算，不是同一个量，见该常量注释；balance 里
+/// 调高也会被钳回），线色取冷白（同星野），不用琥珀——战术主色留给可交互物。
 ///
 /// 缩放与门控（判据 6）：触发时读 <see cref="VisualRhythm.Intensity"/>（设置项「动效强度」），
 /// 为 0 即不触发（＝回到本批次之前的画面），其余档位只缩放峰值 alpha，不改速度/时长
@@ -40,11 +40,14 @@ public partial class SpeedLines : Node2D
     /// <summary>布局抖动种子（固定值：同触发序列下逐帧可复现，同 Starfield 12345 / 纵深层 20260911 口径）。</summary>
     private const ulong LayoutSeed = 20260918;
 
-    /// <summary>峰值 alpha 硬顶：背景层亮度预算（判据 3「背景层 ≤25%」与 XAG 118 的闪定义线）。
-    /// balance 的 speedline_alpha 再高也钳到这里——调大即越过背景层预算，须先改判据。</summary>
+    /// <summary>峰值 alpha 硬顶（balance 的 speedline_alpha 再高也钳到这里）。
+    /// **口径**：判据 3 的「背景层 ≤25%」说的是背景**面**的亮度预算（大面积填充的亮度占比），
+    /// 而本项是**细线运动层**的峰值 alpha——2px 宽的掠过一次的线段，屏占远低于面积判据，
+    /// 两者不是同一个量（既有星野亮星线的 alpha 比本值更高，同属细线口径）。
+    /// 这里取 0.45 作护栏：再高会让速度线在暗背景上读成实体障碍物而非运动提示。</summary>
     private const float AlphaCeiling = 0.45f;
 
-    /// <summary>线宽（像素）。合批线宽，不是几何——不参与任何判定。</summary>
+    /// <summary>线宽（像素）。合批线宽，纯形状量——不是可调幅值，不入 balance。</summary>
     private const float LineWidth = 2.0f;
 
     /// <summary>逐线速度抖动区间（免整齐如尺；同一瞬间的线速不完全一致才像高速掠过）。</summary>
@@ -124,7 +127,8 @@ public partial class SpeedLines : Node2D
     /// </summary>
     /// <param name="strength">本次强度 0..1（事件档位：Boss 入场满档，遭遇/母舰次之）——
     /// 只缩放峰值 alpha，不改速度与时长。</param>
-    /// <param name="speedK">当前星野滚动速度倍率（<see cref="Starfield.ScrollK"/>）：线长按它伸缩，
+    /// <param name="speedK">当前星野滚动速度倍率（<see cref="Starfield.ScrollK"/>；同帧内刚改过拉伸
+    /// 倍率的调用方传 <see cref="Starfield.CurrentScrollK"/> 取现算值）：线长按它伸缩，
     /// 使速度线与同屏的星野读起来是同一件事（跃迁倍率会被钳到
     /// <see cref="LengthScaleMax"/>，免得线长到横贯全屏）。</param>
     public void Burst(float strength, float speedK)
