@@ -34,7 +34,7 @@ public partial class MetaHealthFX : CanvasLayer
     // 各状态裂纹密度上限（NORMAL 无裂纹；balance.json effects.meta_health.crack.density 可覆盖）
     private static readonly float[] DENSITY_CAPS = { 0.0f, 0.30f, 0.50f, 0.75f, 1.0f };
 
-    // 裂纹发光色带（§4.2 crossfade，带宽 0.08）——战术琥珀：青→黄→橙→红，与主色板同族
+    // 裂纹发光色带（META_HUD_DESIGN §4.2 crossfade，带宽 0.08）——战术琥珀：青→黄→橙→红，与主色板同族
     private static readonly Color CRACK_CYAN = new(0x6fd8ffff);
     private static readonly Color CRACK_YELLOW = new(0xffc24bff);
     private static readonly Color CRACK_ORANGE = new(0xff8a2bff);
@@ -157,7 +157,7 @@ public partial class MetaHealthFX : CanvasLayer
     // ---------------- 实机调参阅数读口（平滑参数注入口 + 状态 getter） ----------------
     // 无生产调用方：保留理由是实机调参与截图核对的观察面（诊断口，非死代码）。
 
-    /// <summary>血量-裂纹映射曲线（§4.2；纯映射值，不含生长过冲）</summary>
+    /// <summary>血量-裂纹映射曲线（META_HUD_DESIGN §4.2；纯映射值，不含生长过冲）</summary>
     public float CrackProgress()
     {
         return Mathf.Pow(_damageX, _crackExponent);
@@ -716,7 +716,7 @@ public partial class MetaHealthFX : CanvasLayer
             _adaptGain = Mathf.Clamp(1.0f - proxy, _adaptMin, _adaptMax);
         }
 
-        // 6. 参数合成（§4.2 曲线；「减少闪光」在传参前折算，shader 零分支）
+        // 6. 参数合成（META_HUD_DESIGN §4.2 曲线；「减少闪光」在传参前折算，shader 零分支）
         var x = _damageX;
         var progress = Mathf.Min(CrackProgress() + _growBoost, 1.0f);
         var pulse = _hitPulse;

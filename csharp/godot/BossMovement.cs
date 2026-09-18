@@ -92,7 +92,7 @@ public partial class BossMovement : RefCounted
 
     // ---------------- 内部实现 ----------------
 
-    /// <summary>一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（§5.1）。</summary>
+    /// <summary>一型「堡垒」：慢速 strafe + P1 每 6s 纵向下压 80px 再回（BOSS_REDESIGN §5.1）。</summary>
     private void MoveType1(float delta, Boss boss)
     {
         var phase = boss.FightPhaseValue();
@@ -116,7 +116,7 @@ public partial class BossMovement : RefCounted
     /// <summary>二型「游击」：周期性冲刺换向（偏向屏幕中心，避免长期贴边）。</summary>
     private void MoveType2(float delta, Boss boss) => MoveDash(delta, boss);
 
-    /// <summary>三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（§5.3）。</summary>
+    /// <summary>三型「母舰」：P1 缓慢下压/回升 + P2 提速正弦（BOSS_REDESIGN §5.3）。</summary>
     private void MoveType3(float delta, Boss boss)
     {
         var phase = boss.FightPhaseValue();
@@ -200,7 +200,7 @@ public partial class BossMovement : RefCounted
         boss.Position = pos;
     }
 
-    /// <summary>三型 P1「缓慢下压/回升」（§5.3）：周期内正弦下压到锚线下 [y_lo, y_hi] 区间再回升。
+    /// <summary>三型 P1「缓慢下压/回升」（BOSS_REDESIGN §5.3）：周期内正弦下压到锚线下 [y_lo, y_hi] 区间再回升。
     /// 与 _update_press 同构（target 为纯偏移、从 0 起步无初始跳变）；wob 慢相位使下压轨迹
     /// 在 [lo, hi] 邻域摆动（9s 慢周期，与模式循环错开）。</summary>
     private void MoveBand(float delta, Boss boss, float yLo, float yHi, float period)

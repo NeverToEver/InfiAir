@@ -7,7 +7,7 @@ namespace InfiAir;
 /// 冲刺残影池、机身色调（弹反金/擦弹金/无敌闪烁）、受击点脉动、弹反盾视觉、擦弹闪光状态。
 /// 组合委托模式（同 PlayerDamage/PlayerDash/PlayerParry）：不持有节点所有权，经 Player
 /// 传入的节点引用操作；公开接口供 Player 帧驱动与外部（PlayerDash 残影入口）调用。
-/// 拆分动机：Player 视觉与战斗逻辑解耦（DESIGN_BASELINE §7.1）。
+/// 拆分动机：Player 视觉与战斗逻辑解耦（DESIGN_BASELINE §2.3）。
 /// 无信号/导出 → 纯 C# 类（不继承 GodotObject）；仅 Player 调用。Enemy.SinFast 为同命名空间
 /// 静态方法，直接引用。
 /// </summary>

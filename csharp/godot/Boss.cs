@@ -10,7 +10,7 @@ namespace InfiAir;
 /// （&lt;30%），P1/P2 各为数据驱动的模式表循环；段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身
 /// 开火计时。走位/攻击/狂暴经组合委托 BossMovement/BossAttacks/EnrageSequence（纯 C# 类）；
 /// 弹幕经 BossFire（纯 C# 类）。语义保持：模式表脚本默认值镜像 balance.json、难度分档统一应用
-/// （§4.4）、阶段转场清弹 + 玩家短暂无敌、狂暴锁血 30% + 玩家移速 ×0.35、逃跑警告 +
+/// （BOSS_REDESIGN §4.4）、阶段转场清弹 + 玩家短暂无敌、狂暴锁血 30% + 玩家移速 ×0.35、逃跑警告 +
 /// 上飘、体碰信号事件驱动、受击闪白手动衰减。
 /// 全部生产调用方为 C# typed（EnrageSequence/BossAttacks/BossMovement 经构造注入 Boss 引用）；
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达。
@@ -38,7 +38,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     [Signal]
     public delegate void EscapedEventHandler();
 
-    /// <summary>常规阶段（§4.1）：P1/P2 模式表循环，ENRAGE 为狂暴（序列结束后「余怒」沿用 P2 表提速）。</summary>
+    /// <summary>常规阶段（BOSS_REDESIGN §4.1）：P1/P2 模式表循环，ENRAGE 为狂暴（序列结束后「余怒」沿用 P2 表提速）。</summary>
     public enum FightPhase { P1, P2, ENRAGE }
 
     // ---- 静态常量表 / 实例资源（静态 Godot 资源必须改实例字段——退出 segfault） ----
@@ -159,21 +159,21 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     /// <summary>阶段阈值：P2 = 70%（新增），ENRAGE = 30%（沿用原作）。</summary>
     public float Phase2HpRatio { get; set; } = 0.7f;
     public float EnrageHpRatio { get; set; } = 0.3f;
-    /// <summary>「余怒」倍率：射速 ×1.3（原 ×1.5 下调，§5.4）/ 移速 ×1.3。</summary>
+    /// <summary>「余怒」倍率：射速 ×1.3（原 ×1.5 下调，BOSS_REDESIGN §5.4）/ 移速 ×1.3。</summary>
     public float EnrageRateMult { get; set; } = 1.3f;
     public float EnrageSpeedMult { get; set; } = 1.3f;
-    /// <summary>狂暴期玩家减速乘区（替代定身，§4.3）：TRANSITION+ACTIVE 期间移速 ×0.35。</summary>
+    /// <summary>狂暴期玩家减速乘区（替代定身，BOSS_REDESIGN §4.3）：TRANSITION+ACTIVE 期间移速 ×0.35。</summary>
     public float EnragePlayerSlow { get; set; } = 0.35f;
-    /// <summary>段切换演出时长（蓄力辉光 + 停火，§4.1）。</summary>
+    /// <summary>段切换演出时长（蓄力辉光 + 停火，BOSS_REDESIGN §4.1）。</summary>
     public float PhaseShiftDuration { get; set; } = 0.6f;
     /// <summary>阶段转场公平感：切换时清全部活跃敌弹 + 给玩家短暂无敌。</summary>
     public bool ClearOnShift { get; set; } = true;
     public float TransitionInvincible { get; set; } = 1.0f;
-    /// <summary>狙击 telegraph（§4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹。</summary>
+    /// <summary>狙击 telegraph（BOSS_REDESIGN §4.2/§5.2）：瞄准线 0.35s（前 0.2s 微跟踪玩家后固定），到点沿线出弹。</summary>
     public float SniperAimTime { get; set; } = 0.35f;
     public float SniperTrackTime { get; set; } = 0.2f;
     public float SniperBurstInterval { get; set; } = 0.12f;
-    /// <summary>一型 P1 纵向下压（§5.1）：每 6s 下压 80px 再回。</summary>
+    /// <summary>一型 P1 纵向下压（BOSS_REDESIGN §5.1）：每 6s 下压 80px 再回。</summary>
     public float PressInterval { get; set; } = 6.0f;
     public float PressDepth { get; set; } = 80.0f;
     /// <summary>P2 走位（balance.json boss.movement，公开字段供 BossMovement 读取）。</summary>
@@ -188,32 +188,32 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     public int Type3P2Strafe { get; set; } = 100;
     public float Type3P2BobAmp { get; set; } = 50.0f;
     public float Type3P2BobPeriod { get; set; } = 8.0f;
-    /// <summary>蓄力重炮（一型 P2，§5.1）：0.6s 蓄力辉光 → 3 发高速重弹（间隔 0.25s，每发 0.15s 短闪光）。</summary>
+    /// <summary>蓄力重炮（一型 P2，BOSS_REDESIGN §5.1）：0.6s 蓄力辉光 → 3 发高速重弹（间隔 0.25s，每发 0.15s 短闪光）。</summary>
     public float CannonCharge { get; set; } = 0.6f;
     public int CannonShots { get; set; } = 3;
     public float CannonInterval { get; set; } = 0.25f;
     public float CannonBulletSpeed { get; set; } = 700.0f;
     public int CannonDamage { get; set; } = 21;
     public float CannonFlash { get; set; } = 0.15f;
-    /// <summary>冲刺掠过（二型 P2，§5.2）：0.5s 瞄准线 → 高速横穿玩家高度，路径拖 3 枚减速弹。</summary>
+    /// <summary>冲刺掠过（二型 P2，BOSS_REDESIGN §5.2）：0.5s 瞄准线 → 高速横穿玩家高度，路径拖 3 枚减速弹。</summary>
     public float SweepAim { get; set; } = 0.5f;
     public float SweepSpeed { get; set; } = 900.0f;
     public int SweepDropCount { get; set; } = 3;
     public float SweepDropSpeed { get; set; } = 150.0f;
     public int SweepDropDamage { get; set; } = 12;
     public float SweepReturnDuration { get; set; } = 0.8f;
-    /// <summary>编队齐射（三型 P2，§5.3）：召唤 4 小怪列横队，0.8s 后齐射一轮自机狙。</summary>
+    /// <summary>编队齐射（三型 P2，BOSS_REDESIGN §5.3）：召唤 4 小怪列横队，0.8s 后齐射一轮自机狙。</summary>
     public int VolleyCount { get; set; } = 4;
     public float VolleyDelay { get; set; } = 0.8f;
     public float VolleyBulletSpeed { get; set; } = 420.0f;
     public int VolleyBulletDamage { get; set; } = 12;
-    /// <summary>弹幕墙（三型 P2，§5.3）：10 路低速扇形墙，留 2 个相邻缺口（缺口方位避开自机 ±30°）。</summary>
+    /// <summary>弹幕墙（三型 P2，BOSS_REDESIGN §5.3）：10 路低速扇形墙，留 2 个相邻缺口（缺口方位避开自机 ±30°）。</summary>
     public int WallCount { get; set; } = 10;
     public float WallBulletSpeed { get; set; } = 220.0f;
     public int WallDamage { get; set; } = 12;
     public float WallArcDeg { get; set; } = 150.0f;
     /// <summary>
-    /// 难度分档（§4.4，boss.difficulty_scaling）：索引 = [easy, medium, hard]。
+    /// 难度分档（BOSS_REDESIGN §4.4，boss.difficulty_scaling）：索引 = [easy, medium, hard]。
     /// 只作用于 Boss 攻击密度/速度：开火间隔 ×、弹速 ×、弹数 ±（快照弹幕/伤害不动）。
     /// </summary>
     public Godot.Collections.Array DiffIntervalMult { get; set; } = new() { 1.15, 1.0, 0.85 };
@@ -229,7 +229,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         ["salvo"] = new Godot.Collections.Array { -2, 0, 2 },
         ["summon"] = new Godot.Collections.Array { -1, 0, 1 },
         ["drops"] = new Godot.Collections.Array { -1, 0, 1 },
-        // ring_burst 为绝对值分档（json 缺键时回退此表，与 §5.6 一致）
+        // ring_burst 为绝对值分档（json 缺键时回退此表，与 BOSS_REDESIGN §5.6 一致）
         ["ring_burst"] = new Godot.Collections.Array { 10, 12, 14 },
     };
     public int EnrageSnapshotLasers { get; set; } = 4;
@@ -252,7 +252,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     /// <summary>RELEASE 弹速 = ACTIVE 弹速 × 原作释放比例（回退路径用）。</summary>
     public float EnrageReleaseLaserSpeed { get; set; } = 300.0f;
     public float EnrageReleaseRingSpeed { get; set; } = 120.0f;
-    /// <summary>一型狂暴「旋转堡垒」（§5.1，boss.enrage.type_1）。</summary>
+    /// <summary>一型狂暴「旋转堡垒」（BOSS_REDESIGN §5.1，boss.enrage.type_1）。</summary>
     public float E1RingInterval { get; set; } = 0.5f;
     public int E1RingCount { get; set; } = 12;
     public float E1RingSpeed { get; set; } = 240.0f;
@@ -261,7 +261,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     public int E1SalvoCount { get; set; } = 8;
     public float E1SalvoSpeed { get; set; } = 700.0f;
     public int E1SalvoDamage { get; set; } = 21;
-    /// <summary>二型狂暴「猎杀环绕」（§5.2，boss.enrage.type_2）。</summary>
+    /// <summary>二型狂暴「猎杀环绕」（BOSS_REDESIGN §5.2，boss.enrage.type_2）。</summary>
     public int E2PointCount { get; set; } = 6;
     public float E2PointInterval { get; set; } = 0.8f;
     public float E2Aim { get; set; } = 0.35f;
@@ -269,7 +269,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     public int E2SniperDamage { get; set; } = 21;
     public int E2ReleaseRingCount { get; set; } = 12;
     public float E2ReleaseRingSpeed { get; set; } = 120.0f;
-    /// <summary>三型狂暴「倾巢」（§5.3，boss.enrage.type_3）。</summary>
+    /// <summary>三型狂暴「倾巢」（BOSS_REDESIGN §5.3，boss.enrage.type_3）。</summary>
     public float E3SummonInterval { get; set; } = 1.2f;
     public int E3SummonWaves { get; set; } = 3;
     public int E3SummonCount { get; set; } = 3;
@@ -294,7 +294,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     public float EscapeDrift { get; set; } = 26.0f;
     public float EscapeStartSpeed { get; set; } = 120.0f;
     public float EscapeAccel { get; set; } = 420.0f;
-    /// <summary>血条下方逃跑倒计时显示起点（剩余 ≤10s，§4.5）。</summary>
+    /// <summary>血条下方逃跑倒计时显示起点（剩余 ≤10s，BOSS_REDESIGN §4.5）。</summary>
     public float EscapeCountdownFrom { get; set; } = 10.0f;
     /// <summary>各弹种伤害（对齐原作 boss_attack.py phase-1：spread 12+2=14 / aim 18+3=21 / wave 12 / 快照激光 21 / 快照环弹 12）。</summary>
     public int BulletDamageFan { get; set; } = 14;
@@ -337,7 +337,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     private readonly AugmentBoolCache _slowCache;
     /// <summary>体碰信号事件驱动。</summary>
     private bool _bodyContact;
-    // 阶段框架与模式表循环（§4.1）
+    // 阶段框架与模式表循环（BOSS_REDESIGN §4.1）
     private FightPhase _fightPhase = FightPhase.P1;
     private Godot.Collections.Dictionary _patterns = new(); // {"p1": [...], "p2": [...]}，_ready 从配置载入
     private int _patternIndex;
@@ -960,7 +960,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         _summonSlowFactor = factor;
     }
 
-    /// <summary>逃跑剩余秒数（HUD 逃跑倒计时读取口，§4.5）。</summary>
+    /// <summary>逃跑剩余秒数（HUD 逃跑倒计时读取口，BOSS_REDESIGN §4.5）。</summary>
     public float EscapeRemaining() => EscapeTime - _survival;
 
     /// <summary>逃跑警告期上飘偏移（BossMovement 绝对 y 赋值走位叠加用；未进警告期返回 0）。</summary>
@@ -1067,11 +1067,11 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         }
         else
         {
-            // 走位与攻击解耦（§4.1）：委托 BossMovement
+            // 走位与攻击解耦（BOSS_REDESIGN §4.1）：委托 BossMovement
             _movement.Update(d, this);
 
             // 模式表循环：波间隔由当前模式给出，波次/时长播完切下一个
-            // （狂暴「余怒」射速 ×1.3：计时器流速加快，§5.4）
+            // （狂暴「余怒」射速 ×1.3：计时器流速加快，BOSS_REDESIGN §5.4）
             _fireTimer -= d * (_enraged ? EnrageRateMult : 1.0f);
             if (_fireTimer <= 0.0f)
             {
@@ -1113,7 +1113,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         CheckBodyCollision();
     }
 
-    // ---------------- 阶段框架与模式表（§4.1） ----------------
+    // ---------------- 阶段框架与模式表（BOSS_REDESIGN §4.1） ----------------
 
     /// <summary>当前模式（ENRAGE「余怒」沿用 P2 表提速）。</summary>
     private Godot.Collections.Dictionary CurrentPattern()
@@ -1147,7 +1147,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         StartPatternInternal();
     }
 
-    /// <summary>P1→P2 段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身开火计时（§4.1），模式表重置循环。</summary>
+    /// <summary>P1→P2 段切换：0.6s 蓄力辉光 + 抖屏 + 变调音效 + 清自身开火计时（BOSS_REDESIGN §4.1），模式表重置循环。</summary>
     private void EnterPhase(FightPhase pPhase)
     {
         _fightPhase = pPhase;
@@ -1262,7 +1262,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
     }
 
     /// <summary>
-    /// 难度分档统一应用（§4.4）：档位 = GameState.difficulty（easy/medium/hard → 索引 0/1/2），
+    /// 难度分档统一应用（BOSS_REDESIGN §4.4）：档位 = GameState.difficulty（easy/medium/hard → 索引 0/1/2），
     /// 在配置载入后一次性乘算。只作用于 Boss 攻击密度/速度：开火间隔 ×1.15/×1/×0.85、
     /// 弹速 ×0.9/×1/×1.1、弹数按 boss.difficulty_scaling.counts 逐参数增减；
     /// telegraph 时长、快照弹幕（main 编排）、HP/伤害、机体移速不动。
@@ -1303,7 +1303,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         E1RingInterval *= intervalMult;
         E2PointInterval *= intervalMult;
         E3SummonInterval *= intervalMult;
-        // 三型普通阶段召唤间隔随难度分档（对齐 §8.3「各内部节奏 ×interval_mult」）；
+        // 三型普通阶段召唤间隔随难度分档（对齐 BOSS_REDESIGN §8.3「各内部节奏 ×interval_mult」）；
         // 同步首唤计时，否则第一个召唤用 _ready 时的未分档间隔
         _summonInterval *= intervalMult;
         _summonTimer = _summonInterval;
@@ -1326,7 +1326,7 @@ public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
         E2ReleaseRingSpeed *= speedMult;
         E3RingSpeed *= speedMult;
         E3ReleaseRingSpeed *= speedMult;
-        // 4 型普通阶段 ring_burst 环弹速 + 狂暴双环/蓄力环阵弹速随难度档（对齐 §4.4 全弹速分档）
+        // 4 型普通阶段 ring_burst 环弹速 + 狂暴双环/蓄力环阵弹速随难度档（对齐 BOSS_REDESIGN §4.4 全弹速分档）
         RingBurstSpeed *= speedMult;
         E4RingSpeed *= speedMult;
         E4ReleaseRingSpeed *= speedMult;

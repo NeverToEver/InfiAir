@@ -243,7 +243,7 @@ public static class HudLayout
         DockTagBox,
     };
 
-    // ---------------- 右上角：难度块与其下的缓存芯片列（§4.2） ----------------
+    // ---------------- 右上角：难度块与其下的缓存芯片列（META_HUD_DESIGN §4.2） ----------------
 
     /// <summary>难度背板（右缘 10px、宽 390：须装下「难度 x2.50 · 第四档 · 危险 · 中」三段文案）。</summary>
     public static AnchoredBox DifficultyPlateBox => new(-400.0f, 24.0f, -10.0f, 68.0f);

@@ -998,7 +998,7 @@ public partial class Mothership : Area2D
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.InOut);
     }
 
-    /// <summary>HUD 引用统一经延迟缓存获取——hud 是 main.tscn（DESIGN_BASELINE §7.1）
+    /// <summary>HUD 引用统一经延迟缓存获取——hud 是 main.tscn（REFERENCES §4.4 帧内零 GetNode）
     /// 固定层，生命周期内恒定；8 处重复 group 查找收敛为单点缓存。行为与直接查找等价
     /// （is_instance_valid 守卫：极端重载时序下缓存失效则重新查找）。</summary>
     private Hud? Hud()
