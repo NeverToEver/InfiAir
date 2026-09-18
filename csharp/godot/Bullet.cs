@@ -441,8 +441,8 @@ public partial class Bullet : Area2D, IParryable
                     }
                 }
 
-                // 统一分派；直击路径带 ScoreScale
-                EntityDamage.Dispatch(area, hitDamage, ScoreScale);
+                // 统一分派；直击路径带 ScoreScale；弹道方向供受击推挤（§2.13，未实现契约的目标自动退化）
+                EntityDamage.Dispatch(area, hitDamage, ScoreScale, Direction);
 
                 // 原作爆炸弹对 Boss 路径完全不触发（无爆炸视觉/溅射），仅直击；
                 // is_boss 语义 = Boss 恒 true（Enemy/Turret/Formation 无该方法即视为 true）

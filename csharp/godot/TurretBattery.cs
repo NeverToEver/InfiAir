@@ -12,7 +12,7 @@ namespace InfiAir;
 /// HpBar 为 C# SegmentedBar 直调；实现 IDamageable，伤害经 EntityDamage 统一分派。
 /// 实现 IAimTarget：与普通敌机同吃辅助瞄准（遭遇期间它是屏上唯一可打目标）。
 /// </summary>
-public partial class TurretBattery : Area2D, IDamageable, IAimTarget
+public partial class TurretBattery : Area2D, IDamageable, IPushableDamage, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(TurretBattery turret);
@@ -61,6 +61,10 @@ public partial class TurretBattery : Area2D, IDamageable, IAimTarget
     /// <summary>受击闪白手动衰减计时（_physics_process 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
     private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
+    // 受击推挤状态（§2.13，FlashFx.Push/PushUpdate 的调用方持字段）
+    private float _pushTimer;
+    private Vector2 _pushDir;
+    private float _pushPx;
     private const float FlashTime = 0.1f;
     /// <summary>击杀震动强度缓存（_ready 一次性读入，热路径禁 cfg）。</summary>
     private float _shakeDie = 5.0f;
@@ -363,7 +367,13 @@ public partial class TurretBattery : Area2D, IDamageable, IAimTarget
 
     public void TakeDamage(int amount) => TakeDamage(amount, 1.0f);
 
-    public void TakeDamage(int amount, float scoreScale)
+    public void TakeDamage(int amount, float scoreScale) => TakeDamage(amount, scoreScale, Vector2.Zero);
+
+    /// <summary>带推挤方向的伤害结算（<see cref="IPushableDamage"/>）：置位表现层推挤后走常规结算。</summary>
+    public void TakeDamageWithPush(int amount, float scoreScale, Vector2 pushDir)
+        => TakeDamage(amount, scoreScale, pushDir);
+
+    private void TakeDamage(int amount, float scoreScale, Vector2 pushDir)
     {
         if (Hp <= 0 || _rising || _ceased)
         {
@@ -373,6 +383,7 @@ public partial class TurretBattery : Area2D, IDamageable, IAimTarget
         Hp -= amount;
         _hpBar.Value = Mathf.Clamp(Hp / (float)MaxHp, 0.0f, 1.0f) * 100.0f;
         FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale); // 受击闪白 + 缩放回弹
+        FlashFx.Push(pushDir, ref _pushTimer, ref _pushDir, ref _pushPx); // 受击推挤（§2.13）
         if (Hp <= 0)
         {
             Die();
@@ -382,6 +393,7 @@ public partial class TurretBattery : Area2D, IDamageable, IAimTarget
     /// <summary>受击闪白手动衰减（替代 Tween；FlashFx 共享实现，零分配）。</summary>
     private void UpdateFlash(float delta)
     {
+        FlashFx.PushUpdate(_sprite, ref _pushTimer, _pushDir, _pushPx, delta); // 推挤独立于闪白计时
         if (_flashTimer <= 0.0f)
         {
             return;

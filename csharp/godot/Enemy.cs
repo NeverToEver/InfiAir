@@ -13,7 +13,7 @@ namespace InfiAir;
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达，新增单位无需改分派器。
 /// 实现 IAimTarget：辅助瞄准扫描按契约判型（与遭遇单位同路径）。
 /// </summary>
-public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
+public partial class Enemy : Area2D, IDamageable, IPushableDamage, ISlowable, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(Enemy enemy);
@@ -244,6 +244,10 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     // 朝向跟随状态（§2.13）：速度走帧间差分（策略直写 Position，无 Velocity 字段）
     private Vector2 _prevPos;
     private float _faceAngle;
+    // 受击推挤状态（§2.13，FlashFx.Push/PushUpdate 的调用方持字段）
+    private float _pushTimer;
+    private Vector2 _pushDir;
+    private float _pushPx;
     /// <summary>寿命离场出屏判定余量（px）：顶/左/右三边对称，底边不入判定（离场方向向上/侧向）。</summary>
     private const float ExitDespawnMargin = 150.0f;
     private float _shakeDieNormal = 5.0f;
@@ -870,6 +874,7 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         }
 
         _flashTimer = 0.0f; // 闪白计时复位
+        _pushTimer = 0.0f; // 推挤复位（池化复用防残留：贴图 Position 不带着上一条命的偏移出场）
         _faceAngle = 0.0f; // 朝向回正（池化复用防残留：上一条命的姿态不留到这一条）
         if (_sprite != null)
         {
@@ -934,7 +939,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
         TakeDamage(amount, 1.0f);
     }
 
-    public void TakeDamage(int amount, float scoreScale)
+    public void TakeDamage(int amount, float scoreScale) => TakeDamage(amount, scoreScale, Vector2.Zero);
+
+    private void TakeDamage(int amount, float scoreScale, Vector2 pushDir)
     {
         if (Hp <= 0)
         {
@@ -956,6 +963,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
             }
 
             FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale); // 受击闪白 + 缩放回弹
+            if (_entryDone)
+            {
+                // 受击推挤（§2.13）：只在落位后生效——入场动效逐帧写贴图 Position，同写会互相覆盖
+                FlashFx.Push(pushDir, ref _pushTimer, ref _pushDir, ref _pushPx);
+            }
         }
         if (Hp <= 0)
         {
@@ -1388,6 +1400,11 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
     /// <summary>受击闪白手动衰减（替代 Tween；线性 lerp 回本色，零分配）。</summary>
     private void UpdateFlash(float delta)
     {
+        if (_sprite != null)
+        {
+            FlashFx.PushUpdate(_sprite, ref _pushTimer, _pushDir, _pushPx, delta); // 推挤独立于闪白计时
+        }
+
         if (_flashTimer <= 0.0f)
         {
             return;
@@ -1401,4 +1418,9 @@ public partial class Enemy : Area2D, IDamageable, ISlowable, IAimTarget
 
         FlashFx.Update(_sprite!, ref _flashTimer, delta, FlashTime, Colors.White, ref _flashBaseScale);
     }
+
+    /// <summary>带推挤方向的伤害结算（<see cref="IPushableDamage"/>）：置位表现层推挤后走常规结算，
+    /// 玩法判定零改动；推挤只在落位后生效（入场中由 TakeDamage 内的门控丢弃）。</summary>
+    public void TakeDamageWithPush(int amount, float scoreScale, Vector2 pushDir)
+        => TakeDamage(amount, scoreScale, pushDir);
 }

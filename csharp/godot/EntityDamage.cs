@@ -19,4 +19,17 @@ public static class EntityDamage
             damageable.TakeDamage(damage, scoreScale);
         }
     }
+
+    /// <summary>带推挤方向的直击分派（§2.13）：目标实现 <see cref="IPushableDamage"/> 时
+    /// 先置位受击推挤（纯表现层）再走常规结算；未实现则退化为无推挤的常规分派。</summary>
+    public static void Dispatch(GodotObject target, int damage, float scoreScale, Vector2 pushDir)
+    {
+        if (target is IPushableDamage pushable)
+        {
+            pushable.TakeDamageWithPush(damage, scoreScale, pushDir);
+            return;
+        }
+
+        Dispatch(target, damage, scoreScale);
+    }
 }

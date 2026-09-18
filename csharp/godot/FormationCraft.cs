@@ -12,7 +12,7 @@ namespace InfiAir;
 /// 被击坠：爆炸 + 注销注册表；击杀数与击杀分同处入账（与普通敌机/精英炮塔同口）。
 /// 实现 IAimTarget：与普通敌机同吃辅助瞄准（遭遇期间它是屏上唯一可打目标）。
 /// </summary>
-public partial class FormationCraft : Area2D, IDamageable, IAimTarget
+public partial class FormationCraft : Area2D, IDamageable, IPushableDamage, IAimTarget
 {
     [Signal]
     public delegate void DiedEventHandler(FormationCraft craft);
@@ -38,6 +38,10 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
     private float _bayWarn;
     /// <summary>受击闪白手动衰减计时（_PhysicsProcess 逐帧 lerp，替代每命中新建 Tween）。</summary>
     private float _flashTimer;
+    // 受击推挤状态（§2.13，FlashFx.Push/PushUpdate 的调用方持字段）
+    private float _pushTimer;
+    private Vector2 _pushDir;
+    private float _pushPx;
     private Vector2 _flashBaseScale = Vector2.One; // 受击缩放回弹基准（非闪白期捕获，FlashFx 回位用）
     private const float FlashTime = 0.1f;
     private const float BayFlashTime = 0.18f;
@@ -301,9 +305,13 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
     {
         var d = (float)delta;
         UpdateEntry(d);
-        if (_flashTimer > 0.0f && _sprite != null)
+        if (_sprite != null)
         {
-            FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White, ref _flashBaseScale);
+            FlashFx.PushUpdate(_sprite, ref _pushTimer, _pushDir, _pushPx, d); // 推挤独立于闪白计时
+            if (_flashTimer > 0.0f)
+            {
+                FlashFx.Update(_sprite, ref _flashTimer, d, FlashTime, Colors.White, ref _flashBaseScale);
+            }
         }
 
         if (_bayWarn > 0.0f)
@@ -353,7 +361,14 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
         GameState.TryGetInstance()?.UnbindEnemy(this); // 统一解绑；autoload 可能先于本节点释放
     }
 
-    public void TakeDamage(int amount, float scoreScale)
+    public void TakeDamage(int amount, float scoreScale) => TakeDamage(amount, scoreScale, Vector2.Zero);
+
+    /// <summary>带推挤方向的伤害结算（<see cref="IPushableDamage"/>）：置位表现层推挤后走常规结算；
+    /// 入场中由门控丢弃（入场动效逐帧写贴图 Position，同写会互相覆盖）。</summary>
+    public void TakeDamageWithPush(int amount, float scoreScale, Vector2 pushDir)
+        => TakeDamage(amount, scoreScale, pushDir);
+
+    private void TakeDamage(int amount, float scoreScale, Vector2 pushDir)
     {
         if (Hp <= 0)
         {
@@ -372,6 +387,11 @@ public partial class FormationCraft : Area2D, IDamageable, IAimTarget
             }
 
             FlashFx.Hit(_sprite, ref _flashTimer, FlashTime, ref _flashBaseScale);
+            if (_entryDone)
+            {
+                // 受击推挤（§2.13）：只在落位后生效
+                FlashFx.Push(pushDir, ref _pushTimer, ref _pushDir, ref _pushPx);
+            }
         }
         else
         {

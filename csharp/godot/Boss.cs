@@ -15,7 +15,7 @@ namespace InfiAir;
 /// 全部生产调用方为 C# typed（EnrageSequence/BossAttacks/BossMovement 经构造注入 Boss 引用）；
 /// 实现 IDamageable/ISlowable：伤害统一分派与母舰减速场经接口直达。
 /// </summary>
-public partial class Boss : Area2D, IDamageable, ISlowable
+public partial class Boss : Area2D, IDamageable, IPushableDamage, ISlowable
 {
     /// <summary>攻击模式表缺省哨兵：_fireTimer 归零路径每物理帧求值 GetValueOrDefault 默认实参，
     /// 缓存空 StringName 避免 native 分配（空间换时间）。</summary>
@@ -360,6 +360,10 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     private float _bankRefSpeed = 120.0f; // effects.motion.boss_bank_ref_speed（满角参考横速）
     private float _prevPosX;
     private float _bankAngle;
+    // 受击推挤状态（§2.13，FlashFx.Push/PushUpdate 的调用方持字段）
+    private float _pushTimer;
+    private Vector2 _pushDir;
+    private float _pushPx;
     // 机体背光轮廓（阵营染色加法剪影；贴图随 Boss 类型/P2 换帧刷新，故单独维护）
     private static readonly Color RimGlowColor = new(1.0f, 0.32f, 0.48f, 0.30f);
     private Sprite2D? _rimGlow;
@@ -859,7 +863,9 @@ public partial class Boss : Area2D, IDamageable, ISlowable
         return _spawner!.SpawnMinion(pos);
     }
 
-    public void TakeDamage(int amount, float scoreScale)
+    public void TakeDamage(int amount, float scoreScale) => TakeDamage(amount, scoreScale, Vector2.Zero);
+
+    private void TakeDamage(int amount, float scoreScale, Vector2 pushDir)
     {
         if (_escaping)
         {
@@ -885,6 +891,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
 
         EmitSignal(SignalName.HealthChanged, Hp, MaxHp);
         FlashHit();
+        FlashFx.Push(pushDir, ref _pushTimer, ref _pushDir, ref _pushPx); // 受击推挤（§2.13，纯表现层）
         if (Hp <= 0.0f)
         {
             Die();
@@ -905,6 +912,11 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     }
 
     public void TakeDamage(int amount) => TakeDamage(amount, 1.0f);
+
+    /// <summary>带推挤方向的伤害结算（<see cref="IPushableDamage"/>）：置位表现层推挤后走常规结算，
+    /// 玩法判定零改动；狂暴锁血期走 FlashHit 分支不置推挤（只闪白不位移，读数语义一致）。</summary>
+    public void TakeDamageWithPush(int amount, float scoreScale, Vector2 pushDir)
+        => TakeDamage(amount, scoreScale, pushDir);
 
     /// <summary>狂暴快照弹幕：狂暴进入时的一次性齐射（由 main 在子弹时间结束后统一触发）。
     /// 4 道激光向弹（高速长弹，复用敌弹 laser 型表现）+ 8 方向环形慢弹。委托 BossFire。</summary>
@@ -1413,6 +1425,7 @@ public partial class Boss : Area2D, IDamageable, ISlowable
     /// <summary>受击闪白逐帧衰减（lerp 回基地色调，狂暴态 _base_modulate 实时取色）。</summary>
     private void UpdateFlash(float delta)
     {
+        FlashFx.PushUpdate(_sprite, ref _pushTimer, _pushDir, _pushPx, delta); // 推挤独立于闪白计时
         if (_flashTimer <= 0.0f)
         {
             return;
