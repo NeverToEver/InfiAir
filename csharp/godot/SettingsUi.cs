@@ -5,8 +5,9 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 设置界面：左缘圆盘导航五页——「控制」（可改键表 + 恢复默认）、「游戏」（难度、开火方式、
-/// Ctrl/Shift 模式、辅助瞄准）、「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
+/// 设置界面：左缘圆盘导航六页——「控制」（可改键表 + 恢复默认）、「游戏」（难度、开火方式、
+/// Ctrl/Shift 模式、辅助瞄准）、「准星」（档案/形状/参数/颜色/准星码，见 SettingsUi.CrosshairPage.cs）、
+/// 「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
 /// 鼠标锁定）、「音频」（主/音乐/音效音量）、「辅助与关于」（无障碍项 + 版本与操作速查）。
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除并提示来源。
@@ -139,6 +140,7 @@ public partial class SettingsUi : RadialMenuLayer
         {
             new(new StringName("controls"), "SET_PAGE_CONTROLS", RadialGlyph.Cross, BuildControlsPage),
             new(new StringName("gameplay"), "SET_PAGE_GAMEPLAY", RadialGlyph.Diamond, BuildGameplayPage),
+            new(new StringName("crosshair"), "SET_PAGE_CROSSHAIR", RadialGlyph.Chevron, BuildCrosshairPage),
             new(new StringName("display"), "SET_PAGE_DISPLAY", RadialGlyph.Ring, BuildDisplayPage),
             new(new StringName("audio"), "SET_PAGE_AUDIO", RadialGlyph.Bolt, BuildAudioPage),
             new(new StringName("about"), "SET_PAGE_ABOUT", RadialGlyph.Triangle, BuildAboutPage),
