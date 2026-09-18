@@ -19,7 +19,11 @@ public partial class Explosion : GpuParticles2D
     /// <summary>装甲碎片预制上限（每实例预建，激活时随机启用 4~上限 片）。</summary>
     private const int ShardMax = 8;
 
-    /// <summary>总寿命：烟尾 1.1s 最晚熄灭，留 0.15s 余量后回池。</summary>
+    /// <summary>燃烧残骸上限（大型击毁留场的长寿命碎片；每实例预建， elite/Boss 档激活）。</summary>
+    private const int WreckMax = 3;
+
+    /// <summary>总寿命：烟尾 1.1s 最晚熄灭，留 0.15s 余量后回池；
+    /// 激活燃烧残骸的大型爆炸按残骸寿命延长（实例字段 _totalLife）。</summary>
     private const float TotalLife = 1.25f;
 
     private static int _liveCount;
@@ -42,6 +46,9 @@ public partial class Explosion : GpuParticles2D
         new(0.66f, 0.45f, 0.20f), new(0.50f, 0.34f, 0.17f),
         new(0.82f, 0.60f, 0.28f), new(0.38f, 0.30f, 0.24f),
     };
+    // 燃烧残骸配色（§2.13）：首色为初色，末色为熄灭终点（运行期 lerp）
+    private static readonly Color WreckBurntStart = new(0.52f, 0.20f, 0.08f);
+    private static readonly Color WreckBurntEnd = new(0.14f, 0.11f, 0.09f);
 
     // 碎片形体模板：三角 / 不规则四边（半径 3~5px，设计单位，随节点缩放放大）
     private static readonly Vector2[] ShardTri = { new(4.5f, 0.0f), new(-3.0f, 3.4f), new(-2.2f, -3.2f) };
@@ -50,6 +57,7 @@ public partial class Explosion : GpuParticles2D
     private GpuParticles2D _debris = null!;
     private GpuParticles2D _smoke = null!;
     private Sprite2D _coreFlash = null!;
+    private Sprite2D _light = null!;
     private Line2D _ringOuter = null!;
     private Line2D _ringInner = null!;
     private readonly Polygon2D[] _shards = new Polygon2D[ShardMax];
@@ -58,7 +66,16 @@ public partial class Explosion : GpuParticles2D
     private readonly float[] _shardLife = new float[ShardMax];
     private readonly Color[] _shardColor = new Color[ShardMax];
     private int _shardCount;
+    // 燃烧残骸（§2.13）：大型击毁留场的长寿命碎片，慢旋缓坠、由烧红渐暗到炭黑
+    private readonly Polygon2D[] _wrecks = new Polygon2D[WreckMax];
+    private readonly Vector2[] _wreckVel = new Vector2[WreckMax];
+    private readonly float[] _wreckSpin = new float[WreckMax];
+    private int _wreckCount;
     private float _coreFlashTime = 0.09f;
+    private float _lightTime = 0.35f;
+    private float _lightAlpha = 0.14f;
+    private float _wreckLife = 1.8f;
+    private float _totalLife = TotalLife;
     private float _age;
     private bool _pooled;
     private bool _repooling;
@@ -128,7 +145,8 @@ public partial class Explosion : GpuParticles2D
         e._debris.Restart();
         e._smoke.Restart();
         e._age = 0.0f; // 冲击环/闪帧/碎片随粒子生命周期重播（池化复用与新建统一入口）
-        e._primeShards(playerSide);
+        e._totalLife = TotalLife; // 残骸激活时由 _primeShards 延长（池化复用防上一发的残留）
+        e._primeShards(playerSide, pScale);
     }
 
     private static Explosion? _takeFromPool()
@@ -308,6 +326,24 @@ public partial class Explosion : GpuParticles2D
         _coreFlash = CinematicFx.SoftGlow(26.0f, new Color(1.0f, 1.0f, 1.0f, 0.0f));
         AddChild(_coreFlash);
 
+        // 爆炸照明（§2.13）：大半径低亮度暖光斑随爆淡出——「爆炸照亮周围深空」的廉价替代，
+        // 不对单位本体做 Modulate 提亮（那是受击白闪/损伤分级的写者面，多写者会打架）。
+        // 峰值 alpha <0.15、半径约 13% 屏宽（低于 XAG 118 的 20% 面积线），不构成「闪」。
+        _lightTime = Mathf.Max(CfgFx.Float("effects.motion.explosion_light_time", _lightTime, 0.05f), 0.05f);
+        _lightAlpha = CfgFx.Float("effects.motion.explosion_light_alpha", _lightAlpha, 0.0f, 0.3f);
+        var lightRadius = CfgFx.Float("effects.motion.explosion_light_radius", 260.0f, 10.0f) * (float)GameState.Instance.WorldScale;
+        _light = CinematicFx.SoftGlow(lightRadius, new Color(1.0f, 0.74f, 0.38f, 0.0f));
+        _light.Visible = false;
+        AddChild(_light);
+
+        // 燃烧残骸预制（§2.13）：大型击毁（elite/Boss 档）激活，慢旋缓坠、烧红渐暗到炭黑
+        for (var i = 0; i < WreckMax; i++)
+        {
+            var wreck = new Polygon2D { Visible = false };
+            _wrecks[i] = wreck;
+            AddChild(wreck);
+        }
+
         _liveCount++;
         _settled = false;
         _age = 0.0f;
@@ -316,8 +352,10 @@ public partial class Explosion : GpuParticles2D
         _smoke.Emitting = true;
     }
 
-    /// <summary>激活时初始化装甲碎片：数量 4~cfg 上限随机，初速飞散 + 自旋 + 按阵营取色。</summary>
-    private void _primeShards(bool playerSide)
+    /// <summary>激活时初始化装甲碎片：数量 4~cfg 上限随机，初速飞散 + 自旋 + 按阵营取色。
+    /// 大型击毁（pScale ≥ wreck_min_scale）另激活燃烧残骸：片数按动效强度缩放（0 = 无残骸，
+    /// 回到本批次之前的画面），寿命长于普通碎片，总寿命随之延长以容纳余烬段。</summary>
+    private void _primeShards(bool playerSide, float pScale = 1.0f)
     {
         if (_shardCap < 0)
         {
@@ -346,12 +384,51 @@ public partial class Explosion : GpuParticles2D
             shard.Color = _shardColor[i];
             shard.Visible = true;
         }
+
+        _primeWrecks(pScale);
+    }
+
+    /// <summary>燃烧残骸激活（§2.13）：elite/Boss 档的大型击毁留 1~WreckMax 片长寿命碎片。
+    /// 与普通碎片同形体模板但慢速抛出（像被气浪推开的余烬而非炸裂的甲片），色取烧红，
+    /// 运行期向炭黑渐变（熄灭感）。数量按动效强度缩放，0 当帧无残骸（判据 6）。</summary>
+    private void _primeWrecks(float pScale)
+    {
+        var minScale = CfgFx.Float("effects.motion.wreck_min_scale", 1.5f, 0.0f);
+        _wreckLife = CfgFx.Float("effects.motion.wreck_life", _wreckLife, 0.3f);
+        var cap = Mathf.Clamp((int)GameState.Instance.Cfg("effects.motion.wreck_count", WreckMax).AsInt64(), 0, WreckMax);
+        var fx = (float)GameState.Instance.FxIntensity;
+        var want = pScale >= minScale ? (int)Mathf.Round(cap * fx) : 0;
+        _wreckCount = 0;
+        for (var i = 0; i < WreckMax; i++)
+        {
+            var wreck = _wrecks[i];
+            if (i >= want)
+            {
+                wreck.Visible = false;
+                continue;
+            }
+
+            _wreckCount++;
+            wreck.Polygon = GD.Randf() < 0.5f ? ShardTri : ShardQuad;
+            wreck.Position = Vector2.Zero;
+            wreck.Rotation = (float)GD.RandRange(0.0, Mathf.Tau);
+            var dir = Vector2.Right.Rotated((float)GD.RandRange(0.0, Mathf.Tau));
+            _wreckVel[i] = dir * (float)GD.RandRange(40.0, 110.0);
+            _wreckSpin[i] = (float)GD.RandRange(-3.0, 3.0);
+            wreck.Color = WreckBurntStart;
+            wreck.Visible = true;
+        }
+
+        if (_wreckCount > 0)
+        {
+            _totalLife = _wreckLife + 0.2f; // 余烬段结束后留 0.2s 余量回池
+        }
     }
 
     public override void _Process(double delta)
     {
-        // 回池由总寿命驱动（烟尾最晚熄灭）；隐藏/播完实例直接跳过
-        if (!Visible || _age >= TotalLife)
+        // 回池由总寿命驱动（烟尾最晚熄灭；激活残骸的大型爆炸按 _totalLife 延长）；隐藏实例跳过
+        if (!Visible || _age >= _totalLife)
         {
             return;
         }
@@ -371,6 +448,21 @@ public partial class Explosion : GpuParticles2D
         else if (_coreFlash.Visible)
         {
             _coreFlash.Visible = false;
+        }
+
+        // 爆炸照明（§2.13）：窗口内缓出放大 + 线性淡出；振幅乘动效强度（0 = 无照明，判据 6）
+        var lp = Mathf.Clamp(_age / _lightTime, 0.0f, 1.0f);
+        if (lp < 1.0f)
+        {
+            var fx = (float)GameState.Instance.FxIntensity;
+            var easeOut = 1.0f - (1.0f - lp) * (1.0f - lp);
+            _light.Visible = true;
+            _light.Scale = Vector2.One * (0.55f + 0.45f * easeOut);
+            _light.Modulate = new Color(1.0f, 0.74f, 0.38f, _lightAlpha * (1.0f - lp) * fx);
+        }
+        else if (_light.Visible)
+        {
+            _light.Visible = false;
         }
 
         // 双层冲击环异速扩散：内环快而短，外环慢而长；各自淡出后隐藏
@@ -410,7 +502,25 @@ public partial class Explosion : GpuParticles2D
             shard.Color = new Color(c.R, c.G, c.B, c.A * Mathf.Min(fade * 2.0f, 1.0f));
         }
 
-        if (_age >= TotalLife)
+        // 燃烧残骸（§2.13）：慢速抛出 + 微重力缓坠 + 慢自旋，色向炭黑渐变（熄灭），末端线性淡出
+        for (var i = 0; i < _wreckCount; i++)
+        {
+            var wreck = _wrecks[i];
+            var wp = Mathf.Clamp(_age / _wreckLife, 0.0f, 1.0f);
+            if (wp >= 1.0f)
+            {
+                wreck.Visible = false;
+                continue;
+            }
+
+            _wreckVel[i] = _wreckVel[i] * Mathf.Exp(-1.6f * d) + new Vector2(0.0f, 90.0f * d);
+            wreck.Position += _wreckVel[i] * d;
+            wreck.Rotation += _wreckSpin[i] * d;
+            var wc = WreckBurntStart.Lerp(WreckBurntEnd, wp);
+            wreck.Color = new Color(wc.R, wc.G, wc.B, Mathf.Min((1.0f - wp) * 2.5f, 1.0f)); // 末端 40% 线性淡出
+        }
+
+        if (_age >= _totalLife)
         {
             Finish();
         }

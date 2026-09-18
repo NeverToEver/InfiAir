@@ -1253,7 +1253,13 @@
 			"boss_bank_rate": 3.0,
 			"boss_bank_ref_speed": 120.0,
 			"hit_push_px": 3.0,
-			"hit_push_time": 0.12
+			"hit_push_time": 0.12,
+			"explosion_light_radius": 260.0,
+			"explosion_light_alpha": 0.14,
+			"explosion_light_time": 0.35,
+			"wreck_min_scale": 1.5,
+			"wreck_count": 3,
+			"wreck_life": 1.8
 		}
 	},
 	"elite_turret_event": {
