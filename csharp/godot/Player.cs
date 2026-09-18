@@ -1018,6 +1018,8 @@ public partial class Player : CharacterBody2D
         // 物理重叠在「盾半径＋弹体半径」处即触发 area_entered，而几何判据要求弹心 ≤ 盾半径——
         // 进入事件落在两者之间的弹会被单事件判定拒掉且不再有第二次机会（弹已深入盾内却穿盾而过，
         // 玩家看到的是「时机对了却没弹反」）。逐帧扫描让这批边界弹在真正进入判据半径的帧被补判。
+        // 回归面：--tutorial-probe 的盾漏判判据（有效窗口内圈内未反射弹连续超宽限帧即红），
+        // 引擎事件投递时机无法单测，core 侧只覆盖几何判据（ParryShield）。
         if (shieldOn && _parryShield != null)
         {
             foreach (var overlapped in _parryShield.GetOverlappingAreas())
@@ -1707,17 +1709,11 @@ public partial class Player : CharacterBody2D
             return; // 玩家自己的弹不进盾判定（反射态炸弹已换层，不会再触发本回调）
         }
 
-        var rel = area.GlobalPosition - GlobalPosition;
-        if (rel.Length() > ParryRadius)
-        {
-            return;
-        }
-
-        var arc = Core.Combat.AimCone.HalfAngleRadFromFullAngleDeg(ParryArcDeg);
         // 过滤基准用机头方向（含机身 Rotation）——-π/2 全局上方在
-        // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；AngleDifference 已处理 ±π wrap
+        // arc_deg<360 时过滤轴与机头垂直，与「机头前方扇形」矛盾；±π wrap 在判据内处理
+        var rel = area.GlobalPosition - GlobalPosition;
         var noseAngle = Vector2.Up.Rotated(Rotation).Angle();
-        if (Mathf.Abs(Mathf.AngleDifference(rel.Angle(), noseAngle)) > arc)
+        if (!Core.Combat.ParryShield.Covers(rel.X, rel.Y, noseAngle, ParryRadius, ParryArcDeg))
         {
             return;
         }
