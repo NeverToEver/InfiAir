@@ -27,7 +27,7 @@ public enum TutorialGoalKind
 
 /// <summary>目标行文案的补参取值来源。顺序即占位符顺序——文案表只写占位符，取值一律来自
 /// 本枚举在调用方的解析：数字来自 <see cref="TutorialProgress"/> 或引擎侧注入的平衡值，
-/// 键名来自实际绑定（<c>GameState.ActionKeysText</c>）。</summary>
+/// 键名来自实际绑定（<c>GameState.ActionHintText</c>——按最近使用设备分档，键鼠档报键名、手柄档报按钮/扳机/摇杆标签）。</summary>
 public enum TutorialArg
 {
     /// <summary>移动四向的绑定键（四向各自的键拼成一段）。</summary>

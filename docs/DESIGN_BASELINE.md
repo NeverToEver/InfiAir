@@ -167,7 +167,7 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - Shared factories: `CinematicFx.cs` (`SoftGlow`/`Particles`/`Shockwave`/`Beam`/`RadialStreaks`; zero heap alloc in drive `_Process`), `DawnStation.cs`（全息虚影态）。
 
 ### 1.11 Tutorial
-- Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 5 hold-dock → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit. 七阶段（2026-09-18 起实战与母舰停靠之间插入弹反教学段，段数 6→7 属待确认项）。
+- Standalone `scenes/tutorial.tscn`, self-handles back (not BackNavigator). Aligned with run: stage 1 force-marked targets; stage 5 hold-dock → gate → `BeginWarpIn` → dock (hanger skipped). Isolates run state/saves; restore `Engine.TimeScale = 1` on exit. 七阶段（2026-09-18 起实战与母舰停靠之间插入弹反教学段；段数 6→7 已裁定落地，见 ROADMAP 同日授权代行批次）。
 - **阶段表单源在 core**（`csharp/core/Tutorial/`）：七个阶段的标题键 / 目标键 / 目标形态 / 目标计数 / 需要插值的动作名一处写定（`TutorialCurriculum`），阶段内目标进度与达成判据在 `TutorialProgress`。godot 层只做适配——刷怪布局、信号接线、取值来源；阶段顺序、目标数、达成判据、续接钳制不在节点里各写一份（此前目标数在代码常数与玩家文案里各有一份，改一处即静默分叉）。
 - **目标行键位感知**：教程要求玩家「按某个键」的每一处（加速 / 相位突进 / 召唤母舰 / 返航 / 跳过）都从**实际绑定**取标签（`GameState.ActionKeyText`（动作的首个绑定键）），玩家改键后教程文案跟着变，不再硬编码键名。鼠标开火与手柄扳机是固定绑定（`EnsureFireBinding` 只增不改），仍按定值写。
 - **目标计数与文案同源**：目标行里的数字（击杀 N、加速 N/2）由 core 的目标计数经文案补参给出，文案表只留占位符；返航蓄力秒数取 `effects.home_charge_time`、首领狂暴阈值取 Boss 装载后的读数（`boss.enrage.hp_ratio`，与 Boss 的狂暴判据同一份值）——改平衡值文案自动跟。
@@ -175,9 +175,9 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **死亡自动重开本阶段**：教程不设失败死局——死亡后短暂提示并重开**当前**阶段（清场、重置该阶段进度、重刷目标），Esc 随时可退出。此前死亡只把 HUD 换成「任务失败」并要求玩家自己 Esc 退出，再从第一阶段重来。
 - **跳过本阶段**：长按 `give_up`（放弃出击的键位）1 秒跳过当前阶段，屏上常驻「长按 <实际按键> 跳过本阶段」提示。教程是可选内容，卡住的玩家不该被某一步锁住。
 - 敌机配置**与正局同源**：均经 `Spawner.MergeTypeInto` / `MergeTypesInto` 把 `enemies.types` 覆盖进默认表（教程经 `BuildMergedEnemyTypes()[0]`），不得直读未合并的 `BuildEnemyTypes()` 默认表——那条路径绕过 balance，改数值时教程静默不跟。读取面由 `check_code_defaults.sh` 兜住（只许 `Spawner` 内部调用）。
-- **弹反教学段（阶段 4，2026-09-18 补）**：弹反是本作唯一防御机制，首局玩家没有理由知道它存在——该段插在实战与母舰停靠之间。段内保有固定数射击型靶机（`CanShoot` 只在实战段与该段开），敌弹朝玩家发射、可弹反；玩家在弹反窗口内成功弹反 N 次即过关（N=2，待人类确认），沿用实战段锁血口径不判负；靶机被反射弹击落或寿命到期离场即按保有数补刷。判定下沉 core（`TutorialGoalKind.Parry` + 计数）。
-- **增幅 / 天赋轻量触点（阶段 6 基地段，2026-09-18 补）**：返航开基地后，目标行点明增幅面板与天赋面板的键（均按实际绑定与当前输入设备取标签），玩家实际打开一次增幅面板即过关。教程内自建同款面板（切角面板列表，读生产增幅数据，开合节奏与基地同款），零新经济链；完整版（真给一次三选一）未做，轻量版 vs 完整版属待确认项。
-- **按键提示设备感知**：教程目标行与跳过提示的键标签按**最近使用的输入设备**取档（口径见 §1.14「按键提示设备感知」），设备切换时已渲染的提示行即时重渲染。
+- **弹反教学段（阶段 4，2026-09-18 补）**：弹反是本作唯一防御机制，首局玩家没有理由知道它存在——该段插在实战与母舰停靠之间。段内保有固定数射击型靶机（`CanShoot` 只在实战段与该段开），敌弹朝玩家发射、可弹反；玩家在弹反窗口内成功弹反 N 次即过关（N=2，已裁定），沿用实战段锁血口径不判负；靶机被反射弹击落或寿命到期离场即按保有数补刷。判定下沉 core：阶段形态与计数在 `TutorialGoalKind.Parry` / `TutorialProgress`，盾的几何判据在 `core/Combat/ParryShield`（半径与弧边都取等号、两条判据相与）。盾的**逐帧扫描补判**留在 `Player._PhysicsProcess`（引擎事件投递时机无法单测）：`area_entered` 只在进入重叠那一刻投递一次，而重叠自「盾半径＋弹体半径」起算——落在两个半径之间的弹只被拒一次就再无机会；回归面是探针的盾漏判判据（有效窗口内圈内未反射的逼近弹连续超宽限帧即红）。
+- **增幅 / 天赋轻量触点（阶段 6 基地段，2026-09-18 补）**：返航开基地后，目标行点明增幅面板与天赋面板的键（均按实际绑定与当前输入设备取标签），玩家实际打开一次增幅面板即过关。教程内自建同款面板（切角面板列表，读生产增幅数据，开合节奏与基地同款），零新经济链；完整版（真给一次三选一）未做——轻量版已裁定落地，完整版留作后续提议。
+- **按键提示设备感知**：教程目标行与跳过提示的键标签按**最近使用的输入设备**取档（口径见 §1.14「按键提示设备感知」），设备切换时重渲染的是**当前正在显示的那一行**——阶段目标行 / 后续目标行 / 蓄力替换行三分支（一律打回阶段目标行会把已经做过一步的指令重新印给玩家：对接进行中提示「长按 &lt;键&gt; 蓄力召唤母舰」而不报错）。探针在母舰段加一拍钉这条语义。
 - 教程是独立于 `Main` 的生产入口，回归面两趟：冒烟直开 `tutorial.tscn` 断 `[tutorial] 场景就绪`（入场链路）；`--tutorial-probe` 在探针宿主里实例化同一场景，经生产输入与生产伤害入口走满七阶段，断阶段推进 / 改键后目标行跟变 / 弹反段正反两半（窗口内弹反计数推进、不弹反时读数不动，其中一拍近身弹）/ 增幅面板打开即推进且关闭后回到阶段机 / 跳过 / 死亡重开 / 检查点落盘与完成清零。
 
 ### 1.12 Exit/Back Navigation
@@ -202,8 +202,8 @@ Endless (§1.4), no fixed ending; endgame = **inevitable-death curve** (bounded 
 - **键盘**：`project.godot` 的 `[input]` 是可改键动作的唯一默认源；改键/恢复默认只擦写 `InputEventKey`（`InputBindingsService.ApplyKeyBindings`），冲突键从占用者移除。开火不进可改键表——它在键盘侧没有绑定（`EnsureFireBinding` 运行时装配鼠标左键，与手柄同层装配）。
 - **手柄**：`BindJoypadDefaults` 运行时装配（左摇杆移动 / 右摇杆瞄准 / A 冲刺 / RB 加速 / LB 微调 / X 停靠 / Y 返航 / R3 放弃 / L3 增幅面板 / LT 弹反 / RT 开火），`project.godot` 不承载手柄事件；摇杆死区统一走 `settings.json joy_deadzone`；PS 布局只改标签不改位置语义。
 - **轮盘 UI 的输入面**：方向键/摇杆旋转、确认键按下；GUI 焦点存在时方向键让位焦点链（键盘导航先于 GUI 相位）。
-- **标题屏入口手柄可达（2026-09-18）**：底部「教程 / 练习」入口为**可聚焦按钮**——dpad/摇杆移动焦点（首个导航事件自动聚焦教程入口，左摇杆本就装配了 `ui_*` 焦点轴绑定）、A 确认；键盘 T/P 与鼠标点击照旧，其余手柄键仍按「任意键开局」处理。入口形态（可聚焦按钮 vs 专用键）取可聚焦按钮，属待确认项。
-- **按键提示设备感知（2026-09-18）**：玩家提示里的键标签按**最近使用的输入设备**取档——键鼠档取键名（`ActionKeyText`），手柄档取按钮/扳机/摇杆标签（复用 `JoyButtonLabel` 与轴映射：左摇杆移动、右摇杆瞄准、RT 开火、LT 弹反、RB 加速、A 冲刺、X 召唤、Y 返航、R3 放弃）。档位判定下沉 core（最近者胜，默认键鼠），设备变更经 `InputDeviceChanged` 广播、已渲染的提示行即时重取；无手柄绑定的固定键（天赋面板 G）回落键名。设备切换策略（最近者胜）属待确认项。
+- **标题屏入口手柄可达（2026-09-18）**：底部「教程 / 练习」入口为**可聚焦按钮**——dpad/摇杆移动焦点（首个导航事件自动聚焦教程入口，左摇杆本就装配了 `ui_*` 焦点轴绑定）、A 确认；**点击两个入口自身区域会激活该入口**（教程 / 练习），其余区域的鼠标点击与键盘 T/P/C/任意键照旧开局，其余手柄键仍按「任意键开局」处理；入口获得焦点时空格/回车归入口（GUI 相位先于 `_UnhandledInput`）。入口形态已裁定取可聚焦按钮。
+- **按键提示设备感知（2026-09-18）**：玩家提示里的键标签按**最近使用的输入设备**取档——键鼠档取键名（`ActionKeyText`），手柄档取按钮/扳机/摇杆标签（复用 `JoyButtonLabel` 与轴映射：左摇杆移动、右摇杆瞄准、RT 开火、LT 弹反、RB 加速、A 冲刺、X 召唤、Y 返航、R3 放弃）。档位判定下沉 core（最近者胜，默认键鼠），设备变更经 `InputDeviceChanged` 广播、已渲染的提示行即时重取；无手柄绑定的固定键（天赋面板 G）回落键名；摇杆轴事件带 0.2 噪声门限（手柄漂移常在 0.05–0.15，无门限会把提示档一路掰回手柄档），零位移鼠标事件不计。同一取值口也供 HUD 的增幅面板标签（`Hud.RefreshAugmentTag` 订阅 `KeyBindingsChanged` 与 `InputDeviceChanged` 两条信号）。设备切换策略已裁定取「最近者胜」。
 - **操作速查同设施（2026-09-18）**：设置页「关于」下的操作速查键名一律经设备感知取值口渲染（含 Esc/R 固定键与设备档），文案键保留但不再含键名字面量——「教程跟设备、设置页不跟」的第二套事实不再存在。
 
 ### 1.15 Settings（设置页，2026-09-11 规范化）
