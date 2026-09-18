@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Hud;
 using InfiAir.Core.Storage;
 using InfiAir.Core.Tutorial;
 
@@ -148,6 +149,8 @@ public sealed partial class SettingsService : RefCounted
         MasterVolume = 0.8;
         MusicVolume = 0.8;
         SfxVolume = 0.8;
+        // 准星档案回种子（出厂语义：玩家自建档不保留，见 DESIGN_BASELINE 准星自定义系统）
+        _crosshairBook = SeedCrosshairBook();
     }
 
     /// <summary>「全部恢复默认」的完整复位：内存字段回默认 + 对**确实变化过**的缓存型设置项补发事件。
@@ -831,6 +834,89 @@ public sealed partial class SettingsService : RefCounted
         LocaleChanged?.Invoke();
     }
 
+    // ---------------- 准星档案（crosshair_profiles / crosshair_active；样式单源 core CrosshairProfile） ----------------
+
+    /// <summary>档案簿（不可变，变更整体替换）。消费方（AimCrosshair / 设置页预览）逐帧直读
+    /// ActiveCrosshair——单次字段读，无需变更事件协议；设置页改动即时生效。</summary>
+    private CrosshairBook _crosshairBook = SeedCrosshairBook();
+
+    public static CrosshairBook SeedCrosshairBook() => new(new[]
+    {
+        // 名字存文案键：显示口一律 Tr(name)——无翻译命中时 Tr 原样返回，玩家自建名不受影响
+        new CrosshairEntry("SET_XHAIR_PRESET_BRACKET", CrosshairProfile.Default),
+        new CrosshairEntry("SET_XHAIR_PRESET_CROSS", CrosshairProfile.PresetCross),
+        new CrosshairEntry("SET_XHAIR_PRESET_CIRCLE", CrosshairProfile.PresetCircle),
+        new CrosshairEntry("SET_XHAIR_PRESET_DOT", CrosshairProfile.PresetDot),
+    }, 0);
+
+    public IReadOnlyList<CrosshairEntry> CrosshairProfiles => _crosshairBook.Entries;
+
+    public int CrosshairActiveIndex => _crosshairBook.ActiveIndex;
+
+    /// <summary>当前生效样式（AimCrosshair 每帧读一份引用）。</summary>
+    public CrosshairProfile ActiveCrosshair => _crosshairBook.Active.Profile;
+
+    /// <summary>切换活跃档（越界/同档幂等），结构变更立即落盘。</summary>
+    public void SetCrosshairActive(int index)
+    {
+        if (index == _crosshairBook.ActiveIndex)
+        {
+            return;
+        }
+
+        _crosshairBook = _crosshairBook.WithActive(index);
+        GameState.Instance.SaveSettings();
+    }
+
+    /// <summary>编辑器写回（样式先经 core 归一）。刻意不落盘——滑杆拖动逐帧调用，
+    /// 落盘由设置页 DragEnded 统一走 <see cref="PersistCrosshairSettings"/>（joy 滑杆同款防写风暴）。</summary>
+    public void UpdateCrosshairProfile(int index, CrosshairProfile profile)
+    {
+        _crosshairBook = _crosshairBook.WithProfileReplaced(index, profile);
+    }
+
+    /// <summary>滑杆拖动结束/离开设置页的统一落盘口。</summary>
+    public void PersistCrosshairSettings() => GameState.Instance.SaveSettings();
+
+    public void AddCrosshairProfile(string name, CrosshairProfile profile)
+    {
+        _crosshairBook = _crosshairBook.WithAdded(name, profile);
+        GameState.Instance.SaveSettings();
+    }
+
+    public void RemoveCrosshairProfile(int index)
+    {
+        var next = _crosshairBook.WithRemoved(index);
+        if (next == _crosshairBook)
+        {
+            return;
+        }
+
+        _crosshairBook = next;
+        GameState.Instance.SaveSettings();
+    }
+
+    public void RenameCrosshairProfile(int index, string name)
+    {
+        _crosshairBook = _crosshairBook.WithRenamed(index, name);
+        GameState.Instance.SaveSettings();
+    }
+
+    /// <summary>准星码导入：校验失败原样返回错误档（不落档），成功＝追加新档并激活。
+    /// 名字存文案键（显示口 Tr 过），玩家可重命名。</summary>
+    public CrosshairCodeResult ImportCrosshairCode(string code)
+    {
+        var result = CrosshairCode.TryDecode(code, out var profile);
+        if (result != CrosshairCodeResult.Ok)
+        {
+            return result;
+        }
+
+        _crosshairBook = _crosshairBook.WithAdded("SET_XHAIR_IMPORTED", profile);
+        GameState.Instance.SaveSettings();
+        return result;
+    }
+
     // ---------------- 设置域持久化桥（SaveSettings 本体留在 GameState 侧） ----------------
 
     /// <summary>设置字段应用（user://settings.json 读入的字典；含键位/窗口/视图缓存副作用）。
@@ -1028,6 +1114,67 @@ public sealed partial class SettingsService : RefCounted
         JoySettingsChanged?.Invoke(JoyAimSpeed, JoyDeadzone);
 
         JoyVibration = GameState.Instance.SaveBool(data.GetValueOrDefault("joy_vibration", JoyVibration), JoyVibration);
+
+        // 准星档案：条目级守卫（对齐 key_bindings 惯例）——顶层非数组/条目非字典/字段判型失败
+        // 一律跳过该级；字段缺键回默认，样式过 Normalized 归一（钳制口径单源 core）。
+        // 旧档缺两键 → 种子 4 预设（见 DESIGN_BASELINE 准星自定义系统）；不抬迁移版本号
+        // （新键缺失即默认、老代码忽略新键，双向兼容）。
+        var savedCrosshairs = data.GetValueOrDefault("crosshair_profiles", new Variant());
+        if (savedCrosshairs.VariantType == Variant.Type.Array)
+        {
+            var entries = new List<CrosshairEntry>();
+            foreach (var item in savedCrosshairs.AsGodotArray())
+            {
+                if (item.VariantType != Variant.Type.Dictionary)
+                {
+                    continue;
+                }
+
+                var d = item.AsGodotDictionary();
+                var profile = new CrosshairProfile
+                {
+                    Shape = CrosshairProfile.ShapeFromName(ReadString(d.GetValueOrDefault("shape", new Variant()), string.Empty)),
+                    Size = ReadUnclampedFloat(d, "size", CrosshairProfile.Default.Size),
+                    Thickness = ReadInt(d, "thickness", CrosshairProfile.Default.Thickness),
+                    Gap = ReadUnclampedFloat(d, "gap", CrosshairProfile.Default.Gap),
+                    Alpha = ReadUnclampedFloat(d, "alpha", CrosshairProfile.Default.Alpha),
+                    RotationDeg = ReadInt(d, "rotation", CrosshairProfile.Default.RotationDeg),
+                    CenterDot = GameState.Instance.SaveBool(d.GetValueOrDefault("center_dot", CrosshairProfile.Default.CenterDot), CrosshairProfile.Default.CenterDot),
+                    DotSize = ReadInt(d, "dot_size", CrosshairProfile.Default.DotSize),
+                    TShape = GameState.Instance.SaveBool(d.GetValueOrDefault("t_shape", CrosshairProfile.Default.TShape), CrosshairProfile.Default.TShape),
+                    Outline = GameState.Instance.SaveBool(d.GetValueOrDefault("outline", CrosshairProfile.Default.Outline), CrosshairProfile.Default.Outline),
+                    StateTint = GameState.Instance.SaveBool(d.GetValueOrDefault("state_tint", CrosshairProfile.Default.StateTint), CrosshairProfile.Default.StateTint),
+                    R = (byte)Mathf.Clamp(ReadInt(d, "r", CrosshairProfile.Default.R), 0, 255),
+                    G = (byte)Mathf.Clamp(ReadInt(d, "g", CrosshairProfile.Default.G), 0, 255),
+                    B = (byte)Mathf.Clamp(ReadInt(d, "b", CrosshairProfile.Default.B), 0, 255),
+                    A = (byte)Mathf.Clamp(ReadInt(d, "a", CrosshairProfile.Default.A), 0, 255),
+                };
+                entries.Add(new CrosshairEntry(ReadString(d.GetValueOrDefault("name", new Variant()), string.Empty), profile.Normalized()));
+            }
+
+            if (entries.Count > 0)
+            {
+                var savedActiveIdx = data.GetValueOrDefault("crosshair_active", new Variant());
+                var activeIdx = savedActiveIdx.VariantType is Variant.Type.Int or Variant.Type.Float
+                    ? savedActiveIdx.AsInt32()
+                    : 0;
+                _crosshairBook = new CrosshairBook(entries, activeIdx);
+            }
+        }
+    }
+
+    /// <summary>设置档数值字段读（准星档案字段）：非数值回退 <paramref name="fallback"/>，
+    /// 界内钳制交给样式归一口（core Normalized），此处只做类型守卫。</summary>
+    private static float ReadUnclampedFloat(Godot.Collections.Dictionary d, StringName key, float fallback)
+    {
+        var v = d.GetValueOrDefault(key, new Variant());
+        return v.VariantType is Variant.Type.Float or Variant.Type.Int ? (float)v.AsDouble() : fallback;
+    }
+
+    private static int ReadInt(Godot.Collections.Dictionary d, StringName key, int fallback)
+    {
+        var v = d.GetValueOrDefault(key, new Variant());
+        return v.VariantType is Variant.Type.Float or Variant.Type.Int ? v.AsInt32() : fallback;
     }
 
     /// <summary>设置档字符串字段读（locale）：仅接受 String/StringName，其余回退
@@ -1070,36 +1217,68 @@ public sealed partial class SettingsService : RefCounted
         return keys;
     }
 
-    /// <summary>当前设置字段收集（settings.json；统计类字段不在此列）</summary>
-    public Godot.Collections.Dictionary CollectSettingsDict() => new()
+    /// <summary>当前设置字段收集（settings.json；统计类字段不在此列）。
+    /// 准星档案逐条展开为字典（写侧与读侧字段一一对应，改任一侧必须手工核对另一侧——
+    /// 写读对称门禁已退役，见 ROADMAP 2026-09-18 测试设施裁剪条）。</summary>
+    public Godot.Collections.Dictionary CollectSettingsDict()
     {
-        ["tutorial_done"] = GameState.Instance.TutorialDone,
-        ["tutorial_stage"] = GameState.Instance.TutorialStage,
-        ["key_bindings"] = GameState.Instance.KeyBindings,
-        ["locale"] = Locale,
-        ["difficulty"] = GameState.Instance.Difficulty.ToString(),
-        ["ctrl_toggle_mode"] = CtrlToggleMode,
-        ["shift_toggle_mode"] = ShiftToggleMode,
-        ["fire_toggle_mode"] = FireToggleMode,
-        ["view_zoom"] = ViewZoom.ToString(),
-        ["window_mode"] = WindowMode.ToString(),
-        ["resolution"] = Resolution.ToString(),
-        ["custom_width"] = CustomWindowWidth,
-        ["custom_height"] = CustomWindowHeight,
-        ["aim_assist"] = AimAssistLevel.ToString(),
-        ["reduce_flash"] = ReduceFlash,
-        ["high_contrast"] = HighContrast,
-        ["world_post_fx"] = WorldPostFx,
-        ["fps_cap"] = FpsCap.ToString(),
-        ["vsync"] = VSync,
-        ["mouse_lock"] = MouseLock,
-        ["joy_aim_speed"] = JoyAimSpeed,
-        ["joy_deadzone"] = JoyDeadzone,
-        ["joy_vibration"] = JoyVibration,
-        ["master_volume"] = MasterVolume,
-        ["music_volume"] = MusicVolume,
-        ["sfx_volume"] = SfxVolume,
-        ["shake_scale"] = ShakeScale,
-        ["hit_stop_scale"] = HitStopScale,
-    };
+        var crosshairArray = new Godot.Collections.Array();
+        foreach (var entry in _crosshairBook.Entries)
+        {
+            var p = entry.Profile;
+            crosshairArray.Add(new Godot.Collections.Dictionary
+            {
+                ["name"] = entry.Name,
+                ["shape"] = CrosshairProfile.ShapeName(p.Shape),
+                ["size"] = p.Size,
+                ["thickness"] = p.Thickness,
+                ["gap"] = p.Gap,
+                ["alpha"] = p.Alpha,
+                ["rotation"] = p.RotationDeg,
+                ["center_dot"] = p.CenterDot,
+                ["dot_size"] = p.DotSize,
+                ["t_shape"] = p.TShape,
+                ["outline"] = p.Outline,
+                ["state_tint"] = p.StateTint,
+                ["r"] = (int)p.R,
+                ["g"] = (int)p.G,
+                ["b"] = (int)p.B,
+                ["a"] = (int)p.A,
+            });
+        }
+
+        return new()
+        {
+            ["tutorial_done"] = GameState.Instance.TutorialDone,
+            ["tutorial_stage"] = GameState.Instance.TutorialStage,
+            ["key_bindings"] = GameState.Instance.KeyBindings,
+            ["locale"] = Locale,
+            ["difficulty"] = GameState.Instance.Difficulty.ToString(),
+            ["ctrl_toggle_mode"] = CtrlToggleMode,
+            ["shift_toggle_mode"] = ShiftToggleMode,
+            ["fire_toggle_mode"] = FireToggleMode,
+            ["view_zoom"] = ViewZoom.ToString(),
+            ["window_mode"] = WindowMode.ToString(),
+            ["resolution"] = Resolution.ToString(),
+            ["custom_width"] = CustomWindowWidth,
+            ["custom_height"] = CustomWindowHeight,
+            ["aim_assist"] = AimAssistLevel.ToString(),
+            ["reduce_flash"] = ReduceFlash,
+            ["high_contrast"] = HighContrast,
+            ["world_post_fx"] = WorldPostFx,
+            ["fps_cap"] = FpsCap.ToString(),
+            ["vsync"] = VSync,
+            ["mouse_lock"] = MouseLock,
+            ["joy_aim_speed"] = JoyAimSpeed,
+            ["joy_deadzone"] = JoyDeadzone,
+            ["joy_vibration"] = JoyVibration,
+            ["master_volume"] = MasterVolume,
+            ["music_volume"] = MusicVolume,
+            ["sfx_volume"] = SfxVolume,
+            ["shake_scale"] = ShakeScale,
+            ["hit_stop_scale"] = HitStopScale,
+            ["crosshair_profiles"] = crosshairArray,
+            ["crosshair_active"] = _crosshairBook.ActiveIndex,
+        };
+    }
 }

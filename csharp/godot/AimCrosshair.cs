@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core.Combat;
+using InfiAir.Core.Hud;
 
 namespace InfiAir;
 
@@ -8,31 +9,29 @@ namespace InfiAir;
 /// 本局活跃（未暂停、未锁输入、存活）时显示并跟随 Player.aim_point()，同时隐藏系统光标；
 /// 暂停/增幅/基地/结算/死亡/过场恢复系统光标并隐藏准星——同一条件驱动两处，
 /// 避免双光标/无光标死角。LaserWeapon 光束走原始鼠标，与本准星天然一致。
-/// 程序化四角 bracket + 中心点（指示器族，不乘 world_scale）。
 /// Player 与 Enemy.SinFast 均 C# typed 直调。
 ///
-/// 交战反馈（core <see cref="CrosshairState"/> 单源，本节点只做查询与绘制）：
-/// 准星盖住任一可打目标（方域与碰撞圆相交，盖住即可）→ 琥珀向红粉混合变色；入辅助瞄准
-/// 标记目标框（强追踪已生效）→ 叠加金热色 + 一次性整圈旋转 + 括角收拢的锁定框，出框淡出。
+/// 样式来自玩家档案（settings.json crosshair_*，单源 core CrosshairProfile）：
+/// 形状/参数/颜色经 <see cref="CrosshairRender"/> 绘制（与设置页预览共用一份几何），
+/// 每帧直读 ActiveCrosshair 引用——设置页改动即时生效，无需事件协议。
+/// 交战反馈（core <see cref="CrosshairState"/> 单源，本节点只做查询）：
+/// 准星盖住任一可打目标（方域与碰撞圆相交，盖住即可）→ 红粉变色；入辅助瞄准标记目标框
+/// （强追踪已生效）→ 叠加金热色 + 一次性整圈旋转 + 括角收拢的锁定框，出框淡出。
 /// 时长按模拟时间推进（本节点累计 _Process delta），配置在 balance.json effects.crosshair。
 /// </summary>
 public partial class AimCrosshair : Node2D
 {
-    private const float HalfSize = 14.0f;  // bracket 外接半宽
-    private const float Arm = 6.0f;  // bracket 单臂长
-    private const float Width = 2.0f;
     // 锁定框（括角收拢语汇）：终点半宽与单臂比沿用 bracket 族比例，起点在外框近旁配渐入
-    private const float LockHalf = 6.0f;
+    private const float LockHalfBase = 6.0f;
     private const float LockFromRatio = 0.9f;
     private const float LockArmRatio = 0.5f;
+    private const float Width = 2.0f;
     /// <summary>时长默认 = balance.json effects.crosshair.* 定稿值（键缺失/损坏回退此值，两处必须一致）。</summary>
     private const float DefLockTime = 0.25f;
     private const float DefColorBlendTime = 0.08f;
     private const float DefReleaseFadeTime = 0.12f;
     /// <summary>交战反馈状态机（纯逻辑）：零标记/无目标时三混合全 0，绘制退化为常态琥珀。</summary>
     private CrosshairState _fx = new(DefLockTime, DefColorBlendTime, DefReleaseFadeTime);
-    /// <summary>bracket 四角符号（静态复用，_draw 零分配）。</summary>
-    private static readonly float[] SignValues = { -1.0f, 1.0f };
 
     private Player? _player;
     /// <summary>SceneTree 缓存（避免 _Process 每帧 GetTree() 原生往返取 Paused）。</summary>
@@ -86,12 +85,12 @@ public partial class AimCrosshair : Node2D
             var aim = _player!.AimPoint();  // active 蕴含 _player 非空（NRT 流分析不透传布尔变量）
             GlobalPosition = aim;
             // 交战态查询与推点同帧同源（aim 即本帧 _aimSmooth）：锁定走框包含（= 强追踪已生效，
-            // Player 粘滞查询已热帧缓存）；可攻击走覆盖判定（准星方域盖住敌机即算，含 14px 方域）。
+            // Player 粘滞查询已热帧缓存）；可攻击走覆盖判定（准星方域盖住敌机即算）。
             // marked 已驱动可攻击混合（状态机蕴含），锁定时短路免再扫
             if (GameState.Instance.AimFrameLayer is AimFrameLayer layer)
             {
                 var marked = layer.MarkedTargetAt(aim) != null;
-                var hostile = marked || layer.TargetableTargetAt(aim, HalfSize) != null;
+                var hostile = marked || layer.TargetableTargetAt(aim, CoverHalf()) != null;
                 _fx.Update((float)delta, hostile, marked);
             }
             else
@@ -113,35 +112,35 @@ public partial class AimCrosshair : Node2D
 
     public override void _Draw()
     {
+        var p = GameState.Instance.ActiveCrosshair;
         var pulse = 0.75f + 0.25f * Enemy.SinFast(_simTime * 6.0f);
-        // 三态颜色单源 UITheme：常态琥珀 →（可攻击）红粉 →（锁定）金热，混合量由状态机给
-        var c = UITheme.AimAmber;
-        c = c.Lerp(UITheme.AimOnTarget, _fx.HostileBlend);
-        c = c.Lerp(UITheme.AimAmberHot, _fx.LockedBlend);
-        DrawCornerBrackets(HalfSize, Arm, c * new Color(1.0f, 1.0f, 1.0f, pulse));
+        CrosshairRender.Draw(this, p, _fx.HostileBlend, _fx.LockedBlend, pulse);
 
-        // 锁定框：从外框近旁收拢到 LockHalf，透明度随锁定混合渐入/淡出，随节点整体旋转
-        if (_fx.LockContract > 0.001f)
+        // 锁定框：从形状外接近旁收拢到基准半宽（随档案 size 缩放），随节点整体旋转
+        if (_fx.LockContract <= 0.001f)
         {
-            var half = Mathf.Lerp(HalfSize * LockFromRatio, LockHalf, _fx.LockContract);
-            var lockLine = c * new Color(1.0f, 1.0f, 1.0f, pulse * _fx.LockedBlend);
-            DrawCornerBrackets(half, half * LockArmRatio, lockLine);
+            return;
         }
 
-        DrawCircle(Vector2.Zero, 1.6f, c * new Color(1.0f, 1.0f, 1.0f, pulse));
-    }
-
-    /// <summary>四角 bracket（本准星与锁定框共用一份角语汇；指示器族，不乘 world_scale）。</summary>
-    private void DrawCornerBrackets(float half, float arm, Color c)
-    {
-        foreach (var sx in SignValues)
+        var half = Mathf.Lerp(CrosshairRender.OuterHalf(p) * LockFromRatio, LockHalfBase * p.Size, _fx.LockContract);
+        var lockLine = CrosshairRender.ResolveColor(p, _fx.HostileBlend, _fx.LockedBlend)
+            * new Color(1.0f, 1.0f, 1.0f, pulse * _fx.LockedBlend);
+        var arm = half * LockArmRatio;
+        foreach (var sx in new[] { -1.0f, 1.0f })
         {
-            foreach (var sy in SignValues)
+            foreach (var sy in new[] { -1.0f, 1.0f })
             {
                 var corner = new Vector2(sx * half, sy * half);
-                DrawLine(corner, corner - new Vector2(sx * arm, 0.0f), c, Width, true);
-                DrawLine(corner, corner - new Vector2(0.0f, sy * arm), c, Width, true);
+                DrawLine(corner, corner - new Vector2(sx * arm, 0.0f), lockLine, Width, true);
+                DrawLine(corner, corner - new Vector2(0.0f, sy * arm), lockLine, Width, true);
             }
         }
+    }
+
+    /// <summary>可攻击覆盖判定的准星方域半宽（与形状外接同源：盖住 = 准星域与敌机碰撞圆相交）。</summary>
+    private static float CoverHalf()
+    {
+        var p = GameState.Instance.ActiveCrosshair;
+        return Mathf.Max(CrosshairRender.OuterHalf(p), LockHalfBase * p.Size);
     }
 }

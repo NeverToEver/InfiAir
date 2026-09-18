@@ -139,6 +139,34 @@ public partial class GameState : Node
     /// <summary>手柄设置持久化：设置页滑杆 drag_ended 调用一次（setter 不再自动写盘，防拖动写风暴）</summary>
     public void PersistJoySettings() => _settings.PersistJoySettings();
 
+    // ---------------- 准星档案（门面转发 → SettingsService；样式单源 core CrosshairProfile） ----------------
+
+    /// <summary>档案簿条目（列表展示；名字存文案键，显示口 Tr 过——无翻译命中原样返回）。</summary>
+    public IReadOnlyList<Core.Hud.CrosshairEntry> CrosshairProfiles => _settings.CrosshairProfiles;
+
+    public int CrosshairActiveIndex => _settings.CrosshairActiveIndex;
+
+    /// <summary>当前生效样式（AimCrosshair 每帧读一份引用，设置页改动即时生效）。</summary>
+    public Core.Hud.CrosshairProfile ActiveCrosshair => _settings.ActiveCrosshair;
+
+    public void SetCrosshairActive(int index) => _settings.SetCrosshairActive(index);
+
+    /// <summary>编辑器写回（不落盘；滑杆拖动结束统一走 PersistCrosshairSettings 防写风暴）。</summary>
+    public void UpdateCrosshairProfile(int index, Core.Hud.CrosshairProfile profile) =>
+        _settings.UpdateCrosshairProfile(index, profile);
+
+    public void PersistCrosshairSettings() => _settings.PersistCrosshairSettings();
+
+    public void AddCrosshairProfile(string name, Core.Hud.CrosshairProfile profile) =>
+        _settings.AddCrosshairProfile(name, profile);
+
+    public void RemoveCrosshairProfile(int index) => _settings.RemoveCrosshairProfile(index);
+
+    public void RenameCrosshairProfile(int index, string name) => _settings.RenameCrosshairProfile(index, name);
+
+    /// <summary>准星码导入（校验失败返回错误档不落档，成功＝追加新档并激活并落盘）。</summary>
+    public Core.Hud.CrosshairCodeResult ImportCrosshairCode(string code) => _settings.ImportCrosshairCode(code);
+
     // ---------------- 健康/增幅 域（门面转发 → CombatStateService） ----------------
 
     /// <summary>生命上限：基础 100 + extra_life 每层 +50（对齐原作 EXTRA_LIFE_BONUS_HP）
