@@ -35,16 +35,18 @@ public partial class MachineWheelPanel : RadialMenuLayer
     private const float FlameDrop = 8.0f;
 
     // ---- 布局（1920×1080 设计坐标；轮盘圆心由 RadialMenuLayer.WheelRest 给）----
-    private static readonly Vector2 ShipRest = new(1160.0f, 420.0f);
-    /// <summary>铭牌左上角：x 随板宽加宽而左移 50，使板心恒在 x=1160（＝ <see cref="ShipRest"/> 的 x，
-    /// 铭牌始终正对机体；只加宽不挪位会让板心右偏 50px，与机体错开）。</summary>
-    private static readonly Vector2 PlatePos = new(880.0f, 686.0f);
+    private static readonly Vector2 ShipRest = new((float)MachinePlateLayout.ShipCenterX, 420.0f);
 
-    /// <summary>铭牌尺寸。**宽 460→560**（高 168 不动）：能力项并入加成 / 代价两行后，
-    /// 英文最长串（壁垒「Damage taken -15% · Parry window 0.70s」在 FontBody 下实测约 449px）
-    /// 已贴死旧内容框的 424px——自动换行一开就会折成两行，而加高会让下方 note 与提示行被挤掉。
-    /// 加宽到 560 后内容框 524px，最长串留出约 75px 余量，两行仍各占一行。</summary>
-    private static readonly Vector2 PlateSize = new(560.0f, 168.0f);
+    /// <summary>铭牌左上角（x 由板宽推出，板心恒对机体停驻位——尺寸与对中算式单源在 core
+    /// <see cref="MachinePlateLayout"/>，这里只做取值：加宽时忘记同步挪位会让板心偏移，
+    /// 那是不报错的观感坏法）。</summary>
+    private static readonly Vector2 PlatePos = new((float)MachinePlateLayout.PlateLeft, 686.0f);
+
+    /// <summary>铭牌尺寸（单源同上；宽度要装得下最长的英文加成行——判据在
+    /// <c>MachinePlateLayoutTests</c>）。</summary>
+    private static readonly Vector2 PlateSize = new(
+        (float)MachinePlateLayout.PlateWidth,
+        (float)MachinePlateLayout.PlateHeight);
 
     private static readonly Vector2 FlyFar = new(430.0f, -300.0f);    // 飞入起点（相对停驻位，右上远处）
     private static readonly Vector2 FlyOutPos = new(380.0f, -260.0f); // 飞出终点（同向加速离场）
@@ -195,8 +197,8 @@ public partial class MachineWheelPanel : RadialMenuLayer
 
         var vbox = new VBoxContainer
         {
-            Position = new Vector2(18.0f, 26.0f),
-            Size = new Vector2(PlateSize.X - 36.0f, PlateSize.Y - 36.0f),
+            Position = new Vector2((float)(MachinePlateLayout.ContentInsetX / 2.0), 26.0f),
+            Size = new Vector2((float)MachinePlateLayout.ContentWidth, PlateSize.Y - (float)MachinePlateLayout.ContentInsetX),
             Alignment = BoxContainer.AlignmentMode.Center,
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
