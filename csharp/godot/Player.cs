@@ -431,6 +431,7 @@ public partial class Player : CharacterBody2D
     {
         _visuals.UpdateAfterimages((float)delta);
         _visuals.UpdateScale((float)delta);
+        _visuals.UpdateHullRig((float)delta, _simTime);
         UpdateDamageFrame();
         // 枪口辉光指数衰减（半衰 ~60ms，急促闪光感）
         if (_muzzleGlowA > 0.01f && _muzzleGlow != null)
@@ -1254,10 +1255,13 @@ public partial class Player : CharacterBody2D
         if (_dash.IsDashing())
         {
             _dash.UpdateMove(d, this);
+            _visuals.SetDashTuck(true); // 形态层（§2.18）：冲刺期收枪（气动收拢）
             ApplyThruster(ThrusterBoost, d);
             TickDashStrike(d);
             return;
         }
+
+        _visuals.SetDashTuck(false);
 
         // 燃料与加速（shift_toggle_mode：按一下切换开/关）
         if ((bool)gs.ShiftToggleMode && Input.IsActionJustPressed(ActBoost))
@@ -1965,6 +1969,7 @@ public partial class Player : CharacterBody2D
         }
 
         _visuals.SetParryFlash();
+        _visuals.NotifyParryDischarge(); // 形态层（§2.18）：盾把吸收的能量从散热口倒掉
         CombatVfx.ParryRing(GetParent(), GlobalPosition, GameState.Instance.ReduceFlash);
         RumbleService.Parry(); // 弹反成功震动
         Explosion.SpawnAt(GetParent(), area.GlobalPosition, 0.5f);

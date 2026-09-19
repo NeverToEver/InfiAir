@@ -2,7 +2,7 @@ namespace InfiAir.Core.Visual;
 
 /// <summary>玩家机挂点几何（单源）：贴图像素坐标，中心 (0,0)、机头朝 -Y，与
 /// <c>scripts/tools/generate_player_sprite.py</c> 头部注释的锚点同一坐标系。
-/// size 是挂点的**视觉直径**（贴图像素）。</summary>
+/// size 是该挂点的**特征视觉尺寸**（光点＝直径，炮管与拖尾＝全长）。</summary>
 public readonly record struct HullAnchor(string Name, double X, double Y, double Size);
 
 /// <summary>
@@ -54,6 +54,33 @@ public static class PlayerHullLayout
     /// <summary>损伤烟发射点：机身后段（不遮机头）。</summary>
     public static readonly HullAnchor DamageSmoke = new("damage_smoke", 0.0, 62.0, 34.0);
 
+    // ---- 机体形态层挂点（§2.18）----
+
+    /// <summary>左侧机炮荚舱：炮管收放的原点（炮管自原点向机头方向伸出）。</summary>
+    public static readonly HullAnchor GunLeft = new("gun_left", -30.0, 0.0, 20.0);
+
+    /// <summary>右侧机炮荚舱。</summary>
+    public static readonly HullAnchor GunRight = new("gun_right", 30.0, 0.0, 20.0);
+
+    /// <summary>左侧散热排气口：机背脊线中后段（生成器注释的脊线带 y≈118–200 上）。
+    /// 不放在引擎喷口旁——那里已有常驻尾焰光晕，再点一盏读不出「正在放热」；
+    /// 也不放在机体中线上——会被受击点光圈盖住。</summary>
+    public static readonly HullAnchor VentLeft = new("vent_left", -10.0, 46.0, 12.0);
+
+    /// <summary>右侧散热排气口。</summary>
+    public static readonly HullAnchor VentRight = new("vent_right", 10.0, 46.0, 12.0);
+
+    /// <summary>左翼尖：机动涡流的起始点（拖尾向机尾方向延伸）。
+    /// 全长 40：约 10 世界像素，机体长的六分之一——细到 30（7.8px）时实测读不出「划出蒸气」。</summary>
+    public static readonly HullAnchor WingtipLeft = new("wingtip_left", -115.0, 79.0, 40.0);
+
+    /// <summary>右翼尖。</summary>
+    public static readonly HullAnchor WingtipRight = new("wingtip_right", 115.0, 79.0, 40.0);
+
+    /// <summary>细长挂点（炮管 / 拖尾）的最小可读**全长**（世界像素）：比点状挂点的可读线高，
+    /// 因为细长件靠长度而非面积被读到——低于此值读作机身上的一个凸点。</summary>
+    public const double MinFeaturePx = 4.0;
+
     /// <summary>贴图坐标 → 世界偏移：设计系数与世界缩放各乘一次（此处正是引擎侧不该重复的两次）。</summary>
     public static double WorldOffsetX(HullAnchor a, double worldScale) => a.X * DesignScale * worldScale;
 
@@ -79,4 +106,7 @@ public static class PlayerHullLayout
 
     /// <summary>挂点在给定世界缩放下是否越过可读线（尺寸非有限或世界缩放非法即不可读）。</summary>
     public static bool IsReadable(HullAnchor a, double worldScale) => WorldSize(a, worldScale) >= MinReadablePx;
+
+    /// <summary>细长挂点在给定世界缩放下是否越过可读线（判据是全长，见 <see cref="MinFeaturePx"/>）。</summary>
+    public static bool IsFeatureReadable(HullAnchor a, double worldScale) => WorldSize(a, worldScale) >= MinFeaturePx;
 }

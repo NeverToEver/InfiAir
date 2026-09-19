@@ -197,12 +197,27 @@
 
 **落地判定**：本仓「六份活跃文档」结构保持不变；被裁掉的是**叙事层与只读存档**（形式），不是规则与取值（内容）——规则仍在 `AGENTS.md`、取值仍在 `DESIGN_BASELINE`、依据仍在 `REFERENCES.md`、历史在 git。
 
+### 4.14 机体形态层调研（2026-09-19）
+
+主题：**让机体的「轮廓」而不只是光色随状态改变**（`DESIGN_BASELINE` §2.18）。诊断是前几批表现全在同一副机形上加光加色，玩家读不出状态；而这层要动的正是外形。
+
+| 来源 | 逐字要点 | 落地 |
+| --- | --- | --- |
+| **Valve《Illustrative Rendering in Team Fortress 2》**（NPAR 2007）与 **Riot《Clarity in League》** | Valve：九个兵种「即使只看纯剪影、无任何内部明暗也能区分」，故刻意用边缘光而非黑描边强调剪影；Riot：**剪影是英雄辨识最重要的东西**，排在技能与配色之前 | 形态层的第一判据是**轮廓**：机炮伸缩与翼尖拖尾都改变外形，而非只加亮度（亮度留给已交付的 §2.13/§2.17 层） |
+| **The Level Design Book「Enemy design」** | 「独特剪影让玩家在**中距离**（约 10 米外）就辨出敌人类型」+「用细节与动画**预告状态与意图**」 | 形态层要在整机只有一个字符高度的尺度下成立：故取「炮管伸出 20 贴图像素（≈5 世界像素）」这类**远超噪声线**的形变量，并在窗口化截图上逐相位核过 |
+| **可变后掠翼**（Variable-sweep wing / F-14 条目）与 **B-36 可收放炮塔**（真实工程惯例） | 可变后掠翼：F-14 的后掠角由大气数据计算机按马赫数在 20°–68° 之间自动调度；B-36 装六座**可收放**遥控炮塔，不用时收进机体 | ① 机炮「平时收起、射击时展开」是真实工程先例，不是科幻装饰；② 冲刺时强制收拢＝「机体几何随速度状态改变」的现成语汇 |
+| **翼尖涡流**（Wingtip vortices / NASA Glenn 科普页）与 **War Thunder 官方开发日志**（Sky Guardians / Firebirds） | 维基：「涡核水汽凝结**最常见于大迎角飞行**，例如战斗机做高 G 机动」；NASA：湿度足够时「能在翼尖看到细长的云线」；WT：「机翼涡流/翼尖流场分离表现为机动时机翼拖出的长涡索」「爬升与机动时…出现新的 LERX 蒸气效果」 | 翼尖涡流作为**机动强度**的读数：低于阈值不出现（直线巡航不出），强度同时给长度与亮度——「拉长」比「变亮」更像真蒸气 |
+| **红热温色表**（Red heat 条目：黑红约 426℃ 起、经暗红/樱桃红/橙/黄，1315℃ 以上为白）与 **MechWarrior 热量可视化** | 受热发光的颜色-温度对应有物理依据；机甲游戏用热力表 + 红区分区表达热度 | 炮管着色走**暗钢→琥珀→白热**两段插值（`HullRig.HeatTintMix` 出两个混合因子）；**只做读数不做惩罚**——热量不进任何玩法结算 |
+
+**边界说明**：War Thunder 两条属飞行模拟而非弹幕射击，引用的是「翼尖涡流/蒸气 = 机动读数」这一表达惯例本身；MechWarrior 的热量是**资源**（影响射速与停机），本作只借它的颜色表达，不引入过热惩罚（引入即改玩法数值，须先按 §2 定稿）。
+
 ## 5 参考来源（URL 存档）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`
 **素材站**：`kenney.nl/{support,assets/category:Audio}`、`opengameart.org/content/faq`、`freesound.org/help/faq/`、`game-icons.net/about.html`、`polyhaven.com/license`、`ambientcg.com/license`、`godotshaders.com/faq/`、`incompetech.com/music/royalty-free/faq.html`、`freepd.com`、`lucide.dev/license`、`github.com/{feathericons/feather,google/material-design-icons,chr15m/jsfxr}`
 **玩法与无障碍**：`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`riskofrain2.wiki.gg/wiki/Difficulty`、`brotato.wiki.spellsandguns.com/Endless_Mode`、`slaythespire.wiki.gg/wiki/Cards`、`en.wikipedia.org/wiki/{DoDonPachi,Battle_Garegga,Reaction_control_system}`、`github.com/GensokyoClub/th06`、`gdcvault.com/play/1023146`、`roystan.net/articles/camera-shake.html`、`hardcoregaming101.net/{battle-garegga,dodonpachi,touhou}`、`psychologyofgames.com/2017/12/using-psychology-to-design-leveling-systems/`、`tboi.com/devil-room`
 **手感与动效**：`egmatic.com/blog/how-to-make-your-game-feel-good`、`en.senkohome.com/sakurai-game-dev-{specification,motion}/`、`youtube.com/@sora_sakurai_en`、`bugnet.io/blog/animation-principles-every-game-developer-should-know`、`gamedesignskills.com/game-design/game-feel/`、`book.leveldesignbook.com/process/combat/enemy`、`sparen.github.io/ph3tutorials/ddsga2.html`、`mystpixel.com/posts/5-visual-clutter-culprits-ruining-your-indie-game-s-combat-readability/`、`scifiinterfaces.com/tag/{hologram,glow}`
+**机体形态与热读数（§4.14）**：`steamcdn-a.akamaihd.net/apps/valve/2007/NPAR07_IllustrativeRenderingInTeamFortress2.pdf`、`leagueoflegends.com/en-us/news/dev/clarity-in-league/`、`en.wikipedia.org/wiki/{Variable-sweep_wing,Grumman_F-14_Tomcat,Convair_B-36_Peacemaker,Wingtip_vortices,Red_heat,Thermal_radiation,Twelve_basic_principles_of_animation}`、`warthunder.com/en/news/{7705-development-f-14a-tomcat-into-the-danger-zone-en,8137-development-new-effects-for-aviation-in-the-sky-guardians-update-en,9195-development-firebirds-effects-improvements-to-aviation-en}`、`www1.grc.nasa.gov/beginners-guide-to-aeronautics/downwash-effects-on-lift/`、`skeletoncodemachine.com/p/mech-week-heat`、`wiki.mechlinglegends.net/index.php?title=Heat`
 **准星与 FPS 惯例**：`ign.com/wikis/valorant/The_Best_Valorant_Crosshair_Guide`、`totalcsgo.com`、`dmarket.com`、`prosettings.net`
 **测试与引擎**：`arxiv.org/abs/2202.12777`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,audio/sync_with_audio,scripting/c_sharp/*}`
 **规则 / 文档治理**：`code.claude.com/docs/en/{memory,best-practices,skills}`、`cursor.com/docs/context/rules`、`docs.cline.bot/features/cline-rules`、`code.visualstudio.com/docs/copilot/customization/custom-instructions`、`agents.md`、`anthropic.com/engineering/effective-context-engineering-for-ai-agents`、`humanlayer.dev/blog/writing-a-good-claude-md`、`trychroma.com/research/context-rot`、`arxiv.org/abs/{2507.11538,2602.11988,2307.03172,2608.11095}`、`diataxis.fr/`、`cognitect.com/blog/2011/11/15/documenting-architecture-decisions`、`adr.github.io/`、`martinfowler.com/bliki/ArchitectureDecisionRecord.html`、`docs.gitlab.com/development/documentation/{workflow,styleguide}.html`、`kubernetes.io/docs/reference/using-api/deprecation-policy/`、`peps.python.org/pep-0387/`、`bazel.build/release/backward-compatibility`

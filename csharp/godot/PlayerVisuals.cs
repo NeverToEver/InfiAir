@@ -115,6 +115,61 @@ public class PlayerVisuals
     /// Player._Ready 的初值与 UpdateFrame 的每帧写共用本常量（两份同名常量分叉时，运行时生效的是
     /// 每帧写的那份，初值侧被静默架空；原先的冷色是全息青退役残留）。</summary>
     public static readonly Color BodyTintBase = new(1.42f, 1.34f, 1.24f);
+
+    // ---- 机体形态层（DESIGN_BASELINE §2.18）：机体的**形状**随状态改变。此前所有表现都是给
+    // 同一副机形加光加色加位移，玩家因此读不出「现在在干什么」；本层让轮廓本身变。
+    // 与 §2.13/§2.16/§2.17 同口径——只写贴图节点及其子节点的变换 / 颜色 / 显隐，
+    // 机体根节点、碰撞圆、擦弹环、弹道判定逐位不动；振幅乘动效强度（fx_intensity），
+    // 0 ＝ 整层不出现（回到本批之前的画面）。无新增贴图，全部程序化构建。
+    private Node2D? _rigRoot;             // 形态层容器（整层显隐由动效强度一处控制）
+    private Polygon2D? _gunBarrelLeft;    // 炮管：伸缩只改 Scale.Y（顶点预分配，零分配）
+    private Polygon2D? _gunBarrelRight;
+    private Sprite2D? _gunMuzzleLeft;     // 炮口辉光：随热量与开火点亮
+    private Sprite2D? _gunMuzzleRight;
+    private Sprite2D? _ventLeft;          // 散热排气口（停火后放热、弹反时倾倒能量）
+    private Sprite2D? _ventRight;
+    private Sprite2D? _vortexLeft;        // 翼尖涡流（高 G 机动时才出现）
+    private Sprite2D? _vortexRight;
+
+    /// <summary>机体形态层数值（effects.motion.player_gun_* / player_vortex_*，Init 读入）。</summary>
+    private float _gunDeployRate = 16.0f;   // 伸出速率（1/s，指数逼近）
+    private float _gunRetractRate = 5.5f;   // 收拢速率（伸出快、收回慢：开火要跟手，收枪可以缓）
+    private float _gunHoldTime = 0.55f;     // 停火后保持伸出的时长（s）
+    private float _gunHeatPerShot = 0.14f;  // 每发升温
+    private float _gunHeatTau = 1.1f;       // 停火后降温时间常数（s）
+    private float _ventThreshold = 0.25f;   // 散热排气起始热度
+    private float _ventAlpha = 0.55f;       // 排气峰值 alpha（已乘动效强度）
+    private float _vortexAlpha = 0.40f;     // 翼尖涡流峰值 alpha（已乘动效强度）
+    private float _vortexThreshold = 0.35f; // 涡流起始横向加速度占比
+    private float _deploy;                  // 0..1 机炮伸出量（指数逼近）
+    private float _heat;                    // 0..1 炮管热量（开火累加、停火指数衰减）
+    private float _fireHoldAge = 10.0f;     // 距最近一次开火的秒数（初值出窗：开机为收拢冷态）
+    private bool _dashTuck;                 // 冲刺气动收拢（冲刺期物理早退，故由 Player 显式置位）
+    private float _rigAccelX;               // 物理帧缓存的横向加速度占比（渲染帧推涡流用）
+    private float _vortex;                  // 0..1 涡流当前强度（指数平滑，防方向抖动闪烁）
+    private float _ventBurst = 10.0f;       // 弹反能量倾倒的一次性排气剩余时长（初值出窗）
+    private float _gunBarrelLen;            // 炮管全长（贴图像素，构建期捕获：炮口定位用）
+    private const float BarrelRetractRatio = 0.28f; // 收拢态炮管残留长度比（炮管不缩成零，留枪根）
+    private const float GunPodHalfW = 7.0f; // 荚舱体半宽（贴图像素）
+    private const float GunPodHalfH = 8.0f; // 荚舱体半高（贴图像素）
+    private const float GunPodRimPx = 1.4f; // 荚舱描边宽（贴图像素）
+    private const float GunBarrelHalfW = 2.0f; // 炮管半宽（贴图像素）
+    private const float GunMuzzleSize = 15.0f; // 炮口辉光直径（贴图像素）
+    private const float HeatJitterPx = 0.7f;   // 高热的炮管抖动幅度（贴图像素；就地 const 档）
+    private const float HeatJitterHz = 13.0f;  // 抖动频率（Hz）：确定性双正弦，无随机源
+    private const float HeatJitterMin = 0.6f;  // 起抖热度门槛
+    private const float VentBurstTime = 0.32f; // 弹反倾倒的排气管持续时长（s）
+    private const float VentFlickerHz = 9.0f;  // 排气闪烁频率（Hz）
+    private const float VortexRate = 7.0f;     // 涡流强度平滑速率（1/s）
+    private const float VortexWidthPx = 14.0f; // 涡流拖尾宽度（贴图像素；长度随强度变）
+    private static readonly Color GunHullDark = new(0.24f, 0.215f, 0.19f); // 荚舱体（暗于机体，读作加装件）
+    private static readonly Color GunRim = new(0.80f, 0.50f, 0.16f);      // 荚舱描边（琥珀镶边，接机体的走线语言）
+    private static readonly Color GunSteel = new(0.40f, 0.36f, 0.31f);    // 冷态炮管（暖钢灰）
+    private static readonly Color GunAmber = new(1.0f, 0.60f, 0.18f);     // 中温琥珀
+    private static readonly Color GunWhite = new(1.0f, 0.95f, 0.84f);     // 白热
+    private static readonly Color VentColor = new(1.0f, 0.52f, 0.16f);    // 排气暖橙
+    private static readonly Color VortexColor = new(0.78f, 0.90f, 1.0f);  // 翼尖蒸气（冷白，与暖色机体对比）
+
     /// <summary>擦弹机身短闪光剩余时长（金色微闪，独立短计时；SetGrazeFlash 置位、UpdateFrame 递减）。</summary>
     private float _grazeFlash;
     private readonly System.Collections.Generic.List<Sprite2D> _afterimagePool = new();
@@ -204,9 +259,21 @@ public class PlayerVisuals
         _smokeRatio = CfgFx.Float("effects.motion.player_damage_smoke_ratio", _smokeRatio, 0.0f, 1.0f) * fx;
         _nozzleAmp = CfgFx.Float("effects.motion.player_nozzle_alpha", _nozzleAmp, 0.0f, 1.0f) * fx;
         _navAmp = 0.5f * fx;
+        // 机体形态层（§2.18）：同上口径——振幅乘动效强度、频率/速率不乘
+        _gunDeployRate = CfgFx.Float("effects.motion.player_gun_deploy_rate", _gunDeployRate, 0.0f);
+        _gunRetractRate = CfgFx.Float("effects.motion.player_gun_retract_rate", _gunRetractRate, 0.0f);
+        _gunHoldTime = CfgFx.Float("effects.motion.player_gun_hold_time", _gunHoldTime, 0.0f);
+        _gunHeatPerShot = CfgFx.Float("effects.motion.player_gun_heat_per_shot", _gunHeatPerShot, 0.0f);
+        _gunHeatTau = CfgFx.Float("effects.motion.player_gun_heat_tau", _gunHeatTau, 0.0f);
+        _ventThreshold = CfgFx.Float("effects.motion.player_gun_vent_threshold", _ventThreshold, 0.0f, 1.0f);
+        _ventAlpha = CfgFx.Float("effects.motion.player_gun_vent_alpha", _ventAlpha, 0.0f, 1.0f) * fx;
+        _vortexAlpha = CfgFx.Float("effects.motion.player_vortex_alpha", _vortexAlpha, 0.0f, 1.0f) * fx;
+        _vortexThreshold = CfgFx.Float("effects.motion.player_vortex_threshold", _vortexThreshold, 0.0f, 1.0f);
+        _fireHoldAge = _gunHoldTime + 1.0f; // 初始即出窗：开机是收拢冷态，不弹一下枪
         BuildDamageSmoke();
         BuildManeuverNozzles();
         BuildNavLights();
+        BuildHullRig();
         _spriteScaleBase = sprite.Scale;
     }
 
@@ -214,8 +281,26 @@ public class PlayerVisuals
     private static float FxIntensity() => (float)GameState.Instance.FxIntensity;
 
     /// <summary>开火后坐力置位（FireInternal 每发调用）：重置后坐计时，贴图向机尾回弹由 UpdateFrame 推进。
-    /// 机身光反馈（§2.17）复用同一计时——开火瞬间机体被枪口火光照亮一瞬。</summary>
-    public void NotifyFired() => _recoilAge = 0.0f;
+    /// 机身光反馈（§2.17）复用同一计时——开火瞬间机体被枪口火光照亮一瞬。
+    /// 形态层（§2.18）同点置位：机炮伸出保持计时归零 + 炮管升温。</summary>
+    public void NotifyFired()
+    {
+        _recoilAge = 0.0f;
+        _fireHoldAge = 0.0f;
+        _heat = (float)Core.Visual.HullRig.HeatAfterShot(_heat, _gunHeatPerShot);
+    }
+
+    /// <summary>冲刺气动收拢置位（Player 冲刺期间每物理帧下发）：冲刺把机炮收回荚舱，
+    /// 读作「收枪加速」。冲刺两侧物理帧都早退、渲染帧照走，故收放由本标志而非物理帧状态驱动。</summary>
+    public void SetDashTuck(bool tucked) => _dashTuck = tucked;
+
+    /// <summary>弹反能量倾倒置位（Player 弹反成功路径调用）：盾把吸收的能量从散热口放掉——
+    /// 炮管热量清零 + 排气口一次性猛喷（§2.18 ③把散热口接到防御动作上）。</summary>
+    public void NotifyParryDischarge()
+    {
+        _heat = 0.0f;
+        _ventBurst = 0.0f;
+    }
 
     /// <summary>受击置位（扣血生效路径）：贴图横向压扁回弹（受击压缩，§2.17）。</summary>
     public void NotifyHit() => _hitAge = 0.0f;
@@ -291,6 +376,107 @@ public class PlayerVisuals
         _navPort = MakeHullLight(Core.Visual.PlayerHullLayout.NavPort, NavPortColor);
         _navStarboard = MakeHullLight(Core.Visual.PlayerHullLayout.NavStarboard, NavStarboardColor);
         _navStrobe = MakeHullLight(Core.Visual.PlayerHullLayout.NavStrobe, NavStrobeColor);
+    }
+
+    /// <summary>机体形态层（§2.18）一次性构建：机炮荚舱 ×2、散热排气口 ×2、翼尖涡流 ×2，
+    /// 全部挂在贴图下的同一容器里（坐标取自 core `PlayerHullLayout`，贴图像素；
+    /// 单位口径见 MakeHullLight）。整层显隐由动效强度一处控制——本层含不透明几何（荚舱与炮管），
+    /// alpha 归零不足以让它「回到本批之前的画面」，必须整层隐藏。</summary>
+    private void BuildHullRig()
+    {
+        _rigRoot = new Node2D();
+        _sprite.AddChild(_rigRoot);
+        _gunBarrelLen = (float)Core.Visual.PlayerHullLayout.GunLeft.Size;
+        BuildGunPod(Core.Visual.PlayerHullLayout.GunLeft, out var barrelL, out var muzzleL);
+        _gunBarrelLeft = barrelL;
+        _gunMuzzleLeft = muzzleL;
+        BuildGunPod(Core.Visual.PlayerHullLayout.GunRight, out var barrelR, out var muzzleR);
+        _gunBarrelRight = barrelR;
+        _gunMuzzleRight = muzzleR;
+        _ventLeft = BuildVent(Core.Visual.PlayerHullLayout.VentLeft);
+        _ventRight = BuildVent(Core.Visual.PlayerHullLayout.VentRight);
+        _vortexLeft = BuildVortex(Core.Visual.PlayerHullLayout.WingtipLeft);
+        _vortexRight = BuildVortex(Core.Visual.PlayerHullLayout.WingtipRight);
+    }
+
+    /// <summary>机炮荚舱：舱体（不透明多边形）+ 炮管（Y 缩放表达伸缩）+ 炮口辉光（加色软点）。
+    /// 炮管多边形按**全长**预分配、伸缩只改 Scale.Y——收放是逐帧量，重建顶点等于逐帧分配。
+    /// 炮管局部 y ∈ [0, -size]：缩放锚在荚舱原点，缩短时枪口向舱体回收（真枪管缩进荚舱的读法）。</summary>
+    private void BuildGunPod(Core.Visual.HullAnchor anchor, out Polygon2D barrel, out Sprite2D muzzle)
+    {
+        var root = new Node2D { Position = new Vector2((float)anchor.X, (float)anchor.Y) };
+        // 描边层（略大一圈的琥珀多边形）垫在舱体之下：机体的美术语言是「暗板 + 琥珀走线」，
+        // 一块纯灰方块贴上去读作占位块而非机件
+        root.AddChild(new Polygon2D
+        {
+            Polygon = new[]
+            {
+                new Vector2(-GunPodHalfW - GunPodRimPx, -GunPodHalfH - GunPodRimPx),
+                new Vector2(GunPodHalfW + GunPodRimPx, -GunPodHalfH - GunPodRimPx),
+                new Vector2(GunPodHalfW + GunPodRimPx, GunPodHalfH + GunPodRimPx),
+                new Vector2(-GunPodHalfW - GunPodRimPx, GunPodHalfH + GunPodRimPx),
+            },
+            Color = GunRim,
+        });
+        var body = new Polygon2D
+        {
+            Polygon = new[]
+            {
+                new Vector2(-GunPodHalfW, -GunPodHalfH), new Vector2(GunPodHalfW, -GunPodHalfH),
+                new Vector2(GunPodHalfW, GunPodHalfH), new Vector2(-GunPodHalfW, GunPodHalfH),
+            },
+            Color = GunHullDark,
+        };
+        root.AddChild(body);
+        var len = (float)anchor.Size;
+        barrel = new Polygon2D
+        {
+            Polygon = new[]
+            {
+                new Vector2(-GunBarrelHalfW, 0.0f), new Vector2(GunBarrelHalfW, 0.0f),
+                new Vector2(GunBarrelHalfW, -len), new Vector2(-GunBarrelHalfW, -len),
+            },
+            Color = GunSteel,
+        };
+        root.AddChild(barrel);
+        muzzle = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Material = CinematicFx.AdditiveMaterial(),
+            Scale = Vector2.One * (GunMuzzleSize / CinematicFx.SoftTexSize),
+            Modulate = new Color(GunAmber.R, GunAmber.G, GunAmber.B, 0.0f),
+        };
+        root.AddChild(muzzle);
+        _rigRoot!.AddChild(root);
+    }
+
+    /// <summary>散热排气口：机背脊线上的加色软点（初灭，热度驱动点亮）。</summary>
+    private Sprite2D BuildVent(Core.Visual.HullAnchor anchor)
+    {
+        var s = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Material = CinematicFx.AdditiveMaterial(),
+            Position = new Vector2((float)anchor.X, (float)anchor.Y),
+            Modulate = new Color(VentColor.R, VentColor.G, VentColor.B, 0.0f),
+        };
+        _rigRoot!.AddChild(s);
+        return s;
+    }
+
+    /// <summary>翼尖涡流：自翼尖向机尾方向拉长的加色软点（初灭，高 G 机动驱动出现）。
+    /// 软点贴图按非等比缩放读作细长拖尾——位置在 UpdateHullRig 里按当前长度贴回翼尖。</summary>
+    private Sprite2D BuildVortex(Core.Visual.HullAnchor anchor)
+    {
+        var s = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Material = CinematicFx.AdditiveMaterial(),
+            Position = new Vector2((float)anchor.X, (float)anchor.Y),
+            Modulate = new Color(VortexColor.R, VortexColor.G, VortexColor.B, 0.0f),
+        };
+        _rigRoot!.AddChild(s);
+        return s;
     }
 
     /// <summary>机身挂点小光点（加色软点，初始全灭）：机动喷口、航行灯与形态层共用构造；
@@ -512,6 +698,9 @@ public class PlayerVisuals
 
         UpdateManeuverNozzles(accelLocalX, accelLocalY, simTime, delta);
         UpdateNavLights(simTime);
+        // 形态层（§2.18）在这里只缓存输入：机炮收放与涡流走渲染帧推进（冲刺期物理帧早退，
+        // 而「收枪加速」这个读数只在冲刺期出现，放物理帧会被冻住）
+        _rigAccelX = accelLocalX;
 
         // 开火机身光（§2.17）：与后坐力同计时——枪口火光照亮机体一瞬（暖向提亮，衰减 ~3τ）
         var fireLight = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _fireLightTau) * _fireLightAmp;
@@ -600,6 +789,110 @@ public class PlayerVisuals
     /// （抛物线包络，峰值 1+amp）；渲染帧推进（_Process），物理早退的冲刺期也在走。</summary>
     public void NotifyDashPop() => _popAge = 0.0f;
 
+    /// <summary>机体形态层逐**渲染帧**推进（Player._Process 调用，UpdateScale 之后）：机炮收放、
+    /// 炮管热量、散热排气、翼尖涡流。走渲染帧而非物理帧是必须的——冲刺与入场期物理帧早退，
+    /// 而「收枪加速」这个读数恰恰只在冲刺期出现，放物理帧会被冻住。
+    /// simTime = Player 累计模拟时间（秒），抖动的相位基准（无头固定步长可重复，无随机源）。
+    /// 所有写入都是变换 / 颜色 / 显隐，零托管分配；动效强度 0 时整层隐藏（＝本批之前画面）。</summary>
+    public void UpdateHullRig(float delta, float simTime)
+    {
+        if (_rigRoot == null)
+        {
+            return;
+        }
+
+        var fx = FxIntensity();
+        _rigRoot.Visible = fx > 0.0f;
+        if (!_rigRoot.Visible)
+        {
+            return;
+        }
+
+        // ① 机炮收放：开火置保持窗，窗内伸出；冲刺强制收拢（气动）
+        _fireHoldAge += delta;
+        _ventBurst += delta;
+        var target = _dashTuck ? 0.0f : (float)Core.Visual.HullRig.DeployTarget(_fireHoldAge, _gunHoldTime);
+        var rate = target > _deploy ? _gunDeployRate : _gunRetractRate;
+        _deploy = (float)Core.Visual.BodyPose.Approach(_deploy, target, rate, delta);
+
+        // ② 炮管热量：开火累加（NotifyFired）、此处只管衰减与着色
+        _heat = (float)Core.Visual.HullRig.HeatDecay(_heat, _gunHeatTau, delta);
+        var (amber, white) = Core.Visual.HullRig.HeatTintMix(_heat);
+        var barrelColor = GunSteel.Lerp(GunAmber, (float)amber).Lerp(GunWhite, (float)white);
+        // 高热时枪管失稳微抖（确定性双正弦；门槛以下不动，免得常态枪管一直在颤）
+        var jitter = _heat > HeatJitterMin
+            ? HeatJitterPx * (float)Core.Visual.BodyPose.SputterFactor(simTime, HeatJitterHz)
+            : 0.0f;
+        var barrelScale = Mathf.Lerp(BarrelRetractRatio, 1.0f, _deploy);
+        var muzzleA = _heat * 0.55f * _deploy;
+        ApplyGun(_gunBarrelLeft, _gunMuzzleLeft, barrelScale, barrelColor, jitter, muzzleA, _gunBarrelLen);
+        ApplyGun(_gunBarrelRight, _gunMuzzleRight, barrelScale, barrelColor, jitter, muzzleA, _gunBarrelLen);
+
+        // ③ 散热排气：热度越过门槛即放热，弹反倾倒优先取大者；排气随热度变大变亮
+        var vent = Mathf.Max((float)Core.Visual.HullRig.VentStrength(_heat, _ventThreshold),
+            Mathf.Max(1.0f - _ventBurst / VentBurstTime, 0.0f));
+        var flicker = 1.0f + 0.25f * (float)Core.Visual.BodyPose.SputterFactor(simTime, VentFlickerHz);
+        var ventSize = 20.0f * (0.55f + 0.65f * vent) / CinematicFx.SoftTexSize; // 直径 11→24 贴图像素
+        SetVent(_ventLeft, vent, ventSize, flicker);
+        SetVent(_ventRight, vent, ventSize, flicker);
+
+        // ④ 翼尖涡流：横向加速度占比（物理帧缓存）过门槛才出现，指数平滑防方向抖动闪烁；
+        // 强度同时给长度与亮度——涡流「拉长」比「变亮」更像真蒸气
+        var vt = (float)Core.Visual.HullRig.VortexStrength(_rigAccelX, _vortexThreshold);
+        _vortex = (float)Core.Visual.BodyPose.Approach(_vortex, vt, VortexRate, delta);
+        var len = (float)Core.Visual.PlayerHullLayout.WingtipLeft.Size * (0.35f + 0.65f * _vortex);
+        var vortexA = _vortex * _vortexAlpha; // _vortexAlpha 已在 Init 乘过动效强度，此处不再乘
+        SetVortex(_vortexLeft, (float)Core.Visual.PlayerHullLayout.WingtipLeft.X,
+            (float)Core.Visual.PlayerHullLayout.WingtipLeft.Y, len, vortexA);
+        SetVortex(_vortexRight, (float)Core.Visual.PlayerHullLayout.WingtipRight.X,
+            (float)Core.Visual.PlayerHullLayout.WingtipRight.Y, len, vortexA);
+    }
+
+    private static void ApplyGun(
+        Polygon2D? barrel, Sprite2D? muzzle, float barrelScale, Color barrelColor, float jitter, float muzzleA,
+        float barrelLen)
+    {
+        if (barrel == null || muzzle == null)
+        {
+            return;
+        }
+
+        barrel.Scale = new Vector2(1.0f, barrelScale);
+        barrel.Color = barrelColor;
+        barrel.Position = new Vector2(jitter, 0.0f);
+        // 炮口辉光贴在枪口当前位置（炮管局部 y ∈ [0, -全长]，锚在荚舱原点；长度取构建期字段，
+        // 读 Polygon 属性会逐帧 marshal 一份新数组）
+        muzzle.Position = new Vector2(0.0f, -barrelLen * barrelScale);
+        muzzle.Modulate = new Color(GunAmber.R, GunAmber.G, GunAmber.B, muzzleA);
+    }
+
+    /// <summary>排气口写入：strength 只含「多热」，动效强度在 _ventAlpha 里（Init 一次乘好）。</summary>
+    private void SetVent(Sprite2D? vent, float strength, float sizeScale, float flicker)
+    {
+        if (vent == null)
+        {
+            return;
+        }
+
+        vent.Scale = Vector2.One * sizeScale;
+        vent.Modulate = new Color(VentColor.R, VentColor.G, VentColor.B,
+            Mathf.Clamp(strength * flicker, 0.0f, 1.0f) * _ventAlpha);
+    }
+
+    /// <summary>涡流：自翼尖向机尾（+Y）延伸的细长软点——软点以自身中心定位，故整条拖尾
+    /// 沿 +Y 平移半长，让起点贴住翼尖。</summary>
+    private static void SetVortex(Sprite2D? vortex, float x, float y, float len, float alpha)
+    {
+        if (vortex == null)
+        {
+            return;
+        }
+
+        vortex.Position = new Vector2(x, y + len * 0.5f);
+        vortex.Scale = new Vector2(VortexWidthPx / CinematicFx.SoftTexSize, len / CinematicFx.SoftTexSize);
+        vortex.Modulate = new Color(VortexColor.R, VortexColor.G, VortexColor.B, alpha);
+    }
+
     /// <summary>贴图缩放的唯一写者（逐渲染帧推进）：冲刺弹跳 × 速度伸缩（轴向，交叉轴体积补偿）
     /// × 受击压缩（横向压扁回弹），并顺带驱动损伤烟的排放比（重伤档点亮、指数平滑开关）。
     /// 物理早退区间（冲刺/入场/锁输入）也在走——弹跳与压缩的包络不该被物理早退冻住。
@@ -649,7 +942,6 @@ public class PlayerVisuals
 
     /// <summary>弹反命中闪光置位（Player 盾区反射成功时调用）：边缘白金色提亮 + 外扩脉冲。</summary>
     public void SetParryFlash() => _parryFlash = ParryFlashTime;
-
     /// <summary>激活金光一闪置位（Player 盾进入 ACTIVE 瞬间调用）：白金圆环 0.45×→1.5× 缓出扩张 + 淡出。</summary>
     public void SetParryActivatePulse()
     {

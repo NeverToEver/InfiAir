@@ -67,6 +67,35 @@ public sealed class PlayerHullLayoutTests
     }
 
     [Fact]
+    public void ShapeAnchors_AreReadableAndSymmetric()
+    {
+        // 形态层（§2.18）的细长件走全长判据：炮管缩到 28% 的收拢态仍要读得出是「一根管子」，
+        // 翼尖涡流要长到能读作拖尾而不是一个点
+        foreach (var a in new[]
+        {
+            PlayerHullLayout.GunLeft, PlayerHullLayout.GunRight,
+            PlayerHullLayout.WingtipLeft, PlayerHullLayout.WingtipRight,
+        })
+        {
+            Assert.True(
+                PlayerHullLayout.IsFeatureReadable(a, ShippedWorldScale),
+                $"{a.Name} 全长只有 {PlayerHullLayout.WorldSize(a, ShippedWorldScale):F2}px，低于细长件可读线 {PlayerHullLayout.MinFeaturePx}px");
+        }
+
+        // 成对挂点镜像：写反一侧会让机炮只有半边伸出、涡流只有一翼划蒸气
+        Assert.Equal(-PlayerHullLayout.GunLeft.X, PlayerHullLayout.GunRight.X, 9);
+        Assert.Equal(PlayerHullLayout.GunLeft.Y, PlayerHullLayout.GunRight.Y, 9);
+        Assert.Equal(-PlayerHullLayout.WingtipLeft.X, PlayerHullLayout.WingtipRight.X, 9);
+        Assert.Equal(PlayerHullLayout.WingtipLeft.Y, PlayerHullLayout.WingtipRight.Y, 9);
+        Assert.Equal(-PlayerHullLayout.VentLeft.X, PlayerHullLayout.VentRight.X, 9);
+
+        // 翼尖挂在主翼最外缘：涡流起点离中线不足翼展的七成时会落在翼面上（读作机翼上的污点）
+        var halfSpan = 127.0 * PlayerHullLayout.DesignScale * ShippedWorldScale;
+        var tipX = PlayerHullLayout.WorldOffsetX(PlayerHullLayout.WingtipRight, ShippedWorldScale);
+        Assert.True(tipX >= halfSpan * 0.7, $"翼尖涡流起点离中线仅 {tipX:F1}px（翼展半幅 {halfSpan:F1}px）——太靠内");
+    }
+
+    [Fact]
     public void WorldSize_FollowsWorldScaleLinearly_AndRejectsInvalidScale()
     {
         // 与挂点自身尺寸、设计系数、世界缩放的线性关系（写反一处即整层不可读）
