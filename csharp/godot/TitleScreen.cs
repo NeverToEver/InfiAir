@@ -28,6 +28,32 @@ public partial class TitleScreen : CanvasLayer
     private static readonly Vector2 ShipAnchorPos = new(1360.0f, 470.0f);
     private static readonly Vector2 ShipFarPos = new(1560.0f, 230.0f);
 
+    /// <summary>
+    /// 天空安全区（1920×1080 设计坐标）：按「左侧标题区 / 右侧悬挂展示位」让出来的四块空地——
+    /// 顶带 / 底带（悬挂铭牌之下、底部入口行之上）/ 标题区与展示位之间的竖缝 / 右缘竖条。
+    /// 纵深层（<see cref="TitleBackdrop"/>）与远景战场的曳光火网都从这里取位。
+    /// 为什么要有这张表：背景元素的职责是给出纵深，压在标题文字或机体上不是「更丰富」，是更难读；
+    /// 而「哪里是空的」是随构图变化的，写在一处才能随构图一起改。
+    /// 按「块」抽而不是全屏抽样再拒绝：空地本来就是互不相连的几块，按块抽既简单又一定落在安全区内
+    /// （拒绝采样必须写一条退化兜底分支，而那条分支迟早会被走到）。
+    /// </summary>
+    internal static readonly Rect2[] SkyZones =
+    {
+        new(20.0f, 20.0f, 1880.0f, 170.0f), // 顶带（机体上缘 216 之上）
+        new(40.0f, 890.0f, 1840.0f, 100.0f), // 底带（悬挂铭牌下缘 864 与底部入口行 1008 之间）
+        new(790.0f, 200.0f, 300.0f, 670.0f), // 中缝（标题区右缘 740 与机体左缘 1106 之间）
+        new(1690.0f, 200.0f, 190.0f, 670.0f), // 右缘（机体右缘 1614 与背光外圈之外）
+    };
+
+    /// <summary>从安全区里掷一点（先抽块、再抽块内一点）。</summary>
+    internal static Vector2 RandomSkySpot()
+    {
+        var zone = SkyZones[GD.RandRange(0, SkyZones.Length - 1)];
+        return new Vector2(
+            (float)GD.RandRange(zone.Position.X, zone.End.X),
+            (float)GD.RandRange(zone.Position.Y, zone.End.Y));
+    }
+
     /// <summary>标题屏就绪的真实时刻：输入守卫计时基准（残留在输入队列/玩家手里的上一场景按键，
     /// 属现实世界窗口，故用真实时间而非模拟时间，见 DESIGN_BASELINE「时间基准」）。</summary>
     private ulong _readyMs;
@@ -93,6 +119,7 @@ public partial class TitleScreen : CanvasLayer
         bg.ZIndex = -20;
         AddChild(bg);
         AddChild(new Starfield());
+        AddChild(new TitleBackdrop()); // 纵深层：星空之上、远景战场与机体展示之下（ZIndex = -6）
 
         BuildWarzone();
         BuildShipDisplay();
