@@ -21,7 +21,7 @@ for arg in "$@"; do
             echo "                 ① 干净工作树；版本号 MAJOR.MINOR 且与 project.godot config/version 一致"
             echo "                 ② origin 指向发布通道（推送目标与 Release 同源，防推错地方/建错 Release）"
             echo "                 ③ tag v<版本> 未被占用；已取得 GitHub 凭据"
-            echo "                 ④ 质量门禁全绿：python3 scripts/ci/gates.py（四步主干，本机实测约 10 秒）"
+            echo "                 ④ 质量门禁全绿：python3 scripts/ci/gates.py（五步主干，本机实测约 10–15 秒）"
             echo "  --skip-gates 显式跳过前置 ④（质量门禁）——只该在门禁刚跑过、工作区未变时用，输出会留痕"
             echo "  -h, --help   显示本帮助"
             echo "环境变量: VERSION（默认 project.godot config/version）、GODOT（探测链 godot-mono → ~/.local/bin → PATH）、"
@@ -111,7 +111,7 @@ host=github.com
     else
         [ -f scripts/ci/gates.py ] || {
             echo "[release] 门禁入口 scripts/ci/gates.py 不存在——判据取不到，拒绝发布" >&2; exit 1; }
-        echo "==> 发布前置：质量门禁 python3 scripts/ci/gates.py（四步主干，本机实测约 10 秒；跳过需显式 --skip-gates）"
+        echo "==> 发布前置：质量门禁 python3 scripts/ci/gates.py（五步主干，本机实测约 15 秒；跳过需显式 --skip-gates）"
         GATES_START=$(date +%s)
         if ! python3 scripts/ci/gates.py; then
             echo "[release] 质量门禁未全绿——发布中止（失败步骤与其日志见上面的门禁汇总）" >&2

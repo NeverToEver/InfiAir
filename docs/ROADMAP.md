@@ -8,7 +8,7 @@
 
 - **方向＝发布与可衡量性**（2026-09-17 决策线重置，人类授权全权决策）：工程侧已无实质空缺，缺口在对外侧——GitHub 已有 7 个 release 合计资产下载 **11 次**，无商店页、无演示、无预告片。内容是**有限解冻**：只做「记录 / 练习 / 表现」三类元层项；玩法系统扩展（新 Boss / 遭遇 / 天赋 / 机体）冻结，重启需显式决策。
 - **版本与发布**：`project.godot` = **3.35**；远端 tag 止于 v3.33，Windows / Linux 包与授权文本链路已就绪（**待发布，剩余步骤需账号与凭据**，见工作计划 P0）。v3.34 不单独发布（合规修复并入 v3.35）。macOS 维持源码运行。
-- **工程形态**：门禁**五步主干**（build / unit_tests / tool_tests / import / smoke），冒烟**单趟**（生产 `main.tscn` 开机直达标题屏）；core 单测 **666 条**（73 个测试文件）、离线工具链自测 **49 条**；`csharp/core/` 73 文件约 7.3K 行、`csharp/godot/` 150 文件约 52K 行；CI 单 job fast-gate 与本地同口径；引擎 **Godot 4.7.2**。
+- **工程形态**：门禁**五步主干**（build / unit_tests / tool_tests / import / smoke），冒烟**单趟**（生产 `main.tscn` 开机直达标题屏）；core 单测 **692 条**（73 个测试文件）、离线工具链自测 **68 条**；`csharp/core/` 78 文件约 7.6K 行、`csharp/godot/` 150 文件约 52K 行；CI 单 job fast-gate 与本地同口径；引擎 **Godot 4.7.2**。
 - **玩法口径**：纯街机流（无登录 / 排行榜 / 局外成长）不变，分数是隐藏进度引擎；本局检查点存档（死即删档）；4 Boss 轮换 + 狂暴、母舰火力平台、天赋缓存系统（4 类 27 节点）。
 - **平台与输入面**：PC 桌面专用，键鼠 + 手柄两路（触屏已全量退役）；预编译包 = Windows / Linux。
 - **工作形态**：观感与手感由工程判据（准入判据、护栏、取值钳制）随批收口，不设人工验收环节（2026-09-19 起）；玩家反馈是唯一返工触发源。
@@ -29,7 +29,7 @@
 
 ### P0 · 发布就绪（无玩家可见变化）
 
-- **发布 v3.35**：**前置已就绪**——引擎 4.7.2 与导出模板已装、导出链路实测通过（`./release.sh` 退出码 0，包根目录含 `LICENSE` / `NOTICE` / `NotoSansSC-OFL.txt`）、`project.godot` 与 README 双语版本号已同步、`docs/RELEASE_NOTES.md` 的 v3.35 节已就位。**剩余步骤归人**（需账号与凭据）：`./release.sh --publish`（推送 main、打 tag、建 GitHub Release 并上传资产；脚本会先断言工作树干净、版本一致、origin 同源、tag 未占用、四步门禁全绿）。
+- **发布 v3.35**：**前置已就绪**——引擎 4.7.2 与导出模板已装、导出链路实测通过（`./release.sh` 退出码 0，包根目录含 `LICENSE` / `NOTICE` / `NotoSansSC-OFL.txt`）、`project.godot` 与 README 双语版本号已同步、`docs/RELEASE_NOTES.md` 的 v3.35 节已就位。**剩余步骤归人**（需账号与凭据）：`./release.sh --publish`（推送 main、打 tag、建 GitHub Release 并上传资产；脚本会先断言工作树干净、版本一致、origin 同源、tag 未占用、五步门禁全绿）。
 
 ### P2 · 发布后按证据推进（不排期）
 
