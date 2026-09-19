@@ -155,6 +155,11 @@ public sealed record MachineSpec(
     /// 加机型时只需补一条 <c>MACHINE_TAG_&lt;ID&gt;</c> 文案。键名在 core 拼而不是在面板里拼——
     /// 面板里拼的话「文案键是否存在」这条判据扫不到它，缺键时玩家看到键名本身而不报错。</summary>
     public string TagKey => "MACHINE_TAG_" + Id.ToUpperInvariant();
+
+    /// <summary>性格文案（一句话说清这型拿什么换什么）的文案键：轮盘铭牌指纹图下方那一行
+    /// （<c>MACHINE_BLURB_&lt;ID&gt;</c>）。与 <see cref="TagKey"/> 同口径由 id 派生、同一条判据覆盖；
+    /// 它是指纹图的**文本等价物**（图是纯视觉编码，读屏 / 色觉差异下只能靠这一行），故与图同源同批。</summary>
+    public string BlurbKey => "MACHINE_BLURB_" + Id.ToUpperInvariant();
 }
 
 /// <summary>

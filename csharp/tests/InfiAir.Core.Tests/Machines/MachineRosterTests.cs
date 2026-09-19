@@ -292,7 +292,7 @@ public sealed class MachineRosterTests
         var table = TranslationTable();
         foreach (var spec in MachineRoster.All)
         {
-            foreach (var key in new[] { spec.NameKey, MachineTraitText.Key(spec.Trait), spec.TagKey })
+            foreach (var key in new[] { spec.NameKey, MachineTraitText.Key(spec.Trait), spec.TagKey, spec.BlurbKey })
             {
                 Assert.True(table.TryGetValue(key, out var row), $"文案表缺键：{key}");
                 Assert.False(string.IsNullOrWhiteSpace(row.Zh), $"{key} 缺中文");
