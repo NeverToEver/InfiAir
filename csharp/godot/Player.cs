@@ -246,6 +246,9 @@ public partial class Player : CharacterBody2D
     private MachineSpec _machineSpec = MachineRoster.Default;
     /// <summary>生效乘区（balance 覆盖 + 域收口后的值）。</summary>
     private MachineModifiers _machineMods = MachineModifiers.Baseline;
+    /// <summary>生效能力档案（玩法层四条轴）。与 <see cref="_machineMods"/> 同批落定；
+    /// 四条轴的消费点全在 <see cref="RefreshAugmentFactors"/>（自基准重算），此处只存当前值。</summary>
+    private MachineKit _machineKit = MachineKit.Baseline;
     /// <summary>未经机型乘区的配置基准值：乘区必须乘在它上面，不能乘在已含乘区的属性上——
     /// 拿属性自身当 cfg 回退默认时，键缺失会让乘区一次一次往上叠（只在缺键那条路上看得出来）。</summary>
     private float _maxSpeedCfg = 420.0f;
@@ -567,13 +570,17 @@ public partial class Player : CharacterBody2D
         // parry.* 钳 ≥0——负半径/负角度致弹反扇形判定异常
         ParryArcDeg = CfgFx.Float("player.parry.arc_deg", ParryArcDeg, 0.0f);
         ParryRadius = CfgFx.Float("player.parry.radius", ParryRadius, 0.0f);
+        // 弹反窗与冷却的**基准缓存**（机型能力轴乘在它们上面）：乘区不得乘在
+        // _parry.ActiveTime / CooldownMax 这些已含乘区的属性上——拿属性自身当 cfg 回退默认时，
+        // 键缺失会让机型乘区一次一次往上叠（只在缺键那条路上看得出来，与 _maxSpeedCfg 同款坑）。
+        _parryDurationBase = CfgFx.Float("player.parry.duration", 0.8f, 0.0f);
+        _parryWindowBase = CfgFx.Float("player.parry.active_time", 0.5f, 0.0f);
         _parryCooldownBase = CfgFx.Float("player.parry.cooldown", 3.0f, 0.0f);
         // 输入缓冲窗口（§2.14③）：钳 ≥0——负窗口在 core InputBuffer 内本就按不缓冲处理，此处再钳一道
         _inputBufferWindow = CfgFx.Float("player.input_buffer_window", 0.1f, 0.0f);
-        _parry.Configure(
-            CfgFx.Float("player.parry.duration", 0.8f, 0.0f),
-            CfgFx.Float("player.parry.active_time", 0.5f, 0.0f),
-            _parryCooldownBase);
+        // 初始值（不含机型乘区与 deflector）：真值由 ApplyMachineFactors → RefreshAugmentFactors 落定。
+        // 两处都写同一组字段是既定形状（Read 期先给安全初值，增幅/换机时自基准重算）
+        _parry.Configure(_parryDurationBase, _parryWindowBase, _parryCooldownBase);
         _damage.Configure(
             InvincibleTime,
             ArmorMult,
@@ -942,7 +949,13 @@ public partial class Player : CharacterBody2D
         // 燃油速率缓存（LaserWeapon.OnAugmentsChanged 同款）——避免每物理帧
         // AugmentLevel 字典查找 + Pow（_physics_process 每帧两次）。
         // 开火/冲刺路径同口径缓存，空间换时间（见字段注释）。
-        _fuelDrainRate = AugmentScale(AugEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(AugEfficientBoost));
+        // 加速耗油的机型能力轴乘在**基准** FuelDrain 上、与 efficient_boost 叠乘（顺序无关，两者都是
+        // 正数因子）；乘积钳 IntervalFloor——耗油 ≤0 会让燃料只增不减（加速无限续航），
+        // 而 0 还会让满箱续航读数 100/0 变 Inf 渗进铭牌。
+        _fuelDrainRate = Mathf.Max(
+            AugmentScale(AugEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(AugEfficientBoost))
+                * (float)_machineKit.FuelDrainMult,
+            CfgFx.IntervalFloor);
         _fuelRegenRate = AugmentScale(AugBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(AugBoostRecovery));
         _fireIntervalValue = AugmentScale(AugRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(AugRapidFire));
         // 机型攻击力乘区与 power_shot 叠乘，取整后再钳 ≥1（0 伤害的弹体会「打不动」而无声）
@@ -953,8 +966,14 @@ public partial class Player : CharacterBody2D
         _pierceCount = AugmentCap(AugPiercing);
         _explosiveEnabled = AugmentEnabled(AugExplosive);
         // 指数直接取有效层级（−1 曾是「层 1＝解锁」的化石：解锁语义已移到基准层，
-        // 现在它与另外八个乘算增幅的 factor^effLevel 惯例一致）
-        _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, (float)GameState.Instance.TalentEffLevel(AugPhaseDash));
+        // 现在它与另外八个乘算增幅的 factor^effLevel 惯例一致）。
+        // 机型冲刺冷却乘区乘在增幅之后（两者都是正数因子，顺序无关），并钳 IntervalFloor：
+        // 本值是 HUD 冲刺充能环的分母（DashReadyRatio），归零会把 NaN 送进 AbilitySocket.SetRatio
+        // ——Mathf.Clamp 原样传 NaN，环永不填充且不报错。
+        _dashCooldownMax = Mathf.Max(
+            AugmentScale(AugPhaseDash, DashCooldownMaxValue, (float)GameState.Instance.TalentEffLevel(AugPhaseDash))
+                * (float)_machineKit.DashCooldownMult,
+            CfgFx.IntervalFloor);
         // ---- 作战增幅扩展（乘算走 EffLevel 浮点层级；整数语义走层数）----
         // 锁定锥余弦无条件装载（不随天赋点亮与否）：探针的只读口要拿生产真值，
         // 未点亮时生产不消费它（_homingAugTurnRate=0 → 不走这条取目标路径），故无行为影响
@@ -982,8 +1001,15 @@ public partial class Player : CharacterBody2D
         var deflectorEff = (float)GameState.Instance.TalentEffLevel(AugDeflector);
         _deflectorCooldownFactor = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.cooldown_factor", 0.78f, 0.05f, 1.0f), deflectorEff) : 1.0f;
         _deflectorReflectMult = deflectorEff > 0f ? Mathf.Pow(CfgFx.Float("augments.deflector.reflect_mult", 1.6f, 1.0f), deflectorEff) : 1.0f;
-        // 弹反冷却 = 基值（_load_balance 定值一次）× 当前偏转乘区；乘区变化时整体重设组件
-        _parry.Configure(_parry.Duration, _parry.ActiveTime, _parryCooldownBase * _deflectorCooldownFactor);
+        // 弹反窗与冷却一律**自基准重算**：窗 ×机型窗乘区，冷却 ×机型循环乘区 ×偏转乘区。
+        // 三个因子都乘在 cfg 基准（_parryWindowBase / _parryCooldownBase）上而不是 _parry 的当前属性上
+        // ——乘在属性上时换机重跑会一次一次往上叠（只在换机那条路上看得出来）。
+        // 域护栏在 core：ParryTimeline.Configure 把激活时长钳到 [phaseFloor, 流程时长]、
+        // 冷却钳 ≥0（CooldownMax=0 时 EnergyRatio 走满格早退，不产生 0/0）。
+        _parry.Configure(
+            _parryDurationBase,
+            _parryWindowBase * (float)_machineKit.ParryWindowMult,
+            _parryCooldownBase * (float)_machineKit.ParryCooldownMult * _deflectorCooldownFactor);
 
         var grazeEff = (float)GameState.Instance.TalentEffLevel(AugGrazeField);
         GrazeRadius = GrazeRadiusBase * (grazeEff > 0f ? Mathf.Pow(CfgFx.Float("augments.graze_field.radius_factor", 1.2f, 1.0f), grazeEff) : 1.0f);
@@ -1007,11 +1033,14 @@ public partial class Player : CharacterBody2D
     /// 刻意不重跑 <see cref="LoadBalance"/>（约 60 项配置重读会白送满无敌并回满燃料）。
     /// 射速与伤害走 <see cref="RefreshAugmentFactors"/> 重算：它们与增幅是叠乘关系，
     /// 在那里合成才不会出现「换了机型但缓存还是旧乘区」的静默半生效。
+    /// 能力档案（<see cref="_machineKit"/>）同批落定——它的四条轴也全在
+    /// <see cref="RefreshAugmentFactors"/> 消费，故只需在调它之前赋值。
     /// </summary>
     private void ApplyMachineFactors()
     {
         _machineSpec = GameState.Instance.Machine;
         _machineMods = GameState.Instance.MachineMods;
+        _machineKit = GameState.Instance.Kit;
         MaxSpeed = _maxSpeedCfg * (float)_machineMods.MoveSpeedMult;
         BaseFireInterval = _fireIntervalCfg * (float)_machineMods.FireIntervalMult;
         _damage.SetDamageTakenMult((float)_machineMods.DamageTakenMult);
@@ -1171,6 +1200,13 @@ public partial class Player : CharacterBody2D
     /// <summary>deflector 偏转：弹反冷却乘区（<1 = 已购生效）与反射伤害乘区（>1 = 已购生效）。</summary>
     private float _deflectorCooldownFactor = 1.0f;
     private float _deflectorReflectMult = 1.0f;
+    /// <summary>弹反三条基准值（不含机型乘区与 deflector）：乘区一律乘在基准上、自基准重算。
+    /// 弹反窗与冷却的机型乘区在此消费——**只在 <see cref="RefreshAugmentFactors"/> 里重算**，
+    /// 不落在 <see cref="LoadBalance"/>：后者跑在 <c>Player._Ready</c>，早于读档换机
+    /// （Main._Ready → ApplyRunDict → MachineChanged），只落那里会在「标题屏改过偏好又点继续
+    /// 上次出击」时停在错档，症状是同一台机「弹反窗错、冷却对」。</summary>
+    private float _parryDurationBase = 0.8f;
+    private float _parryWindowBase = 0.5f;
     private float _parryCooldownBase = 3.0f;
     /// <summary>dash_strike 冲刺打击：0 层 = 未购；触发半径/伤害/节流缓存。</summary>
     private int _dashStrikeLevel;

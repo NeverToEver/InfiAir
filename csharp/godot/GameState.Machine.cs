@@ -16,6 +16,8 @@ namespace InfiAir;
 /// 机动/射速/攻击力在 Player 启动读一次（换机时经 <see cref="SignalName.MachineChanged"/> 重读）、
 /// 血上限在本类 <c>ApplyMachineHealth</c> 折进基础上限（吸血是「基础上限 × 比例」的定额，同口径跟进）、
 /// 受到伤害在 PlayerDamage 结算时乘进减免链。
+/// 能力档案（<see cref="Kit"/>）与它同批解析、同一条 <see cref="SignalName.MachineChanged"/> 触达：
+/// 四条轴供 Player 的弹反窗 / 弹反冷却 / 冲刺冷却 / 加速耗油基准消费（玩法层乘区，见 <c>DESIGN_BASELINE</c> §1.19）。
 ///
 /// 旧档（settings.json / run.json 都没有机型键）一律归一到标准型：
 /// 与加机型之前的数值、贴图逐位一致，不报错、不改档。
@@ -25,6 +27,7 @@ public partial class GameState : Node
     private MachineSpec _machine = MachineRoster.Default;
     private MachineModifiers _machineMods = MachineModifiers.Baseline;
     private MachineFeel _machineFeel = MachineFeel.Baseline;
+    private MachineKit _machineKit = MachineKit.Baseline;
 
     /// <summary>机型变更（选定 / 读档还原 / 恢复默认）后发出：Player 据此重读数值与贴图。
     /// 信号带 id 而非下标——存档、设置、平衡表三处引用的都是 id，下标只在面板内部用。</summary>
@@ -46,6 +49,14 @@ public partial class GameState : Node
 
     /// <summary>任一机型的生效手感档案（逐行展示 / 预览用；与生效值同一条求值路径）。</summary>
     public MachineFeel FeelFor(string? id) => ResolveMachineFeel(MachineRoster.ById(id));
+
+    /// <summary>当前生效的能力档案（玩法层四条轴：弹反窗 / 弹反冷却 / 冲刺冷却 / 加速耗油，
+    /// balance.json 覆盖 + 域收口后的值）。消费点在 Player 那四处乘区，
+    /// 面板读数与账本判据一律读 <see cref="MachineKitTable"/> 的轴元数据，不另算一遍。</summary>
+    public MachineKit Kit => _machineKit;
+
+    /// <summary>任一机型的生效能力档案（逐行展示 / 预览用；与生效值同一条求值路径）。</summary>
+    public MachineKit KitFor(string? id) => ResolveMachineKit(MachineRoster.ById(id));
 
     /// <summary>任一机型的生效乘区（机型面板逐行显示加成幅度用）。
     /// 与生效值走同一条求值路径，面板上的数字因此不可能与实际起飞时的乘区分叉。</summary>
@@ -84,6 +95,7 @@ public partial class GameState : Node
         _machine = spec;
         _machineMods = ResolveMachineMods(spec);
         _machineFeel = ResolveMachineFeel(spec);
+        _machineKit = ResolveMachineKit(spec);
         ApplyMachineHealth();
         if (persistPreference && !string.Equals(_settings.MachineId, spec.Id, System.StringComparison.Ordinal))
         {
@@ -146,6 +158,22 @@ public partial class GameState : Node
             SmokeMinLevel = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.SmokeMinLevelKey), d.SmokeMinLevel).AsInt32(),
             DeflectRead = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DeflectReadKey), d.DeflectRead).AsDouble(),
         });
+    }
+
+    /// <summary>
+    /// 能力档案求值：默认表回退，逐键读 balance.json（键缺失 / 损坏即用默认——与乘区、手感同一口径）。
+    /// 读到的值一律过 <see cref="MachineKitTable.Sanitize"/>：越界取边界值（不是回 1.0，
+    /// 那会把重锤 / 巨像的耗油代价静默抹平）、非有限值逐轴回 1.0。
+    /// 四条轴互不依赖，故不需要「自基准重算」那种缓存——每次换机 / 读档都整份重解。
+    /// </summary>
+    private MachineKit ResolveMachineKit(MachineSpec spec)
+    {
+        var d = MachineKitTable.For(spec.Id);
+        return MachineKitTable.Sanitize(new MachineKit(
+            Cfg(MachineKitTable.ConfigKey(spec, MachineKitTable.ParryWindowKey), d.ParryWindowMult).AsDouble(),
+            Cfg(MachineKitTable.ConfigKey(spec, MachineKitTable.ParryCooldownKey), d.ParryCooldownMult).AsDouble(),
+            Cfg(MachineKitTable.ConfigKey(spec, MachineKitTable.DashCooldownKey), d.DashCooldownMult).AsDouble(),
+            Cfg(MachineKitTable.ConfigKey(spec, MachineKitTable.FuelDrainKey), d.FuelDrainMult).AsDouble()));
     }
 
     /// <summary>

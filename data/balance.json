@@ -126,6 +126,10 @@
 				"afterimage_life_mult": 1.6,
 				"afterimage_rate_mult": 1.5,
 				"dash_speedline": 0.85
+			},
+			"kit": {
+				"dash_cooldown_mult": 0.85,
+				"parry_cooldown_mult": 1.1
 			}
 		},
 		"sledge": {
@@ -138,6 +142,10 @@
 				"lag_px_mult": 1.5,
 				"muzzle_glow_mult": 1.45,
 				"hit_spark_mult": 1.4
+			},
+			"kit": {
+				"fuel_drain_mult": 0.87,
+				"dash_cooldown_mult": 1.1
 			}
 		},
 		"repeater": {
@@ -148,6 +156,10 @@
 				"fire_jitter_px": 1.2,
 				"tracer_len_px": 22.0,
 				"muzzle_glow_mult": 1.15
+			},
+			"kit": {
+				"parry_cooldown_mult": 0.85,
+				"fuel_drain_mult": 1.15
 			}
 		},
 		"bulwark": {
@@ -160,6 +172,10 @@
 				"parry_glow_mult": 1.35,
 				"damage_frame_mult": 0.7,
 				"deflect_read": 1
+			},
+			"kit": {
+				"parry_window_mult": 1.4,
+				"dash_cooldown_mult": 1.1
 			}
 		},
 		"colossus": {
@@ -171,6 +187,10 @@
 				"bob_px_mult": 0.5,
 				"damage_frame_mult": 1.35,
 				"smoke_min_level": 1
+			},
+			"kit": {
+				"fuel_drain_mult": 0.82,
+				"parry_cooldown_mult": 1.15
 			}
 		}
 	},

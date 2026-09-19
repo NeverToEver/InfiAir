@@ -36,8 +36,16 @@ public partial class MachineWheelPanel : RadialMenuLayer
 
     // ---- 布局（1920×1080 设计坐标；轮盘圆心由 RadialMenuLayer.WheelRest 给）----
     private static readonly Vector2 ShipRest = new(1160.0f, 420.0f);
-    private static readonly Vector2 PlatePos = new(930.0f, 686.0f);
-    private static readonly Vector2 PlateSize = new(460.0f, 168.0f);
+    /// <summary>铭牌左上角：x 随板宽加宽而左移 50，使板心恒在 x=1160（＝ <see cref="ShipRest"/> 的 x，
+    /// 铭牌始终正对机体；只加宽不挪位会让板心右偏 50px，与机体错开）。</summary>
+    private static readonly Vector2 PlatePos = new(880.0f, 686.0f);
+
+    /// <summary>铭牌尺寸。**宽 460→560**（高 168 不动）：能力项并入加成 / 代价两行后，
+    /// 英文最长串（壁垒「Damage taken -15% · Parry window 0.70s」在 FontBody 下实测约 449px）
+    /// 已贴死旧内容框的 424px——自动换行一开就会折成两行，而加高会让下方 note 与提示行被挤掉。
+    /// 加宽到 560 后内容框 524px，最长串留出约 75px 余量，两行仍各占一行。</summary>
+    private static readonly Vector2 PlateSize = new(560.0f, 168.0f);
+
     private static readonly Vector2 FlyFar = new(430.0f, -300.0f);    // 飞入起点（相对停驻位，右上远处）
     private static readonly Vector2 FlyOutPos = new(380.0f, -260.0f); // 飞出终点（同向加速离场）
 
@@ -54,6 +62,7 @@ public partial class MachineWheelPanel : RadialMenuLayer
     private ChamferedPanel _plate = null!;
     private Label _role = null!;
     private Label _name = null!;
+    private Label _tag = null!;
     private Label _trait = null!;
     private Label _penalty = null!;
 
@@ -196,10 +205,16 @@ public partial class MachineWheelPanel : RadialMenuLayer
 
         _role = UITheme.MakeLabel(string.Empty, UITheme.FontSmall, UITheme.TextDim, HorizontalAlignment.Center);
         _name = UITheme.MakeLabel(string.Empty, UITheme.FontHeader, UITheme.AccentHot, HorizontalAlignment.Center);
+        _tag = UITheme.MakeLabel(string.Empty, UITheme.FontSmall, UITheme.AccentGold, HorizontalAlignment.Left);
         _trait = UITheme.MakeLabel(string.Empty, UITheme.FontBody, UITheme.AccentGold, HorizontalAlignment.Center);
         _penalty = UITheme.MakeLabel(string.Empty, UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Center);
+        // 自动换行：能力项并入两行后英文最长串已接近内容框宽度（余量约 75px），换行是溢出前
+        // 最后一道防线——不开时超宽串会被 Label 静默裁掉/顶出板外，不报错也看不出来。
+        // WordSmart：中英混排按词边界折，中文无空格时按字折。
+        _trait.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        _penalty.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         vbox.AddChild(_role);
-        vbox.AddChild(_name);
+        vbox.AddChild(BuildNameRow());
         vbox.AddChild(_trait);
         vbox.AddChild(_penalty);
 
@@ -213,6 +228,23 @@ public partial class MachineWheelPanel : RadialMenuLayer
         hint.Position = new Vector2(560.0f, 986.0f);
         hint.CustomMinimumSize = new Vector2(1040.0f, 0.0f);
         AddChild(hint);
+    }
+
+    /// <summary>机型名 + 性格标签同一行：标签紧邻名字右侧，字号与配色从既有层级取
+    /// （FontSmall / AccentGold），不新造层级。名字居中、标签靠左紧随其右——标签跟名字走，
+    /// 换机型时整行一起读，比另起一行更省板高（板高不动的前提之一）。</summary>
+    private Control BuildNameRow()
+    {
+        var row = new HBoxContainer
+        {
+            Alignment = BoxContainer.AlignmentMode.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        row.AddThemeConstantOverride("separation", 10);
+        row.AddChild(_name);
+        _tag.VerticalAlignment = VerticalAlignment.Center;
+        row.AddChild(_tag);
+        return row;
     }
 
     /// <summary>轮盘选项：六个叶子（无子层），顺序 ＝ 名册顺序（与机型面板、存档 id 同一份名册）。
@@ -379,8 +411,11 @@ public partial class MachineWheelPanel : RadialMenuLayer
         _swap = inTween;
     }
 
-    /// <summary>铭牌重写：标签行按「焦点是否等于生效机型」在现役 / 候选间切；百分比与实际乘区
-    /// 同出一条求值路径（<see cref="MachineTraitText"/> 反算），与起飞时的数值不可能分叉。</summary>
+    /// <summary>铭牌重写：标签行按「焦点是否等于生效机型」在现役 / 候选间切；数值层百分比
+    /// 与实际乘区同出一条求值路径（<see cref="MachineTraitText"/> 反算）、能力层自然量与实际
+    /// 能力档案同出一条求值路径（<see cref="MachineKitTable"/>），与起飞时的取值不可能分叉。
+    /// 两层并入同一行：加成行＝我拿到什么（数值加成 ＋ 能力强化），代价行＝我付出什么
+    /// （数值代价 ＋ 能力代价）。</summary>
     private void RefreshPlate(bool punch)
     {
         if (_name == null || !GodotObject.IsInstanceValid(_name))
@@ -392,9 +427,12 @@ public partial class MachineWheelPanel : RadialMenuLayer
         // 两个键都写成字面量 Tr 调用（条件表达式里放键名时文案门禁扫不到，缺键会静默显示键名本身）
         _role.Text = active ? (string)Tr("TITLE_SHOWCASE_ACTIVE") : (string)Tr("MACHINE_WHEEL_CANDIDATE");
         _name.Text = (string)Tr(_focused.NameKey);
-        _trait.Text = TraitText(_focused.Trait);
+        _tag.Text = (string)Tr(_focused.TagKey);
+        _trait.Text = RowText(_focused.Trait, _focused.KitBonus);
         // 标准型没有代价：留空而不是把「无加成 · 基准配置」印两遍（同一句话连写两行像排版事故）
-        _penalty.Text = _focused.Penalty == MachineTrait.None ? string.Empty : TraitText(_focused.Penalty);
+        _penalty.Text = _focused.Penalty == MachineTrait.None && _focused.KitPenalty == MachineAxis.None
+            ? string.Empty
+            : RowText(_focused.Penalty, _focused.KitPenalty);
         _role.AddThemeColorOverride("font_color", active ? UITheme.AccentGold : UITheme.TextDim);
         _name.AddThemeColorOverride("font_color", active ? UITheme.AccentHot : UITheme.Text);
         if (punch)
@@ -403,12 +441,46 @@ public partial class MachineWheelPanel : RadialMenuLayer
         }
     }
 
+    /// <summary>一行的合成：数值层（百分比，带符号）＋ 能力层（自然量秒数，不带符号），
+    /// 以「 · 」相接。一层缺席就只印另一层——缺一层时不留悬空分隔符。
+    /// **标准型两层都缺席，此时原样印它那条「无加成 · 基准配置」**：那行是它的身份读数，
+    /// 不是空行（两条轴都是 None 时把它吃掉会让标准型的加成行变成空白）。
+    /// 能力项写自然量而非百分比，是因为四条轴的自然量各不相同（窗＝窗口秒数、循环＝流程＋冷却、
+    /// 冷却＝冷却秒数、耗油＝满箱续航），印乘区百分比会与玩家实感对不上；且加成行里出现负号
+    /// 会被读成「这型更差」。</summary>
+    private string RowText(MachineTrait trait, MachineAxis axis)
+    {
+        if (trait == MachineTrait.None && axis == MachineAxis.None)
+        {
+            return TraitText(trait);
+        }
+
+        var numeric = trait == MachineTrait.None ? string.Empty : TraitText(trait);
+        var ability = axis == MachineAxis.None ? string.Empty : KitText(axis);
+        if (numeric.Length == 0)
+        {
+            return ability;
+        }
+
+        return ability.Length == 0 ? numeric : numeric + " · " + ability;
+    }
+
     /// <summary>某一轴（加成或代价）的文案：百分比与正负号都由实际生效的乘区反算
     /// （数值被调过、甚至被调成反向，面板上的数字与符号都跟着走）。</summary>
     private string TraitText(MachineTrait trait)
         => GdFormat.Format(
             Tr(MachineTraitText.Key(trait)),
             MachineTraitText.SignedPercent(trait, GameState.Instance.MachineModsFor(_focused.Id)));
+
+    /// <summary>某条能力轴的文案：自然量（秒，两位小数）由实际生效的能力档案经
+    /// <see cref="MachineKitTable.NaturalQuantity"/> 反算——与四条轴在 <c>Player</c> 里的消费
+    /// 读同一份档案，改 <c>balance.json</c> 一处面板自动跟随。**不带正负号、不写百分比**：
+    /// 四条轴的自然量各不相同（见 <see cref="RowText"/>），百分比会在加成行里印出负号。
+    /// 文案键取 <see cref="MachineKitTable.TextKey"/>（<c>MACHINE_KIT_*</c>，%s 占位）。</summary>
+    private string KitText(MachineAxis axis)
+        => GdFormat.Format(
+            Tr(MachineKitTable.TextKey(axis)),
+            MachineKitTable.NaturalQuantity(axis, GameState.Instance.KitFor(_focused.Id)).ToString("0.00"));
 
     /// <summary>机体提亮一瞬（确认落定 / 校准环 / 装甲演出共用）：**只写 RGB，不碰 alpha**——
     /// alpha 归换机过渡独占（写 `modulate` 整份会把正在淡出的机体一把点亮，换机中途确认就穿帮）。</summary>

@@ -128,21 +128,33 @@ public static class MachineTraitText
 /// 机型定义：「id → 文案键 / 贴图名 / 加成项 / 代价项」的映射只写在这里（数值另在 <c>balance.json machines.*</c>）。
 ///
 /// 分两处放的理由与全库同口径：**结构**（有哪几型、每型动哪两项、叫什么、用哪套贴图）属纯逻辑，
-/// 与 Godot 无关且要被单测钉住；**数值**属可调项，单源在 `data/balance.json`，
-/// 由引擎层按 <see cref="Trait"/> / <see cref="Penalty"/> 对应的键读取覆盖（读不到即回退本表的默认乘区）。
+/// 与 Godot 无关且要被单测钉住；**数值**属可调项，单源在 <c>data/balance.json</c>，
+/// 由引擎层按各自的轴对应的键读取覆盖（读不到即回退本表的默认乘区）。
 ///
-/// **每型一项加成 + 一项代价**（标准型两者皆无）：代价必须落在与加成**不同的轴**上，
-/// 否则两笔相抵只剩中间值，玩家读不到「这是一架什么样的飞机」。
+/// 两层各一组加成 / 代价：**数值层**（<see cref="Trait"/> / <see cref="Penalty"/>，
+/// 乘区默认值见 <see cref="Defaults"/>）与**能力层**（<see cref="KitBonus"/> / <see cref="KitPenalty"/>，
+/// 乘区默认值见 <see cref="MachineKitTable.Defaults"/>）。两层各自满足同一约束：
+/// **每型一项加成 + 一项代价**（标准型两者皆无）、代价必须与加成**异轴**，
+/// 否则两笔相抵只剩中间值，玩家读不到「这是一架什么样的飞机」；
+/// 能力层另有一条更严的：代价不得是加成**所属能力**的另一条轴
+/// （弹反窗↑ + 弹反循环↓ 会在「单位时间有效弹反次数」上相抵，读起来是中性）。
 /// </summary>
 public sealed record MachineSpec(
     string Id,
     string NameKey,
     MachineTrait Trait,
     MachineTrait Penalty,
+    MachineAxis KitBonus,
+    MachineAxis KitPenalty,
     MachineModifiers Defaults)
 {
     /// <summary>贴图名主干：标准型沿用既有文件名，特种型一律 <c>player_ship_&lt;id&gt;</c>。</summary>
     public string SpriteStem => Id == MachineRoster.StandardId ? "player_ship" : "player_ship_" + Id;
+
+    /// <summary>性格标签的文案键（轮盘铭牌上紧跟机型名的 2–4 字，口径见 §1.19）：键名由 id 派生，
+    /// 加机型时只需补一条 <c>MACHINE_TAG_&lt;ID&gt;</c> 文案。键名在 core 拼而不是在面板里拼——
+    /// 面板里拼的话「文案键是否存在」这条判据扫不到它，缺键时玩家看到键名本身而不报错。</summary>
+    public string TagKey => "MACHINE_TAG_" + Id.ToUpperInvariant();
 }
 
 /// <summary>
@@ -167,20 +179,28 @@ public static class MachineRoster
     ///
     /// 代价的取值规则（依据见 <c>REFERENCES</c> §4.16）：**无条件**、与加成**不同轴**、
     /// 数值幅度约为加成的 0.5–0.7 倍——损失在体感上约为等量收益的两倍，1:1 的数值交换体感是亏的；
-    /// 而象征性的小代价又抵不住收益（能力预算不成立）。三条都由 <c>MachineRosterTests</c> 钉住。
+    /// 而象征性的小代价又抵不住收益（能力预算不成立）。三条都由 <c>MachineRosterTests</c> 钉住，
+    /// 能力层（<see cref="MachineSpec.KitBonus"/> / <see cref="MachineSpec.KitPenalty"/>）的对应三条
+    /// 由 <c>MachineKitTests</c> 钉住。
     /// </summary>
     public static readonly IReadOnlyList<MachineSpec> All = new MachineSpec[]
     {
-        new(StandardId, "MACHINE_NAME_STANDARD", MachineTrait.None, MachineTrait.None, MachineModifiers.Baseline),
+        new(StandardId, "MACHINE_NAME_STANDARD", MachineTrait.None, MachineTrait.None,
+            MachineAxis.None, MachineAxis.None, MachineModifiers.Baseline),
         new("peregrine", "MACHINE_NAME_PEREGRINE", MachineTrait.MoveSpeed, MachineTrait.Damage,
+            MachineAxis.DashCooldown, MachineAxis.ParryCooldown,
             new MachineModifiers(1.15, 0.9, 1.0, 1.0, 1.0)),
         new("sledge", "MACHINE_NAME_SLEDGE", MachineTrait.Damage, MachineTrait.MoveSpeed,
+            MachineAxis.FuelDrain, MachineAxis.DashCooldown,
             new MachineModifiers(0.9, 1.2, 1.0, 1.0, 1.0)),
         new("repeater", "MACHINE_NAME_REPEATER", MachineTrait.FireRate, MachineTrait.Defense,
+            MachineAxis.ParryCooldown, MachineAxis.FuelDrain,
             new MachineModifiers(1.0, 1.0, 0.85, 1.12, 1.0)),
         new("bulwark", "MACHINE_NAME_BULWARK", MachineTrait.Defense, MachineTrait.FireRate,
+            MachineAxis.ParryWindow, MachineAxis.DashCooldown,
             new MachineModifiers(1.0, 1.0, 1.12, 0.85, 1.0)),
         new("colossus", "MACHINE_NAME_COLOSSUS", MachineTrait.MaxHealth, MachineTrait.MoveSpeed,
+            MachineAxis.FuelDrain, MachineAxis.ParryCooldown,
             new MachineModifiers(0.88, 1.0, 1.0, 1.0, 1.2)),
     };
 
