@@ -148,6 +148,7 @@ public partial class Mothership : Area2D
     private WarpGate? _warpGate; // typed
     private Vector2 _warpFrom;
     private Vector2 _warpTarget;
+    private bool _gateFlared; // 破门冲击只发一次（DESCEND 内越过门面那一帧）
     private float _ws = 1.0f; // world_scale 缓存（_ready 写入，帧内复用）
     // 演出附件（_ready 预建，帧内仅属性写，零分配）
     private Sprite2D _engineGlow = null!; // 引擎光晕（DESCEND 巨大→常态，DEPART 随加速增大）
@@ -536,6 +537,14 @@ public partial class Mothership : Area2D
                     Position = _warpFrom.Lerp(_warpTarget, e);
                     Scale = Vector2.One * Mathf.Lerp(0.25f, 1.0f, e);
                     Modulate = new Color(2.200f, 2.033f, 1.800f).Lerp(Colors.White, e);
+                    // 破门冲击：舰体中心越过门的上前缘那一帧给门一次外扩闪光——「舰把门顶开」。
+                    // 半径取门自身（同 world_scale 口径，不写死像素）；y 向下为正，故是「已到该高度」
+                    if (!_gateFlared && _warpGate != null && GodotObject.IsInstanceValid(_warpGate)
+                        && Position.Y >= _warpTarget.Y - _warpGate!.RADIUS * WarpGate.EllipseRatio)
+                    {
+                        _gateFlared = true;
+                        _warpGate.Flare();
+                    }
                     // 引擎制动光晕随同一 ease-out 从巨大收到常态；上冲气流全程伴随
                     _descendTrail.Emitting = p < 1.0f;
                     var eg = _engineGlow.Modulate;
@@ -562,12 +571,9 @@ public partial class Mothership : Area2D
                         }
 
                         DeploySlowField();
-                        var hud = Hud();
-                        if (hud != null)
-                        {
-                            hud.ShowInfoBanner(Tr("BANNER_MOTHERSHIP_ARRIVED"));
-                        }
-
+                        // 到位不再走信息横幅：横幅槽在屏幕上部中央（y≈226..290），而母舰的停驻点
+                        // 恰在同一行——横幅背板整块压住舰体，玩家看的是「一块牌子盖住了母舰」。
+                        // 到位读数由冲击波/震屏/爆炸音与左下坞态行「对接中」承担，此处不重复一遍文案
                         StartDocking(GameState.Instance.PlayerRef); // player_ref 恒为 Player
                     }
 

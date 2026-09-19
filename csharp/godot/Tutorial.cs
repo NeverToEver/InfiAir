@@ -598,13 +598,18 @@ public partial class Tutorial : Node2D
         }
     }
 
-    /// <summary>母舰召唤（对齐 main._on_summon_window_finished 的实体路径：穿梭门 + begin_warp_in；
-    /// 略去机库小窗演出保持教程节奏）</summary>
+    /// <summary>母舰召唤（对齐 main.SummonMothershipInternal 的实体路径：触发拍 + 穿梭门 +
+    /// begin_warp_in）——教程学到的出场读法必须与实战逐拍一致，此前「略去机库小窗」的差异随
+    /// 小窗退役自然消失</summary>
     private void SummonMothership()
     {
         var gatePos = new Vector2(
             GameState.Instance.ViewWorldRect().GetCenter().X,
             (float)GameState.Instance.Cfg("mothership.hover_y", 270.0).AsDouble());
+        // 触发拍与震屏同源（同一 balance 键 effects.mothership_summon.shake_gate）；教程场景无
+        // 背景战况响应系统（速度线/星野冲刺），那一档只在正局有
+        CinematicFx.SummonTriggerBeat(this, gatePos, (float)GameState.Instance.WorldScale);
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
         var gate = new WarpGate(); // WarpGate 为 C# typed，typed 实例化
         gate!.Position = gatePos;
         AddChild(gate);
@@ -612,7 +617,7 @@ public partial class Tutorial : Node2D
         var mothership = _mothership;
         mothership.BeginWarpIn(gatePos, gate);
         mothership.Departed += OnMothershipDeparted;
-        // 对齐 main._on_summon_window_finished：树退出置空，防 _mothership 悬空引用（阶段 4 轮询判空依赖）
+        // 对齐 main.SummonMothershipInternal：树退出置空，防 _mothership 悬空引用（阶段 4 轮询判空依赖）
         // 旧实例离树只清自己：无条件置空会把已替换上的新实例引用一并抹掉
         mothership.TreeExited += () =>
         {

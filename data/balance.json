@@ -1110,15 +1110,6 @@
 			"impact_y_ratio": 0.42
 		},
 		"mothership_summon": {
-			"window": {
-				"open_time": 0.25,
-				"shot_durations": [
-					0.8,
-					0.6,
-					0.7
-				],
-				"close_time": 0.25
-			},
 			"gate": {
 				"open_time": 0.35,
 				"close_time": 0.4,

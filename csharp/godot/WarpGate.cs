@@ -4,7 +4,8 @@ using Godot;
 namespace InfiAir;
 
 /// <summary>
-/// 母舰召唤·穿梭门（世界坐标，挂 Main 下）：小窗演出结束后由 main 创建在母舰停驻点。
+/// 母舰召唤·穿梭门（世界坐标，挂 Main 下）：蓄力满的触发帧建在母舰停驻点（教程段同此路径），
+/// 与母舰穿出并行——门开到八成时舰首已破门，门随后在舰尾合拢。
 /// 生命周期：OPENING 展开（gate.open_time）→ HOLD 保持（母舰穿出期间脉动，
 /// 由 Mothership.begin_warp_in 收尾时调 close()；超时自动关闭兜底）→
 /// CLOSING 收缩关闭（gate.close_time）→ 自销毁。
@@ -22,14 +23,24 @@ public partial class WarpGate : Node2D
     /// <summary>HOLD 兜底时长：正常由母舰到达触发 close()，母舰被提前回收（返航）时自动关闭。</summary>
     public float HOLD_MAX = 3.0f;
 
+    /// <summary>破门冲击时长（秒）与外扩行程比例：舰体穿到门面那一帧由 Mothership 调
+    /// <see cref="Flare"/>，门环一次性外扩 + 提亮，读作「被舰体顶开」而非门与舰各演一段。</summary>
+    private const float FlareTime = 0.3f;
+    private const float FlarePush = 0.16f;
+
     private static readonly Color CYAN = new Color(0.930f, 0.676f, 0.320f);
     private static readonly Color WARP_BLUE = new Color(1.000f, 0.729f, 0.350f);
-    private const float ELLIPSE_RATIO = 0.55f; // 竖向压扁（透视门洞）
+    /// <summary>竖向压扁比（透视门洞）。公开：召唤触发拍与门同平面（<see cref="CinematicFx.SummonTriggerBeat"/>）按它压扁。</summary>
+    public const float EllipseRatio = 0.55f;
 
     public enum Phase { OPENING, HOLD, CLOSING }
 
     private Phase _phase = Phase.OPENING;
     private float _t;
+
+    /// <summary>破门冲击进度 0..1；-1 ＝ 未在播。</summary>
+    private float _flare = -1.0f;
+
     private Line2D _ring = null!;
     private Line2D _ringInner = null!;
     private readonly List<Line2D> _arcs = new();
@@ -63,7 +74,7 @@ public partial class WarpGate : Node2D
             for (var j = 0; j < 10; j++)
             {
                 var a = a0 + Mathf.DegToRad(50.0f) * j / 9.0f;
-                pts[j] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * ELLIPSE_RATIO);
+                pts[j] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * EllipseRatio);
             }
             arc.Points = pts;
             AddChild(arc);
@@ -71,7 +82,7 @@ public partial class WarpGate : Node2D
         }
         // 门心软光填充（替代硬边圆盘）：软点贴图椭圆压扁，alpha 由 _layout 驱动
         _mouth = (Sprite2D)CinematicFx.SoftGlow(RADIUS * 0.85f, new Color(WARP_BLUE, 0.0f));
-        _mouth.Scale = new Vector2(_mouth.Scale.X, _mouth.Scale.Y * ELLIPSE_RATIO);
+        _mouth.Scale = new Vector2(_mouth.Scale.X, _mouth.Scale.Y * EllipseRatio);
         _mouthBase = _mouth.Scale;
         AddChild(_mouth);
         // 内旋弧 ×2：预建点集，帧内仅旋转/缩放/透明度（零分配）
@@ -190,11 +201,28 @@ public partial class WarpGate : Node2D
         {
             _swirls[i].Rotation = -_t * (2.2f + 0.7f * i) * (i % 2 == 0 ? 1.0f : -1.0f);
         }
+
+        if (_flare >= 0.0f)
+        {
+            _flare += (float)delta / FlareTime;
+            if (_flare >= 1.0f)
+            {
+                _flare = -1.0f;
+            }
+        }
     }
+
+    /// <summary>破门冲击（舰体穿到门面那一帧由 Mothership 调）：门环一次性外扩 + 提亮。
+    /// 幂等（重入只重置计时）；不改开合相位，只叠加一层一次性加成。</summary>
+    public void Flare() => _flare = 0.0f;
 
     /// <summary>scale_p：门洞开合比例；alpha_p：整体透明度。</summary>
     private void Layout(float scaleP, float alphaP)
     {
+        // 破门冲击加成：外扩 + 提亮的一次性衰减包络（alpha 顶到 1 不再往上推）
+        var punch = _flare >= 0.0f ? FlarePush * (1.0f - _flare) : 0.0f;
+        scaleP *= 1.0f + punch;
+        alphaP = Mathf.Min(1.0f, alphaP * (1.0f + 2.0f * punch));
         // 环/弧预建点集，帧内经 set_point_position 原地写（零分配、线宽不随 scale 变）
         LayoutEllipse(_ring, RADIUS * scaleP, 48);
         _ring.DefaultColor = new Color(CYAN, 0.9f * alphaP);
@@ -226,7 +254,7 @@ public partial class WarpGate : Node2D
             for (var j = 0; j < 10; j++)
             {
                 var a = a0 + Mathf.DegToRad(50.0f) * j / 9.0f;
-                arc.SetPointPosition(j, new Vector2(Enemy.CosFast(a), Enemy.SinFast(a) * ELLIPSE_RATIO) * r);
+                arc.SetPointPosition(j, new Vector2(Enemy.CosFast(a), Enemy.SinFast(a) * EllipseRatio) * r);
             }
             arc.DefaultColor = new Color(CYAN, 0.7f * alphaP);
         }
@@ -239,7 +267,7 @@ public partial class WarpGate : Node2D
         for (var i = 0; i < count; i++)
         {
             var a = Mathf.DegToRad(spanDeg) * i / (count - 1);
-            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * ELLIPSE_RATIO) * radius;
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * EllipseRatio) * radius;
         }
         return pts;
     }
@@ -250,7 +278,7 @@ public partial class WarpGate : Node2D
         for (var i = 0; i < count; i++)
         {
             var a = Mathf.Tau * i / count;
-            line.SetPointPosition(i, new Vector2(Enemy.CosFast(a), Enemy.SinFast(a) * ELLIPSE_RATIO) * radius);
+            line.SetPointPosition(i, new Vector2(Enemy.CosFast(a), Enemy.SinFast(a) * EllipseRatio) * radius);
         }
     }
 
@@ -267,7 +295,7 @@ public partial class WarpGate : Node2D
         for (var i = 0; i < count; i++)
         {
             var a = Mathf.Tau * i / count;
-            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * ELLIPSE_RATIO) * radius;
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a) * EllipseRatio) * radius;
         }
         return pts;
     }

@@ -930,6 +930,13 @@ public partial class Hud : CanvasLayer
                 _lastDockText = dockText;
             }
 
+            // 拒绝回应（§2.14）：H 被门控挡下时 Main 暂存标志到这里播坞态灯否认脉冲
+            //（音效在拒绝处已播；此处只管灯上的视觉）
+            if (_main.ConsumeDockDenyCue())
+            {
+                _dockLamp.PlayDeny();
+            }
+
             UpdateDockLamp(_main.DockStateValue);
             UpdateMagazineBar(_main);
         }

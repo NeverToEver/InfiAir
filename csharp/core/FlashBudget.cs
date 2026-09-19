@@ -42,6 +42,9 @@ public enum OneShotFlashId
 
     /// <summary>能力槽否认脉冲：冷却中/燃料不足按下弹反或冲刺时，槽上一圈向内收拢的危险色弧（§2.14）。</summary>
     AbilityDenyPulse,
+
+    /// <summary>母舰坞态灯否认脉冲：H 被冷却/遭遇事件门控挡下时，坞态灯上一圈向内收拢的危险色弧（§2.14）。</summary>
+    DockDenyPulse,
 }
 
 /// <summary>一次性闪光登记行：无频率可言（不进 <see cref="FlashBudget.Sources"/>），但同样受「减少闪光」约束。</summary>
@@ -160,6 +163,9 @@ public static class FlashBudget
         new(Id: OneShotFlashId.AbilityDenyPulse, SuppressedByReduceFlash: true,
             Note: "冷却拒绝回应（§2.14）；抑制后环形冷却读数仍在（槽本身就在回答「还差多少」），"
                 + "另有 UiDeny 低音不在此表管辖"),
+        new(Id: OneShotFlashId.DockDenyPulse, SuppressedByReduceFlash: true,
+            Note: "母舰召唤被门控拒绝（§2.14）；抑制后坞态文案仍在回答「还差多少/被什么占着」"
+                + "（冷却秒数或遭遇事件），另有 UiDeny 低音不在此表管辖"),
     };
 
     /// <summary>登记行（下标即枚举值）。</summary>

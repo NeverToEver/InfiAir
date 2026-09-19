@@ -56,7 +56,7 @@ Endless（§1.4），无固定结局；终局 = **必死曲线**（玩家成长�
 - **准星自定义**（样式从写死常量升级为玩家档案）——档案字段（范围与默认即定稿；非法读值钳回范围，不入界整档回默认）：`shape` bracket（默认）/ cross / circle / dot；`size` 0.5–3.0（基准＝bracket 外接半宽 14px、circle 半径 12px、cross 线长 12px）；`thickness` 1–6px；`gap` 0–20px；`alpha` 0.2–1.0（默认 0.95）；`rotation` 0–90° 步 15（bracket/cross 专用，45° 即 X 形）；`center_dot`（默认 true）+ `dot_size` 1–6px；`t_shape`（默认 false，cross 去顶线）；`outline`（默认 false，暖黑描边 +2px）；`state_tint`（默认 true；关闭后交战不变色，旋转 / 收拢等非颜色线索保留）；`color` RGBA（默认 255,194,77,242 主题琥珀）。交战反馈与自定义的合成：可攻击 / 锁定混合的**目标色**仍是主题定稿色（用户色只替换常态基色）；交战时长键 `effects.crosshair.*` 属全局手感、不随档案走。
   **持久化**（settings.json 两键）：`crosshair_profiles`（档案数组，缺键回默认）、`crosshair_active`（索引，越界 / 负回 0）；旧档缺键→种子 4 预设（默认括角 / 经典十字 / 圆环 / 净点），**不抬 `SettingsMigration.CurrentVersion`**（新键缺失即默认、老代码忽略新键，双向兼容）；「全部恢复默认」＝重建种子档案并激活 0（自建档不保留）。
   **准星码**：`INF1-` + 20 字符 Crockford Base32（5×4 组），12 字节载荷（版本 / 标志位 / size×20 / 粗细与中心点半字节 / gap / alpha×100 / rotation÷15 / RGBA / CRC-8），编解码与校验单源 core `CrosshairCode`；导入失败（前缀 / 字符集 / 校验和 / 版本过新 / 域界）明确报错不落档，成功＝新建档案并激活，名字不入码。设置页「准星」页：实时预览 + 参数控件 + 档案管理（切换 / 新建副本 / 重命名 / 删除，至少保留 1 档）+ 码的导出与导入。
-- **母舰与基地**：驻留期火力平台 GATLING / MISSILE 交替；返航＝长按 B（`effects.home_charge_time`）→ 锁输入 → 停 spawner → 召回 → `starfield.Warp(18)` → 过场 → 基地 UI（树暂停）。基地 = `BaseConsole.cs` + `DawnStation.cs` 皮（左缘轮盘目录：机库 / 补给 / 契约 / 任务 + 「继续出击」叶；右区单面板切换），「继续出击」→ 轨道打击清场（Boss 保留）→ 入场动画。
+- **母舰与基地**：召唤＝长按 H（`mothership.dock_charge_time` 3s，松手取消、不进冷却；被冷却 / 遭遇事件门控挡下时坞态灯给否认脉冲 + `UiDeny` 低音）→ 触发帧：链路锁定拍（落点冲击环 + 软闪，`CinematicFx.SummonTriggerBeat`）+ 穿梭门张开 + 母舰同帧穿出（`effects.mothership_summon.warp_in_time` 0.8s，门开到八成时舰首已破门）→ 到位：减速带 + 横幅 → 牵引进保护舱。**触发不锁输入**（无敌窗口起点与旧口径同为触发帧，只是不再连操作一起收走），锁输入起点＝牵引；触发到再可控 ≈2.8s（其中 0.8s 可操作）。驻留期火力平台 GATLING / MISSILE 交替；返航＝长按 B（`effects.home_charge_time`）→ 锁输入 → 停 spawner → 召回 → `starfield.Warp(18)` → 过场 → 基地 UI（树暂停）。基地 = `BaseConsole.cs` + `DawnStation.cs` 皮（左缘轮盘目录：机库 / 补给 / 契约 / 任务 + 「继续出击」叶；右区单面板切换），「继续出击」→ 轨道打击清场（Boss 保留）→ 入场动画。
 - **增幅补给（基地↔增幅联动）**：补给面板 RP 购置——「增幅缓存」`cache_cost_rp`(4) RP → `cache_points`(2) 点直入缓存池（LIFO 口径同里程碑入账）；「超载槽」`overcharge_cost_rp`(8) RP → 本局风险加点上限 +1（至多 `overcharge_slot_max`(2) 档，`ResetRun` 清零）。
 - **入场动画**（`player.PlayEntryAnimation()`）：俯冲至下三分之一 → 缓慢后漂；仅水平、垂直锁定、无敌（不闪烁）；怪与弹延迟刷新。
 
@@ -169,7 +169,7 @@ Endless（§1.4），无固定结局；终局 = **必死曲线**（玩家成长�
 - **稀有金** `AccentGold #E8C170`；**危险红** `Danger #FF3B4E`；**成功色** `Success #C2D16B`（暖橄榄金）。
 - 底：`BgDeep` 暖炭黑 / `PanelBg` 暖炭 / `PanelSteelTint` 暖暗钢；文字 `#EEE7DC` / `#9C9184`。面板垂直渐变与金属 / 输入框 / 滚动条 tint 一律暖偏。
 - 暖钢 tint：`SteelTint` / `SteelTintHover` / `SteelAccentTint`；焦点环取 `AccentHot`。
-- 次级局部色板同步收编：`RadialWheel`、`DawnStation`、`AimCrosshair`/`AimFrameLayer`、`MothershipSummonWindow`、`TalentFanView`、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带、返航过场与玩家侧（母舰 / 跃迁门 / 轨道打击）同属暖族。
+- 次级局部色板同步收编：`RadialWheel`、`DawnStation`、`AimCrosshair`/`AimFrameLayer`、`TalentFanView`、`TitleScreen`/`Tutorial` 底色、`Hud` Boss 分段、`MetaHealthFX` 裂纹带、返航过场与玩家侧（母舰 / 跃迁门 / 轨道打击）同属暖族。
 - **弹幕可读性**：玩家弹 = 白热芯 + 琥珀晕；敌弹 = 红 / 品红（不与琥珀 UI 混同）。玩家机能量 / 尾焰 / 激光 / 残影 / 增幅附件统一琥珀；Boss 预警色（telegraph）保留多色编码，属玩法信号不作统一。
 
 ### 2.2 世界层后处理
@@ -274,7 +274,7 @@ GL Compatibility 后端官方对照表把 Glow/SSAO 标为**支持**（不支持
 主题是**输入回应**：补「玩家自己的请求被系统拒绝时」的回应——「命中无声（silent actions）」与「丢按键」是手感杀手（出处见 `REFERENCES.md` §4.8）。输入缓冲只把「就绪前一小窗内的按下」延到就绪帧生效，不改冷却 / 燃料 / 伤害任何数值。**三构成**：
 
 ① 命中与弹反确认音：玩家弹命中敌机补轻量金属 tick（频次最高的交互，此前只有击杀有爆炸音）；弹反成功改用专属确认音（唯一防御机制，音色须与「移动」区分）。两枚音效纯合成（零随机流）；`SfxId` 追加 `Hit` / `ParrySuccess`（五张表下标对齐）。命中音最小间隔 **45ms** + 复音上限 **2** 防逐帧刷屏，拦截在 `SfxPlayer` 目录表。
-② 动作拒绝回应：弹反 / 冲刺在冷却中或燃料不足时按下——对应能力槽播一次**否认脉冲**（**向内收拢**的危险色弧，与就绪脉冲的外扩互为反向手势；登记 `FlashBudget.OneShotFlashId.AbilityDenyPulse`，减少闪光下不播，抑制后环形冷却读数仍在）+ 低音 `UiDeny`；反馈经 Player 挂暂存标志、HUD 每帧轮询消费。
+② 动作拒绝回应：弹反 / 冲刺在冷却中或燃料不足时按下——对应能力槽播一次**否认脉冲**（**向内收拢**的危险色弧，与就绪脉冲的外扩互为反向手势；登记 `FlashBudget.OneShotFlashId.AbilityDenyPulse`，减少闪光下不播，抑制后环形冷却读数仍在）+ 低音 `UiDeny`；反馈经 Player 挂暂存标志、HUD 每帧轮询消费。**母舰召唤走同一条**（长按 H 被冷却 / 遭遇事件门控挡下时）：坞态灯播否认脉冲（`OneShotFlashId.DockDenyPulse`，同一向内收拢手势）+ `UiDeny`，标志同样经 Main 挂、HUD 轮询——抑制后「为什么按不成」仍由坞态文案回答（冷却秒数 / 事件占用）；**母舰在场时按 H 归提前离舰通道**，不在回绝语义内。
 ③ 输入缓冲：冷却收尾 ≤`player.input_buffer_window`（**0.1s**）内的弹反 / 冲刺按下在就绪帧自动生效（判定单源 core `Combat/InputBuffer.cs`）；**只缓冲时机类锁定（冷却），不缓冲资源类锁定**——燃料不足时按下即拒绝（「燃料一到就自走一格」是意外行为），缓冲触发时重验燃料并取当前输入方向。
 
 **取值与单源**：缓冲窗口 0.1s、命中音 45ms / 复音 2 为定稿取值；窗口改 `balance.json` 一处即调，音效限频改 `SfxPlayer` 目录表一行即调，否认脉冲时长为就地 const。
@@ -283,7 +283,7 @@ GL Compatibility 后端官方对照表把 Glow/SSAO 标为**支持**（不支持
 基地控制台「虚影皮肤」的全息面板从「半透明钢板」改为「投影光」语汇：全息读感是**半透明体积 + 像素 / 扫描质感 + 自发光**，是光不是拉丝金属（出处见 `REFERENCES.md` §4.9）。交互逻辑、页面结构、操作路径零改动。**三构成**：
 
 ① 发光边缘：`ChamferedPanel` 新增 opt-in `HoloEdge`（切角轮廓双层外晕 + 内缘体积亮线），同时**退役钢板受光语汇**（顶缘受光带 / 底侧阴影 / 拼板缝 / 铆钉——「被顶部光源打亮」与「自发光投影」语义冲突）。默认关，钢板面板（页壳 / socket / 弹仓）外观不变；切角点序收敛回 `UITheme.FillChamferPoints` 单源。
-② 投影材质与扫掠：`ApplyPhantomPanel` 关拉丝钢填充、开 HoloEdge 与内容裁剪（基地页板与母舰召唤小窗同族）；`HoloPanelFx`＝静态扫描线（每 4px 一条，无闪烁）+ 周期下扫柔边亮带（tween 只动 position/alpha，不触发重绘）；`HoloBoot` 叠一次性显影带（0.32s 自顶向底）。
+② 投影材质与扫掠：`ApplyPhantomPanel` 关拉丝钢填充、开 HoloEdge 与内容裁剪（基地页板与坞态面板同族）；`HoloPanelFx`＝静态扫描线（每 4px 一条，无闪烁）+ 周期下扫柔边亮带（tween 只动 position/alpha，不触发重绘）；`HoloBoot` 叠一次性显影带（0.32s 自顶向底）。
 ③ 减少闪光统一口径：基地既有装饰动效（标题数据抖动 3Hz、慢扫描带 8s）统一受 `ReduceFlash` 约束——停播并复位静息态，恢复时整程重启不跳变；扫掠 / 显影带天生受控。可见性两层合成（页面切换走 Control 显隐、整层显隐走 CanvasLayer 手工驱动），非活跃时不留冻结的半程亮带。
 
 **取值定稿**（依据＝行业惯例 + 实机截图比对；改动位置＝`HoloPanelFx`/`ChamferedPanel` 常量一处）：

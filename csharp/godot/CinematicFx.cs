@@ -5,7 +5,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 过场/演出共享特效工具：软径向光晕、带纹理粒子、冲击波环、分层能量束、速度线/放射线场。
-/// 供 ReturnCinematic / MothershipSummonWindow / WarpGate / Mothership 复用，
+/// 供 ReturnCinematic / WarpGate / Mothership / 母舰召唤触发拍复用，
 /// 避免多处重复实现硬边 GlowDot 与无纹理粒子工厂；全部零依赖、代码程序化构建。
 /// RefCounted + 全静态工厂。
 /// 注：C# 静态字段禁止持有 Godot 对象（引擎退出 finalize segfault 实测根因）——需跨调用复用的
@@ -346,6 +346,33 @@ public partial class CinematicFx : RefCounted
         var r = new CinematicFxRadialStreaks();
         r.Setup(cfg);
         return r;
+    }
+
+    /// <summary>母舰召唤·链路锁定拍（生产路径 <c>Main.SummonMothershipInternal</c> 与教程
+    /// <c>Tutorial.SummonMothership</c> 共用同一发，两处出场读法一致）：落点一圈压扁冲击环
+    /// （ry 比取穿梭门同值，读作「在门的平面上炸开」）+ 一团软闪——把「母舰就要从这里出来」
+    /// 说在玩家正看着的地方。触发拍的「演出开始」信号原由机库小窗承担，小窗退役后归此处。
+    /// 两个部件都随 add_child 自播自毁；<paramref name="worldScale"/> 由调用方给（世界层尺寸族）。</summary>
+    public static void SummonTriggerBeat(Node parent, Vector2 pos, float worldScale)
+    {
+        var wave = Shockwave(new Godot.Collections.Dictionary
+        {
+            ["radius"] = 190.0f * worldScale,
+            ["time"] = 0.45f,
+            ["ry_ratio"] = WarpGate.EllipseRatio,
+            ["color"] = new Color(0.930f, 0.676f, 0.320f, 0.55f),
+            ["core_color"] = new Color(1.000f, 0.960f, 0.870f, 0.95f),
+            ["width"] = 10.0,
+            ["start_scale"] = 0.25,
+        });
+        wave.Position = pos;
+        parent.AddChild(wave);
+        var flash = SoftGlow(150.0f * worldScale, new Color(1.000f, 0.930f, 0.780f, 0.6f));
+        flash.Position = pos;
+        parent.AddChild(flash);
+        var tw = flash.CreateTween();
+        tw.TweenProperty(flash, "modulate:a", 0.0, 0.28).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        tw.TweenCallback(Callable.From(flash.QueueFree));
     }
 
     // ---------------- cfg 字典读取辅助（GDScript Dictionary.get(key, default) 语义） ----------------

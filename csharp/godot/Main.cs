@@ -74,7 +74,7 @@ public partial class Main : Node2D
     private Mothership? _mothership;
     /// <summary>坞态文本缓存（HUD 0.1s 轮询——分支/取整参数/语言未变直接复用，
     /// 免每轮 Tr/GdFormat 分配；母舰态文本由状态机自驱、输入不可廉价观测，不缓存）。</summary>
-    private enum DockTextBranch { None, Charging, SummonWindow, Mothership, Cooldown, Ready }
+    private enum DockTextBranch { None, Charging, Mothership, Cooldown, Ready }
     private DockTextBranch _dockTextBranch = DockTextBranch.None;
 
     /// <summary>母舰坞态对外的显性读数（HUD 警示灯用）：文本与灯态同源，避免两处各自推导分支。
@@ -84,7 +84,7 @@ public partial class Main : Node2D
         /// <summary>蓄力召唤中。</summary>
         Charging,
 
-        /// <summary>机库小窗演出中（母舰下降中）。</summary>
+        /// <summary>母舰穿越中（DESCEND：从穿梭门穿出、尚未到位）。</summary>
         Descending,
 
         /// <summary>母舰在场（含对接/补给/待机/离场）。</summary>
@@ -104,6 +104,9 @@ public partial class Main : Node2D
     private string _dockTextLocale = "";
     private string _dockTextCached = "";
     private bool _charging;
+    /// <summary>召唤通道的拒绝回应暂存位（§2.14）：H 被门控挡下时置位，HUD 每帧轮询取走
+    /// （视觉在坞态灯，音效在本类拒绝处已播——与 Player 两条能力槽同一口径）。</summary>
+    private bool _dockDenyCue;
     // 三条蓄力通道的状态机（core HoldCharge：按住累加 → 达阈值触发一次 → 松手复位）。
     // 阈值由 _Ready 从 balance 覆写；初始值与本类公开默认值同源（下方 DOCK_CHARGE_TIME 等）。
     private readonly InfiAir.Core.Input.HoldCharge _summonCharge = new(3.0f);
@@ -123,8 +126,6 @@ public partial class Main : Node2D
     private ReturnCinematic? _return;
     /// <summary>播放中的轨道打击清场动画（继续出击时触发；null = 未播放）</summary>
     private OrbitalStrike? _strike;
-    /// <summary>播放中的母舰召唤机库小窗（蓄力完成后触发；null = 未播放）</summary>
-    private MothershipSummonWindow? _summonWindow;
     /// <summary>精英炮塔事件编排节点（_ready 创建并登记给 spawner 互斥）</summary>
     private EliteTurretEvent _event = null!;
     /// <summary>轰炸编队事件编排节点（_ready 创建并登记给 spawner；最低优先级随机事件）</summary>
@@ -444,6 +445,15 @@ public partial class Main : Node2D
 
     public void SetChargeTime(float seconds) => _summonCharge.SetElapsed(seconds);
 
+    /// <summary>拒绝回应消费口（§2.14）：H 被门控挡下时置位，HUD 每帧轮询取走并播坞态灯否认脉冲。
+    /// 与 <see cref="Player.ConsumeDashDenyCue"/> 同向——音效在拒绝处播，视觉由 HUD 消费。</summary>
+    public bool ConsumeDockDenyCue()
+    {
+        var cue = _dockDenyCue;
+        _dockDenyCue = false;
+        return cue;
+    }
+
     public ReturnCinematic? ReturnCinematic() => _return;
 
     private void OnViewZoomChanged(float _factor) => ApplyCameraZoom();
@@ -517,8 +527,7 @@ public partial class Main : Node2D
             _dockCooldown -= d;
         }
 
-        // 长按 H 蓄力召唤母舰（松手取消，不进冷却；召唤小窗播放中不再进入蓄力，
-        // 否则蓄力满后 _summon_mothership 被小窗守卫挡下会反复进入蓄力态）。
+        // 长按 H 蓄力召唤母舰（松手取消，不进冷却）。
         // 遭遇事件进行中禁止蓄力（互斥只查触发期——事件中召唤
         // 母舰自动火力可清场全额领奖，玩家零参与挂机收益）
         // 与 K（give_up）蓄力互斥——先按下的锁定另一路，消除同帧蓄满双触发的时序耦合
@@ -526,13 +535,13 @@ public partial class Main : Node2D
             && _dockCooldown <= 0.0f
             && !_gameOver
             && !_homecoming
-            && _summonWindow == null
             && !_giveUpCharge.Holding
             && _events.ActiveId(_events.GROUP_ENCOUNTER) == NoActiveEncounter;
-        // 遭遇事件触发互斥旗帜（GameEventManager 门控读取）：蓄力期 + 小窗演出期事件不掷签，
-        // 防「锁输入 + 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」（蓄力互斥窗口期补全）；
+        // 遭遇事件触发互斥旗帜（GameEventManager 门控读取）：蓄力期事件不掷签，防「锁输入 +
+        // 999s 无敌窗口内事件命中、母舰自动火力白拿奖励」。召唤出场之后的整段窗口由母舰自身的
+        // "mothership" 组承担（EncounterEventBase 触发门查组，母舰与穿梭门同帧入组），本旗不必覆盖。
         // 逐帧维护——暂停/死亡冻结 _Process 时残留 true 由 _ExitTree/_Ready 复位兜住
-        GameState.Instance.SummonInProgress = _charging || _summonWindow != null;
+        GameState.Instance.SummonInProgress = _charging;
         var dockPhase = _summonCharge.Tick(d, canCharge && Input.IsActionPressed(ActDock));
         if (dockPhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
         {
@@ -569,10 +578,19 @@ public partial class Main : Node2D
             StopSummonCharge();
         }
 
-        // 长按 B 蓄力返航（松手取消）；召唤小窗（演出期本局不暂停）播放中禁止——与 dock 蓄力
-        // 的 _summonWindow 守卫对齐，防 B 在母舰机库小窗演出期间触发返航打断召唤流程
+        // 拒绝回应（§2.14）：母舰不在场却按不成（冷却未清 / 遭遇事件占用 / 与 K 互斥）时，
+        // 按下不再静默丢弃——坞态灯一圈否认脉冲 + UiDeny 低音，玩家知道「按到了，是时机不对」。
+        // 母舰在场时按 H 归提前离舰通道（它有自己的进度条），不在本回绝语义内
+        if (!canCharge && _mothership == null && !_charging && !_gameOver && !_homecoming
+            && Input.IsActionJustPressed(ActDock))
+        {
+            _dockDenyCue = true;
+            GameState.Instance.PlaySfx(SfxId.UiDeny);
+        }
+
+        // 长按 B 蓄力返航（松手取消）
         var homePhase = _homeCharge.Tick(d,
-            !_gameOver && !_homecoming && _summonWindow == null && Input.IsActionPressed(ActHomecoming));
+            !_gameOver && !_homecoming && Input.IsActionPressed(ActHomecoming));
         if (homePhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
         {
             StartHomecomingInternal(); // 内含蓄力清理（四通道唯一出口）
@@ -589,7 +607,7 @@ public partial class Main : Node2D
         // 长按 K 蓄力放弃出击（自毁进死亡结算，松手取消；give_up 映射由 project.godot 提供）
         // 与 H（dock）蓄力互斥——H 蓄力进行中（_charging）不入 K 蓄力
         var giveUpPhase = _giveUpCharge.Tick(d,
-            _giveUpBound && !_gameOver && !_homecoming && _summonWindow == null && !_charging
+            _giveUpBound && !_gameOver && !_homecoming && !_charging
                 && !_player.IsDead() && Input.IsActionPressed(ActGiveUp));
         if (giveUpPhase == InfiAir.Core.Input.HoldChargePhase.Triggered)
         {
@@ -794,14 +812,6 @@ public partial class Main : Node2D
         // 死亡路径清理全部蓄力（_give_up / _homecoming 经 player_died 覆盖到此）：
         // 死亡同帧树暂停，_Process 的清零分支不再执行，漏清哪条就常驻哪条
         ClearAllCharge();
-        // 死亡路径必须清理召唤小窗——否则 give_up 与 dock
-        // 蓄力同按 3s 同帧完成时小窗打开同帧死亡，finished 无人消费（_process 已冻结）小窗永驻
-        if (_summonWindow != null)
-        {
-            _summonWindow.Finished -= OnSummonWindowFinished;
-            _summonWindow.Skip();
-            _summonWindow = null;
-        }
 
         // 死亡回放演出（幽灵弹幕重放死因 3s，播完自毁；process_mode=ALWAYS 暂停中照常）
         AddChild(_replay.Play());
@@ -966,23 +976,13 @@ public partial class Main : Node2D
             return _dockTextCached;
         }
 
-        if (_summonWindow != null)
-        {
-            DockStateValue = DockState.Descending;
-            if (_dockTextBranch != DockTextBranch.SummonWindow || _dockTextLocale != locale)
-            {
-                _dockTextBranch = DockTextBranch.SummonWindow;
-                _dockTextLocale = locale;
-                _dockTextCached = Tr("MS_DESCEND");
-            }
-
-            return _dockTextCached;
-        }
-
         if (_mothership != null)
         {
             _dockTextBranch = DockTextBranch.Mothership; // 不缓存（母舰状态机自驱，输入不可廉价观测）
-            DockStateValue = DockState.Present;
+            // 穿越期（DESCEND：从穿梭门穿出、尚未到位）与在场期文案同取状态机，灯态读数分开给
+            DockStateValue = _mothership.GetState() == InfiAir.Mothership.State.DESCEND
+                ? DockState.Descending
+                : DockState.Present;
             return _mothership.StateText();
         }
 
@@ -1012,39 +1012,26 @@ public partial class Main : Node2D
         return _dockTextCached;
     }
 
-    /// <summary>召唤序列（蓄力完成）：锁输入 + 事件驱动无敌（演出期本局不暂停，保护窗口与
-    /// 对接期一致），弹出机库小窗演出；小窗 finished 后开穿梭门、母舰穿出</summary>
+    /// <summary>召唤序列（蓄力完成）：世界层一次到位——触发拍 + 穿梭门张开 + 母舰同帧穿出。
+    /// 本局不暂停、**不锁输入**：这 0.8s 里玩家仍可走位/开火/弹反，锁输入推迟到牵引开始
+    /// （<see cref="Mothership"/> 的 DOCKING），保护窗口的起点则不变（与旧路径同为触发帧）。
+    /// 触发拍＝落点冲击环 + 软闪，替下旧机库小窗承担的「演出开始」信号；叙事随之收成一条：
+    /// 母舰从穿梭门穿出（旧的「机库弹射出仓」与「穿梭门穿出」两套出场互相矛盾）。</summary>
     private void SummonMothershipInternal()
     {
-        if (_summonWindow != null)
-        {
-            return;
-        }
-
         // 成功路径保底隐藏蓄力特效（自然流程 _stopCharging 已处理；直调本方法走此分支）
         _chargeFx.Visible = false;
         _chargeInflow.Emitting = false;
-        _player.LockInput();
-        _player.Velocity = Vector2.Zero;
         _player.SetInvincible(SummonInvincibleSeconds);
-        _summonWindow = new MothershipSummonWindow();
-        _summonWindow.Finished += OnSummonWindowFinished;
-        AddChild(_summonWindow);
-    }
-
-    /// <summary>小窗演出结束：在母舰停驻点打开穿梭门，母舰穿出减速入场（DESCEND 由母舰自驱；
-    /// 到位后减速带 + 火力掩护 + 牵引回收进保护舱，均由母舰状态机接管）</summary>
-    private void OnSummonWindowFinished()
-    {
-        _summonWindow = null;
         var gatePos = new Vector2(GameState.Instance.ViewWorldRect().GetCenter().X, _chargeGhost.HoverY);
+        CinematicFx.SummonTriggerBeat(this, gatePos, (float)GameState.Instance.WorldScale);
+        GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
+        FxBurst(0.8f); // 母舰出场（穿梭门开启 / 穿出）：战况响应次强档
         var gate = new WarpGate
         {
             Position = gatePos,
         };
-        AddChild(gate);
-        GameState.Instance.Shake(GameState.Instance.Cfg("effects.mothership_summon.shake_gate", 6.0).AsDouble());
-        FxBurst(0.8f); // 母舰出场（穿梭门开启 / 穿出）：战况响应次强档
+        AddChild(gate); // 门的 _Ready 发开门音；开合与母舰穿出并行（舰身破门而非等门开完）
         _mothership = MothershipScene.Instantiate<Mothership>();
         var mothership = _mothership;
         mothership.BeginWarpIn(gatePos, gate);
@@ -1108,15 +1095,9 @@ public partial class Main : Node2D
         _spawner.SetProcess(false);
         // 释放排队中的敌机/Boss 预告与一次性回调，防 continue 后入场动画窗口内进场
         _spawner.ClearPending();
-        // 召唤小窗在播则断开回调后关闭（避免 finished 触发穿梭门/母舰创建）
-        if (_summonWindow != null)
-        {
-            _summonWindow.Finished -= OnSummonWindowFinished;
-            _summonWindow.Skip();
-            _summonWindow = null;
-        }
 
         // 母舰若在对接/驻留中，直接收回——按基础冷却进冷却（防"补给→返航→再召唤"无限循环）
+        // （穿越入场期也走这一条：母舰与穿梭门同帧创建，收回时 _ExitTree 兜底关门）
         if (_mothership != null)
         {
             _mothership.QueueFree();
