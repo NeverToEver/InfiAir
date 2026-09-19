@@ -250,13 +250,20 @@ class LifecycleTests(unittest.TestCase):
         life.bye("a", 2.0)
         self.assertIsNone(life.should_exit(100.0))
 
-    def test_dead_page_is_forgotten_by_ttl(self):
-        # 页面崩了（收不到 bye）：靠心跳超时把它忘掉，且不因此判成「页面已关闭」而误退
+    def test_dead_page_still_leads_to_exit(self):
+        # 页面崩了或被强杀（收不到 bye）：心跳超时后同样按「页面已关闭」收场——
+        # 否则关页通知丢失时兜底会退化成等满空闲超时，而这段正是「开了不关」的窗口
         life = editor.Lifecycle(0.0, now=0.0)
         life.ping("a", 0.0)
-        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 1.0))
+        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 1.0))     # 先清理并起计时
         self.assertEqual({}, life.pages)
-        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 2.0))
+        self.assertEqual("页面已关闭",
+                         life.should_exit(editor.PAGE_TTL + 1.0 + editor.PAGE_CLOSE_GRACE + 0.1))
+
+    def test_server_without_any_page_waits_for_idle(self):
+        # 浏览器始终没打开（webbrowser.open 失败等）：不能几十秒就把服务收掉
+        life = editor.Lifecycle(1800.0, now=0.0)
+        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 100.0))
 
     def test_ping_clears_close_flag(self):
         # 刷新页面会先 bye 再立刻 ping：这次 ping 必须把关闭计时清掉

@@ -1129,15 +1129,22 @@
   // ------------------------------------------------------------ 心跳与生命周期
 
   function startHeartbeat() {
+    let failures = 0;
     const ping = async () => {
       try {
         const res = await fetch(`/api/ping?page=${pageId}`, { cache: 'no-store' });
-        if (res.ok) {
-          const body = await res.json();
-          idleTimeout = body.idle_timeout || 0;
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        idleTimeout = body.idle_timeout || 0;
+        if (failures >= 2) setStatus('与服务重新连上了', 'ok');
+        failures = 0;
       } catch (err) {
-        /* 服务已退出（多半是空闲超时）：静默即可，用户下次操作会看到失败提示 */
+        // 服务端会因关页/闲置自动退出——连不上就得说清楚，别让用户对着一个死页面点保存
+        failures += 1;
+        if (failures === 2) {
+          setStatus('与服务断开（它可能已自动退出）：重新运行 python3 scripts/tools/balance_editor.py，然后刷新本页', 'error');
+          if (!readonly) $('btn-save').disabled = true;
+        }
       }
     };
     ping();

@@ -46,7 +46,8 @@ APP_PROTOCOL = 1
 
 # 页面关闭后的宽限（秒）：刷新、换页、开新标签都会先来一次 bye，等这么久没有新心跳才真退
 PAGE_CLOSE_GRACE = 5.0
-# 页面心跳超时（秒）：超过这么久没心跳就当作该页面已消失（崩溃或被强杀时收不到 bye）
+# 页面心跳超时（秒）：超过这么久没心跳就当作该页面已消失（崩溃、强杀、或 bye 丢包）。
+# 心跳间隔 10 秒，故 40 秒 ≈ 容忍连续三次丢失——太短会把卡顿中的页面误判成关闭
 PAGE_TTL = 40.0
 # 看门狗轮询间隔（秒）：决定「关掉页面」到「进程消失」的延迟上限（宽限 + 间隔 ≈ 7 秒），
 # 取值同时是空闲判定的精度；2 秒一次的时间戳比较对 CPU 完全无感
@@ -91,9 +92,14 @@ class Lifecycle:
 
     def should_exit(self, now: float) -> str | None:
         """返回退出原因（None = 继续跑）。判定只看时间戳，便于测试直接喂时间。"""
-        for page_id, seen in list(self.pages.items()):
-            if now - seen > PAGE_TTL:
-                del self.pages[page_id]                # 崩掉的页面：靠心跳超时清理
+        expired = [page_id for page_id, seen in self.pages.items() if now - seen > PAGE_TTL]
+        for page_id in expired:
+            del self.pages[page_id]                     # 崩掉或被强杀的页面：靠心跳超时清理
+        # 页面全部因心跳超时消失时也要起关闭计时：关页通知（bye）并非总能送到——程序化关窗、
+        # 强杀浏览器、网络栈在卸载途中丢弃 sendBeacon 都会丢——若只认 bye，兜底就退化成
+        # 「等满 30 分钟空闲超时」，而「开了不关」恰恰要防的是这段时间。
+        if expired and not self.pages and self.page_seen and self.closed_at is None:
+            self.closed_at = now
         if not self.pages and self.closed_at is not None and now - self.closed_at > PAGE_CLOSE_GRACE:
             return "页面已关闭"
         if self.idle_timeout > 0 and now - self.last_seen > self.idle_timeout:
