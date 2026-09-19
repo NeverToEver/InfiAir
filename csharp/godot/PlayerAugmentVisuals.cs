@@ -21,8 +21,10 @@ public partial class PlayerAugmentVisuals : Node2D
     private static readonly Color ColorGreen = new Color(1.000f, 0.771f, 0.450f);
     private static readonly Color ColorMagenta = new(0.9f, 0.35f, 0.7f);
     private static readonly Color ColorSteel = new(0.62f, 0.58f, 0.52f); // 暖钢灰
-    /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）。</summary>
-    public const float BaseShipScale = 0.65f;
+    /// <summary>附件几何的基准机体缩放（贴图 254px 时的设计机体系数）：与 core 挂点布局共用
+    /// 同一个设计系数单源（本节点按 `sprite.Scale / BaseShipScale` 放大，局部坐标因此按
+    /// 「贴图像素 × 0.65」书写）。</summary>
+    public const float BaseShipScale = (float)Core.Visual.PlayerHullLayout.DesignScale;
     /// <summary>尾焰染色（乘算基色）：高效推进偏绿 / 燃料再生偏金，双增幅 时色相自然混合。</summary>
     private static readonly Color TintEfficient = new Color(1.100f, 0.954f, 0.750f);
     private static readonly Color TintRecovery = new(1.15f, 1.05f, 0.75f);

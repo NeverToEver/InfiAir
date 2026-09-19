@@ -1,0 +1,82 @@
+namespace InfiAir.Core.Visual;
+
+/// <summary>玩家机挂点几何（单源）：贴图像素坐标，中心 (0,0)、机头朝 -Y，与
+/// <c>scripts/tools/generate_player_sprite.py</c> 头部注释的锚点同一坐标系。
+/// size 是挂点的**视觉直径**（贴图像素）。</summary>
+public readonly record struct HullAnchor(string Name, double X, double Y, double Size);
+
+/// <summary>
+/// 玩家机挂点布局（纯逻辑，零 Godot 依赖）：坐标单源 + 可读性护栏。
+///
+/// 存在理由是一条静默错误：挂在贴图节点下的挂点，局部单位**已经**含了世界缩放
+/// （贴图缩放 = 设计系数 × world_scale），再乘一次就把世界缩放叠了两遍——世界缩放 0.4 时
+/// 机动喷口只剩 1.14px、两盏舷灯相距 1.7px，「左红右绿」这个读数等于不存在，而引擎侧
+/// 零报错、零警告。把坐标与尺寸收在这里，引擎层只做换算与写节点，
+/// <see cref="IsReadable"/> / <see cref="Separation"/> 就能把这条口径钉在测试里。
+///
+/// 设计约束（<c>DESIGN_BASELINE</c> §2.17 挂点单位口径 / §2.18）：本类只描述**表现层挂点**，
+/// 不参与任何判定几何——碰撞圆、擦弹环、受击点与弹道的坐标不在本表内，改写本表不动玩法。
+/// </summary>
+public static class PlayerHullLayout
+{
+    /// <summary>机体设计系数：贴图 254px 在设计尺寸下读作约 165px 翼展。引擎侧写
+    /// `Sprite2D.Scale = DesignScale × world_scale`；贴图子节点的局部单位因此等于贴图像素。</summary>
+    public const double DesignScale = 0.65;
+
+    /// <summary>挂点最小可读直径（世界像素）：低于此值的加色小点读作噪点或干脆看不见，
+    /// 挂点尺寸必须让它在默认世界缩放下越过这条线。</summary>
+    public const double MinReadablePx = 2.0;
+
+    /// <summary>左右舷灯的最小世界间距（像素）：两盏灯挤在一起时「左红 / 右绿」这对读数
+    /// 退化成「机体中线附近有个橙点」，等于没有。</summary>
+    public const double MinNavSeparationPx = 20.0;
+
+    // ---- 机身挂点（§2.17）----
+
+    /// <summary>左舷航行灯：主翼外段，红。</summary>
+    public static readonly HullAnchor NavPort = new("nav_port", -78.0, 52.0, 10.0);
+
+    /// <summary>右舷航行灯：主翼外段，绿。</summary>
+    public static readonly HullAnchor NavStarboard = new("nav_starboard", 78.0, 52.0, 10.0);
+
+    /// <summary>尾部频闪灯：两台引擎喷口之间的机尾端，白。</summary>
+    public static readonly HullAnchor NavStrobe = new("nav_strobe", 0.0, 100.0, 9.0);
+
+    /// <summary>左侧机动喷口（RCS）：贴机身侧缘，按加速度反向点火。</summary>
+    public static readonly HullAnchor RcsLeft = new("rcs_left", -20.0, 12.0, 13.0);
+
+    /// <summary>右侧机动喷口（RCS）。</summary>
+    public static readonly HullAnchor RcsRight = new("rcs_right", 20.0, 12.0, 13.0);
+
+    /// <summary>机首反推喷口：制动时朝前点火。</summary>
+    public static readonly HullAnchor RcsRetro = new("rcs_retro", 0.0, -104.0, 13.0);
+
+    /// <summary>损伤烟发射点：机身后段（不遮机头）。</summary>
+    public static readonly HullAnchor DamageSmoke = new("damage_smoke", 0.0, 62.0, 34.0);
+
+    /// <summary>贴图坐标 → 世界偏移：设计系数与世界缩放各乘一次（此处正是引擎侧不该重复的两次）。</summary>
+    public static double WorldOffsetX(HullAnchor a, double worldScale) => a.X * DesignScale * worldScale;
+
+    /// <summary>贴图坐标 → 世界偏移（纵轴）。</summary>
+    public static double WorldOffsetY(HullAnchor a, double worldScale) => a.Y * DesignScale * worldScale;
+
+    /// <summary>挂点在给定世界缩放下的视觉直径（世界像素）。</summary>
+    public static double WorldSize(HullAnchor a, double worldScale) =>
+        double.IsFinite(worldScale) && worldScale > 0.0 ? a.Size * DesignScale * worldScale : 0.0;
+
+    /// <summary>两挂点的世界间距（像素）：用于钉住「舷灯分居两侧」这类成对读数。</summary>
+    public static double Separation(HullAnchor a, HullAnchor b, double worldScale)
+    {
+        if (!double.IsFinite(worldScale) || worldScale <= 0.0)
+        {
+            return 0.0;
+        }
+
+        var dx = (a.X - b.X) * DesignScale * worldScale;
+        var dy = (a.Y - b.Y) * DesignScale * worldScale;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    /// <summary>挂点在给定世界缩放下是否越过可读线（尺寸非有限或世界缩放非法即不可读）。</summary>
+    public static bool IsReadable(HullAnchor a, double worldScale) => WorldSize(a, worldScale) >= MinReadablePx;
+}

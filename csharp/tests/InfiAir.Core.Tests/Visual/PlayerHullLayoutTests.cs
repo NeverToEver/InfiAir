@@ -1,0 +1,82 @@
+using InfiAir.Core.Visual;
+using Xunit;
+
+namespace InfiAir.Core.Tests.Visual;
+
+/// <summary>玩家机挂点布局契约测试（<c>DESIGN_BASELINE</c> §2.17 挂点单位口径）：尺寸越过可读线、
+/// 成对挂点分居两侧。守的静默错误＝世界缩放被叠加两遍——挂点挂在贴图节点下（局部单位已含
+/// `world_scale`），再乘一次时全部挂点等比缩到亚像素，引擎零报错、画面就是「没有这些细节」。</summary>
+public sealed class PlayerHullLayoutTests
+{
+    /// <summary>出厂默认世界缩放（`balance.json world_scale`）：护栏必须在这一档成立。</summary>
+    private const double ShippedWorldScale = 0.4;
+
+    [Fact]
+    public void AllHullLights_AreReadableAtShippedWorldScale()
+    {
+        foreach (var a in new[]
+        {
+            PlayerHullLayout.NavPort, PlayerHullLayout.NavStarboard, PlayerHullLayout.NavStrobe,
+            PlayerHullLayout.RcsLeft, PlayerHullLayout.RcsRight, PlayerHullLayout.RcsRetro,
+        })
+        {
+            Assert.True(
+                PlayerHullLayout.IsReadable(a, ShippedWorldScale),
+                $"{a.Name} 在 world_scale={ShippedWorldScale} 下只有 {PlayerHullLayout.WorldSize(a, ShippedWorldScale):F2}px，低于可读线 {PlayerHullLayout.MinReadablePx}px");
+        }
+    }
+
+    [Fact]
+    public void NavLights_AreSeparatedEnoughToReadPortFromStarboard()
+    {
+        var sep = PlayerHullLayout.Separation(PlayerHullLayout.NavPort, PlayerHullLayout.NavStarboard, ShippedWorldScale);
+        Assert.True(
+            sep >= PlayerHullLayout.MinNavSeparationPx,
+            $"两盏舷灯相距仅 {sep:F2}px（下限 {PlayerHullLayout.MinNavSeparationPx}px）——低于此值读不出「左红右绿」");
+        // 左红右绿：横坐标一负一正，且等高（等高才读作一对）
+        Assert.True(PlayerHullLayout.NavPort.X < 0.0 && PlayerHullLayout.NavStarboard.X > 0.0);
+        Assert.Equal(PlayerHullLayout.NavPort.Y, PlayerHullLayout.NavStarboard.Y, 9);
+    }
+
+    [Fact]
+    public void RcsNozzles_AreSymmetricAndOffCentreLine()
+    {
+        Assert.Equal(-PlayerHullLayout.RcsLeft.X, PlayerHullLayout.RcsRight.X, 9);
+        Assert.Equal(PlayerHullLayout.RcsLeft.Y, PlayerHullLayout.RcsRight.Y, 9);
+        // 侧向喷口必须离开机体中线：贴在中线上就分不出「向左还是向右点火」
+        var sep = PlayerHullLayout.Separation(PlayerHullLayout.RcsLeft, PlayerHullLayout.RcsRight, ShippedWorldScale);
+        Assert.True(sep > 0.0);
+        Assert.True(PlayerHullLayout.RcsLeft.X < 0.0);
+    }
+
+    [Fact]
+    public void Anchors_StayWithinTextureCanvas()
+    {
+        // 锚点越出贴图边界即为坐标口径写错（贴图中心是原点，半幅约 127 贴图像素）
+        const double half = 127.0;
+        foreach (var a in new[]
+        {
+            PlayerHullLayout.NavPort, PlayerHullLayout.NavStarboard, PlayerHullLayout.NavStrobe,
+            PlayerHullLayout.RcsLeft, PlayerHullLayout.RcsRight, PlayerHullLayout.RcsRetro,
+            PlayerHullLayout.DamageSmoke,
+        })
+        {
+            Assert.True(System.Math.Abs(a.X) <= half, $"{a.Name} 的 X 越出贴图半幅");
+            Assert.True(System.Math.Abs(a.Y) <= half, $"{a.Name} 的 Y 越出贴图半幅");
+        }
+    }
+
+    [Fact]
+    public void WorldSize_FollowsWorldScaleLinearly_AndRejectsInvalidScale()
+    {
+        // 与挂点自身尺寸、设计系数、世界缩放的线性关系（写反一处即整层不可读）
+        var d = PlayerHullLayout.WorldSize(PlayerHullLayout.NavPort, 0.4);
+        Assert.Equal(10.0 * PlayerHullLayout.DesignScale * 0.4, d, 9);
+        Assert.Equal(d * 2.0, PlayerHullLayout.WorldSize(PlayerHullLayout.NavPort, 0.8), 9);
+        // 非法世界缩放：不可读、间距为 0，不抛
+        Assert.Equal(0.0, PlayerHullLayout.WorldSize(PlayerHullLayout.NavPort, 0.0));
+        Assert.Equal(0.0, PlayerHullLayout.WorldSize(PlayerHullLayout.NavPort, double.NaN));
+        Assert.False(PlayerHullLayout.IsReadable(PlayerHullLayout.NavPort, 0.0));
+        Assert.Equal(0.0, PlayerHullLayout.Separation(PlayerHullLayout.NavPort, PlayerHullLayout.NavStarboard, double.NaN));
+    }
+}

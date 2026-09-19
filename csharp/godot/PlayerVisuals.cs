@@ -227,23 +227,24 @@ public class PlayerVisuals
     /// 烟是遮挡不是发光）。排放比由 UpdateScale 按伤害等级平滑驱动（0 = 停发）。</summary>
     private void BuildDamageSmoke()
     {
-        var ws = (float)GameState.Instance.WorldScale;
         var mat = new ParticleProcessMaterial
         {
             Direction = new Vector3(0.0f, 1.0f, 0.0f),
             Spread = 32.0f,
-            InitialVelocityMin = 20.0f * ws,
-            InitialVelocityMax = 60.0f * ws,
-            DampingMin = 20.0f * ws,
-            DampingMax = 50.0f * ws,
-            ScaleMin = 8.0f * ws / CinematicFx.SoftTexSize,
-            ScaleMax = 18.0f * ws / CinematicFx.SoftTexSize,
+            InitialVelocityMin = 26.0f,
+            InitialVelocityMax = 70.0f,
+            DampingMin = 24.0f,
+            DampingMax = 60.0f,
+            ScaleMin = 22.0f / CinematicFx.SoftTexSize,
+            ScaleMax = 46.0f / CinematicFx.SoftTexSize,
             ColorRamp = SmokeRamp(),
         };
         _smoke = new GpuParticles2D
         {
             Texture = CinematicFx.SoftTexture(),
-            Position = new Vector2(0.0f, 4.0f * ws),
+            Position = new Vector2(
+                (float)Core.Visual.PlayerHullLayout.DamageSmoke.X,
+                (float)Core.Visual.PlayerHullLayout.DamageSmoke.Y), // 机身后段：烟从尾段冒出，不遮机头
             Amount = 12,
             Lifetime = 1.1f,
             AmountRatio = 0.0f,
@@ -270,30 +271,41 @@ public class PlayerVisuals
         return new GradientTexture1D { Gradient = g };
     }
 
-    /// <summary>机动喷口三枚（RCS 语汇，§2.17）：左右两枚朝外侧、机首一枚朝前（反推）。
+    /// <summary>机动喷口三枚（RCS 语汇，§2.17）：左右两枚贴机身侧缘、机首一枚朝前（反推）。
     /// 加色软点、挂在贴图下（随机体姿态/伸缩联动）；alpha 由 UpdateFrame 按机体本地系加速度
-    /// 逐帧驱动——推力永远与加速度反向点火（向右加速 → 左喷口亮，制动 → 机首反推亮）。</summary>
+    /// 逐帧驱动——推力永远与加速度反向点火（向右加速 → 左喷口亮，制动 → 机首反推亮）。
+    /// 坐标与尺寸取自 core `PlayerHullLayout`（贴图像素；单位口径见 MakeHullLight）。</summary>
     private void BuildManeuverNozzles()
     {
-        var ws = (float)GameState.Instance.WorldScale;
-        var size = 11.0f * ws;
-        _nozzleLeft = MakeHullLight(new Vector2(-15.0f * ws, 3.0f * ws), size, new Color(1.0f, 0.72f, 0.35f));
-        _nozzleRight = MakeHullLight(new Vector2(15.0f * ws, 3.0f * ws), size, new Color(1.0f, 0.72f, 0.35f));
-        _nozzleRetro = MakeHullLight(new Vector2(0.0f, -17.0f * ws), size, new Color(1.0f, 0.78f, 0.42f));
+        _nozzleLeft = MakeHullLight(Core.Visual.PlayerHullLayout.RcsLeft, new Color(1.0f, 0.72f, 0.35f));
+        _nozzleRight = MakeHullLight(Core.Visual.PlayerHullLayout.RcsRight, new Color(1.0f, 0.72f, 0.35f));
+        _nozzleRetro = MakeHullLight(Core.Visual.PlayerHullLayout.RcsRetro, new Color(1.0f, 0.78f, 0.42f));
     }
 
     /// <summary>航行灯三枚（§2.17）：左舷红 / 右舷绿（慢呼吸常亮）+ 尾部白色双闪频闪。
     /// 贴图下挂载、加色小点（面积远低于 XAG 118 的 20% 屏线，不构成「闪」）；相位取模拟时间
-    /// （无头固定步长可重复）。</summary>
+    /// （无头固定步长可重复）。坐标与尺寸取自 core `PlayerHullLayout`——两灯分居主翼外段，
+    /// 「左红右绿」这对读数由布局表与单测共同钉住（单位口径见 MakeHullLight）。</summary>
     private void BuildNavLights()
     {
-        var ws = (float)GameState.Instance.WorldScale;
-        _navPort = MakeHullLight(new Vector2(-8.0f * ws, -2.0f * ws), 5.0f * ws, NavPortColor);
-        _navStarboard = MakeHullLight(new Vector2(8.0f * ws, -2.0f * ws), 5.0f * ws, NavStarboardColor);
-        _navStrobe = MakeHullLight(new Vector2(0.0f, 12.0f * ws), 6.0f * ws, NavStrobeColor);
+        _navPort = MakeHullLight(Core.Visual.PlayerHullLayout.NavPort, NavPortColor);
+        _navStarboard = MakeHullLight(Core.Visual.PlayerHullLayout.NavStarboard, NavStarboardColor);
+        _navStrobe = MakeHullLight(Core.Visual.PlayerHullLayout.NavStrobe, NavStrobeColor);
     }
 
-    /// <summary>机身挂点小光点（加色软点，初始全灭）：机动喷口与航行灯共用构造。</summary>
+    /// <summary>机身挂点小光点（加色软点，初始全灭）：机动喷口、航行灯与形态层共用构造；
+    /// 坐标与尺寸直接吃 core `PlayerHullLayout` 的挂点（不在这里重写第二份数值）。</summary>
+    private Sprite2D MakeHullLight(Core.Visual.HullAnchor anchor, Color color) =>
+        MakeHullLight(new Vector2((float)anchor.X, (float)anchor.Y), (float)anchor.Size, color);
+
+    /// <summary>机身挂点小光点（加色软点，初始全灭）：机动喷口、航行灯与形态层共用构造。
+    ///
+    /// **挂点单位口径**：`_sprite` 的缩放已含 `0.65 × world_scale`，其子节点的局部单位就
+    /// **等于贴图像素**（贴图中心在 (0,0)，机头朝 -Y）。因此挂点一律照
+    /// `generate_player_sprite.py` 的锚点注释写贴图像素，**不要再乘 world_scale**——乘了会把
+    /// 世界缩放叠加两遍（0.4 时灯点只剩 0.5px、两盏舷灯挤进同一个像素），细节层静默消失。
+    /// 反向提醒：写 `_sprite.Position`、或挂在不缩放父节点（如 Thruster）下的量是**世界像素**，
+    /// 那侧必须显式乘 world_scale 才随机体等比。两处坐标系看着像、写法相反，混用不报错。</summary>
     private Sprite2D MakeHullLight(Vector2 pos, float size, Color color)
     {
         var s = new Sprite2D

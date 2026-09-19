@@ -570,10 +570,11 @@ public partial class Player : CharacterBody2D
         _falloffMin = Core.Combat.AimAssistParams.NonNegativeOr(
             (float)GameState.Instance.Cfg("player.aim_assist.falloff.min", _falloffMin).AsDouble(), _falloffMin);
         LoadAimAssistParams();
-        // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖
+        // 机体尺寸族：tscn 存设计值，统一乘全局缩放并幂等覆盖（设计系数＝core 挂点布局单源，
+        // 它同时是「贴图子节点局部单位＝贴图像素」这条口径的由来，见 PlayerVisuals.MakeHullLight）
         var ws = (float)GameState.Instance.WorldScale;
         _sprite = GetNode<Sprite2D>("Sprite2D");
-        _sprite.Scale = Vector2.One * 0.65f * ws;
+        _sprite.Scale = Vector2.One * (float)Core.Visual.PlayerHullLayout.DesignScale * ws;
         if (GetNode<CollisionShape2D>("CollisionShape2D").Shape is CircleShape2D bodyCircle)
         {
             bodyCircle.Radius = 22.0f * ws;
