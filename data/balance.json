@@ -40,7 +40,7 @@
 			"max": 100,
 			"drain": 35,
 			"regen": 20,
-			"restart": 30
+			"restart": 25
 		},
 		"dash": {
 			"distance": 200,
