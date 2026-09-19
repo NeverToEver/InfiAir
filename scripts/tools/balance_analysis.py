@@ -35,6 +35,8 @@ SRC_PLAYER_FIRE = "csharp/godot/Player.cs"
 SRC_SPAWNER = "csharp/godot/Spawner.cs"
 SRC_MOTHERSHIP = "csharp/godot/Mothership.cs"
 SRC_DAMAGE_MITIGATION = "csharp/core/Combat/DamageMitigation.cs"
+SRC_MACHINE_KIT = "csharp/core/Machines/MachineKit.cs"
+SRC_MACHINE_ROSTER = "csharp/core/Machines/MachineRoster.cs"
 
 
 # ---------------------------------------------------------------- 取值工具
@@ -303,6 +305,282 @@ def talent_cost(cfg: Config, level: int) -> float:
     return cfg.num("talent.cost.base", 2.0) + level * cfg.num("talent.cost.increment", 1.0)
 
 
+def effective_level(
+    cfg: Config,
+    level: int,
+    softcap: int,
+    route_core: bool = False,
+    focus_discounted: bool = False,
+    focus_over: int = 0,
+) -> float:
+    """有效层级 = 软上限内 1:1，超出后每级效率线性衰减到下限；路线核心大类已投入节点 +bonus；
+    非焦点属性按专注惩罚折扣。出处 TalentEconomy.EffectiveLevel（TalentService.EffLevel 的求值路径）。
+
+    这是乘算类增幅（含 phase_dash 的冲刺冷却）真正的指数——只按名义层数算会在软上限之后
+    越算越乐观（层 3 名义 3.0、实际 2.75），而面板照常渲染、没人会怀疑数字。
+    """
+    step = cfg.num("talent.diminishing.step", 0.25)
+    floor = cfg.num("talent.diminishing.floor", 0.25)
+    eff = float(max(level, 0))
+    for k in range(softcap + 1, level + 1):
+        eff -= 1.0 - max(floor, 1.0 - step * (k - softcap))
+    # 路线加成只作用于已投入的节点：未投入（0 层）不得凭空拿到一级效果
+    if route_core and level > 0:
+        eff += cfg.num("talent.route.bonus_levels", 1.0)
+    if focus_discounted and focus_over > 0:
+        eff *= 1.0 - min(cfg.num("talent.focus.penalty_cap", 0.4),
+                         cfg.num("talent.focus.penalty_per_level", 0.06) * max(focus_over, 0))
+    return max(eff, 0.0)
+
+
+def full_investment_eff_level(cfg: Config, aug_id: str) -> float:
+    """满投资有效层级：结构上限 + 1（风险加点买的那一级）×递减 + 路线核心加成。
+
+    出处 TalentEconomy.RestoreLimit / EffectiveLevel（风险加点一级是双倍价买的、
+    读档不丢），`talent.overcharge.max_per_run` 为 0 时买不到那一级，故按它决定是否 +1。
+    phase_dash：3 层结构上限 +1 × 软上限 2 的递减 + 游侠路线 = 4.25（DESIGN_BASELINE §1.19）。
+    """
+    hard = max(cfg.as_int(f"augments.{aug_id}.max_stacks", 1), 1)
+    level = hard + (1 if cfg.as_int("talent.overcharge.max_per_run", 3) > 0 else 0)
+    return effective_level(cfg, level, effective_stack_cap(cfg, aug_id), route_core=True)
+
+
+# ------------------------------------------------------- 机型层（乘区 + 能力轴）
+
+# 名册与默认乘区（core MachineRoster.All 的镜像；json 只列差异键，缺键回退本表）。
+# 顺序 ＝ 面板顺序，standard 在首位且四轴全基准——「相对基准的百分比」一律相对它。
+MACHINE_IDS = ("standard", "peregrine", "sledge", "repeater", "bulwark", "colossus")
+
+# 报告里的机型名（工具自身的标签；玩家可见文案的单源仍是 data/translations.csv 的 MACHINE_NAME_*）
+MACHINE_LABELS = {
+    "standard": "标准型",
+    "peregrine": "游隼型",
+    "sledge": "重锤型",
+    "repeater": "连弩型",
+    "bulwark": "壁垒型",
+    "colossus": "巨像型",
+}
+
+# 数值层乘区（键 machines.<id>.<field>）：core MachineRoster 名册默认值。
+# 字段名单独列一份且顺序固定：未知机型取不到名册项时逐项回基准 1.0（与 MachineRoster.ById 同白名单口径）。
+MACHINE_MOD_FIELDS = ("move_speed_mult", "damage_mult", "fire_interval_mult",
+                      "damage_taken_mult", "max_hp_mult")
+
+MACHINE_MOD_DEFAULTS: dict[str, dict[str, float]] = {
+    "standard": {"move_speed_mult": 1.0, "damage_mult": 1.0, "fire_interval_mult": 1.0,
+                 "damage_taken_mult": 1.0, "max_hp_mult": 1.0},
+    "peregrine": {"move_speed_mult": 1.15, "damage_mult": 0.9, "fire_interval_mult": 1.0,
+                  "damage_taken_mult": 1.0, "max_hp_mult": 1.0},
+    "sledge": {"move_speed_mult": 0.9, "damage_mult": 1.2, "fire_interval_mult": 1.0,
+               "damage_taken_mult": 1.0, "max_hp_mult": 1.0},
+    "repeater": {"move_speed_mult": 1.0, "damage_mult": 1.0, "fire_interval_mult": 0.85,
+                 "damage_taken_mult": 1.12, "max_hp_mult": 1.0},
+    "bulwark": {"move_speed_mult": 1.0, "damage_mult": 1.0, "fire_interval_mult": 1.12,
+                "damage_taken_mult": 0.85, "max_hp_mult": 1.0},
+    "colossus": {"move_speed_mult": 0.88, "damage_mult": 1.0, "fire_interval_mult": 1.0,
+                 "damage_taken_mult": 1.0, "max_hp_mult": 1.2},
+}
+
+# 乘区域（MachineRoster.Sanitize）：越界取边界、非有限回 1.0。
+MACHINE_MOD_DOMAIN = (0.25, 4.0)
+
+# 能力轴乘区（键 machines.<id>.kit.<field>）：core MachineKitTable.Defaults。
+# 只列差异键——标准型不列分区，其余型号四轴全 1.0（基准点，不得被后续补丁悄悄加值）。
+KIT_FIELDS = ("parry_window_mult", "parry_cooldown_mult", "dash_cooldown_mult", "fuel_drain_mult")
+
+MACHINE_KIT_DEFAULTS: dict[str, dict[str, float]] = {
+    "peregrine": {"parry_cooldown_mult": 1.10, "dash_cooldown_mult": 0.85},
+    "sledge": {"dash_cooldown_mult": 1.10, "fuel_drain_mult": 0.87},
+    "repeater": {"parry_cooldown_mult": 0.85, "fuel_drain_mult": 1.15},
+    "bulwark": {"parry_window_mult": 1.40, "dash_cooldown_mult": 1.10},
+    "colossus": {"parry_cooldown_mult": 1.15, "fuel_drain_mult": 0.82},
+}
+
+# 轴域（MachineKit 的域钳制）：弹反窗上限 1.5 是因为 ParryTimeline 把 ActiveTime 钳到 duration，
+# [1.6, 2.0] 是改了没反应的死区；其余三轴 [0.4, 2.0]。
+KIT_DOMAIN = {
+    "parry_window_mult": (0.4, 1.5),
+    "parry_cooldown_mult": (0.4, 2.0),
+    "dash_cooldown_mult": (0.4, 2.0),
+    "fuel_drain_mult": (0.4, 2.0),
+}
+
+# 四轴 → 报告列名（自然量一律取秒数：百分比读不出「墙的盾能多盖 0.2s」这种量级）
+MACHINE_AXIS_COLUMNS = (
+    ("parry_window", "弹反窗"),
+    ("parry_cycle", "弹反循环"),
+    ("dash_cooldown", "冲刺冷却"),
+    ("fuel_boost", "满箱加速"),
+)
+
+# 综合容错跨度上限（防回归判据）：现状＝本批设计值下的跨度 1.325×
+# （游隼 0.906 ↔ 巨像 1.200，DESIGN_BASELINE §1.19）。一档难度差同口径 1.875×，
+# 故「机型层继续小于一档」由本上限自动成立。判据只看数值层与冲刺轴，看不见弹反窗 / 弹反循环。
+MACHINE_TOLERANCE_SPREAD_MAX = 1.325
+
+
+def machine_kit(cfg: Config, machine_id: str) -> dict[str, float]:
+    """某型的四条能力轴乘区：`machines.<id>.kit.<field>` 覆盖 core 默认表，
+    **缺单个键回退该型的 core 设计值**（不是回 1.0——那会把重锤 / 巨像的惩罚静默抹平），
+    域外取边界值、非有限回 1.0。出处 MachineKit.Sanitize + MachineKitTable.For。"""
+    defaults = MACHINE_KIT_DEFAULTS.get(machine_id, {})
+    out: dict[str, float] = {}
+    for field in KIT_FIELDS:
+        raw = cfg.get(f"machines.{machine_id}.kit.{field}")
+        value = float(raw) if is_num(raw) else float(defaults.get(field, 1.0))
+        if not math.isfinite(value):
+            value = 1.0
+        low, high = KIT_DOMAIN[field]
+        out[field] = min(max(value, low), high)
+    return out
+
+
+def machine_mods(cfg: Config, machine_id: str) -> dict[str, float]:
+    """某型的数值层乘区：`machines.<id>.<field>` 覆盖名册默认值，域钳 [0.25, 4.0]、
+    非有限回 1.0。出处 MachineRoster.Sanitize + GameState.ResolveMachineMods。"""
+    defaults = MACHINE_MOD_DEFAULTS.get(machine_id, {})
+    out: dict[str, float] = {}
+    for field in MACHINE_MOD_FIELDS:
+        raw = cfg.get(f"machines.{machine_id}.{field}")
+        value = float(raw) if is_num(raw) else float(defaults.get(field, 1.0))
+        if not math.isfinite(value):
+            value = 1.0
+        out[field] = min(max(value, MACHINE_MOD_DOMAIN[0]), MACHINE_MOD_DOMAIN[1])
+    return out
+
+
+def machine_axis_naturals(cfg: Config, kit: dict[str, float]) -> dict[str, float]:
+    """四轴自然量（秒）：弹反窗 / 弹反循环 / 冲刺冷却 / 满箱加速时长。
+
+    出处 MachineKit 的轴元数据（NaturalQuantity）＋四处消费点（csharp/godot/Player.cs）：
+    窗乘在 `player.parry.active_time`、循环＝`parry.duration` ＋ 冷却乘区后的 `parry.cooldown`、
+    冲刺冷却乘在 `player.dash.cooldown`、满箱加速＝`fuel.max ÷ (fuel.drain × kit)`。
+    """
+    parry_window = cfg.num("player.parry.active_time", 0.5) * kit["parry_window_mult"]
+    parry_cycle = (cfg.num("player.parry.duration", 0.8)
+                   + cfg.num("player.parry.cooldown", 3.0) * kit["parry_cooldown_mult"])
+    dash_cd = cfg.num("player.dash.cooldown", 4.0) * kit["dash_cooldown_mult"]
+    drain = cfg.num("player.fuel.drain", 35.0) * kit["fuel_drain_mult"]
+    boost = cfg.num("player.fuel.max", 100.0) / drain if drain > 0.0 else 0.0
+    return {"parry_window": parry_window, "parry_cycle": parry_cycle,
+            "dash_cooldown": dash_cd, "fuel_boost": boost}
+
+
+def axis_percent(value: float, baseline: float) -> int:
+    """相对基准的百分比（自然量口径；符号只表达增减、不表达强弱，同 MachineTraitText.Percent：
+    半个远离零）。基准非正 / 非有限返回 0——坏配置不得算出 inf 或抛。"""
+    if not math.isfinite(value) or not math.isfinite(baseline) or baseline <= 0.0:
+        return 0
+    return _round_away((value - baseline) / baseline * 100.0)
+
+
+def signed_percent(percent: int) -> str:
+    """带符号百分比（`+15%` / `-10%` / `+0%`）：形状与 MachineTraitText.SignedPercent 一致，
+    正负号等于该轴自然量的实际变化方向（弹反循环 +10% ＝ 循环更长）。"""
+    return f"{percent:+d}%"
+
+
+def dash_fuel_floor(cfg: Config) -> float:
+    """燃料地板 T_min = dash.time + fuel.max × dash.fuel_ratio ÷ fuel.regen（秒）。
+
+    冲刺的免伤周期不能短于「一次冲刺的时长 ＋ 该次冲刺的油耗回充」——冷却再短也排不进
+    下一次。与机型无关（kit 的加速耗油只改 drain、不改 max / fuel_ratio / regen），
+    故它是**所有型共用的免伤占空比物理上限**（默认参数下 1.500s ＝ 16.67%）。
+    出处 DESIGN_BASELINE §1.19；燃料不回充（regen ≤ 0）时视为无穷——不存在可持续的免伤循环。
+    """
+    time_ = cfg.num("player.dash.time", 0.25)
+    regen = cfg.num("player.fuel.regen", 20.0)
+    if not (regen > 0.0):
+        return math.inf
+    return time_ + cfg.num("player.fuel.max", 100.0) * cfg.num("player.dash.fuel_ratio", 0.25) / regen
+
+
+def dash_invuln_duty(cfg: Config, cooldown: float) -> float:
+    """冲刺免伤占空比 = dash.time ÷ max(冷却, 燃料地板)。
+
+    冲刺期间完全免伤，判定走 `DamageMitigation.Blocks` → `Player.IsDashing()`，
+    故占空比就是「一段时间里有多大比例处在免伤」——它与护甲增幅同量级但一个是技术门控、
+    一个是被动常数。冷却被燃料地板封顶时打印出的仍是真实占空比（不是理论值）。
+    """
+    time_ = cfg.num("player.dash.time", 0.25)
+    if not math.isfinite(cooldown) or cooldown <= 0.0:
+        return 0.0
+    return time_ / max(cooldown, dash_fuel_floor(cfg))
+
+
+def dash_cooldown(cfg: Config, eff_level: float, kit_mult: float = 1.0) -> float:
+    """冲刺冷却 = player.dash.cooldown × kit.dash_cooldown_mult × cooldown_stack_factor^有效层。
+
+    出处 Player.RefreshAugmentFactors（指数是**有效层本身**，不再是 max(有效层−1, 0)——
+    「层 1 只解锁、不减冷却」是本批修掉的孤例）。有效层含递减与路线加成，见 effective_level。
+    """
+    factor = cfg.num("player.dash.cooldown_stack_factor", 0.8)
+    if not (0.0 < factor < math.inf):   # 非正 / 非有限（NaN、Inf）回基准：指数会把它放大成 0 或 Inf
+        factor = 1.0
+    level = eff_level if math.isfinite(eff_level) and eff_level > 0.0 else 0.0
+    return cfg.num("player.dash.cooldown", 4.0) * kit_mult * (factor ** level)
+
+
+def machine_tolerance(cfg: Config, machine_id: str, duty_full: float) -> float:
+    """综合容错 = 输出 × 有效生命 ÷ (1 − 冲刺免伤占空比@满投资)。
+
+    出处 DESIGN_BASELINE §1.19：输出＝伤害乘区 ÷ 开火间隔乘区（每发伤害 × 攻速），
+    有效生命＝血上限乘区 ÷ 受到伤害乘区，免伤占空比取满投资（phase_dash 拉满时的冲刺冷却）。
+    **这条口径只看数值层与冲刺轴，看不见弹反窗 / 弹反循环**——别读成全表结论；
+    它的用途是防回归：机型层对难度的挤占不得因本批变宽。
+    """
+    mods = machine_mods(cfg, machine_id)
+    output = mods["damage_mult"] / mods["fire_interval_mult"] if mods["fire_interval_mult"] > 0.0 else 0.0
+    life = mods["max_hp_mult"] / mods["damage_taken_mult"] if mods["damage_taken_mult"] > 0.0 else 0.0
+    survival = 1.0 - duty_full
+    return output * life / survival if survival > 0.0 else 0.0
+
+
+def machine_layer(cfg: Config) -> dict:
+    """机型层一次算齐：每型的四轴自然量 / 相对基准百分比 / 免伤占空比 / 综合容错，以及全表跨度。
+
+    返回 {"rows": [...], "fuel_floor", "duty_cap", "full_invest_level", "full_invest_cooldown",
+    "tolerance_spread"}；rows 每项含 id / label / naturals / percent / duty_open / duty_full / tolerance。
+    """
+    baseline_kit = {field: 1.0 for field in KIT_FIELDS}
+    baseline = machine_axis_naturals(cfg, baseline_kit)
+    full_level = full_investment_eff_level(cfg, "phase_dash")
+    rows: list[dict] = []
+    for machine_id in MACHINE_IDS:
+        kit = machine_kit(cfg, machine_id)
+        naturals = machine_axis_naturals(cfg, kit)
+        duty_open = dash_invuln_duty(cfg, dash_cooldown(cfg, 0.0, kit["dash_cooldown_mult"]))
+        duty_full = dash_invuln_duty(cfg, dash_cooldown(cfg, full_level, kit["dash_cooldown_mult"]))
+        rows.append({
+            "id": machine_id,
+            "label": MACHINE_LABELS.get(machine_id, machine_id),
+            "naturals": naturals,
+            "percent": {axis: axis_percent(naturals[axis], baseline[axis])
+                        for axis, _ in MACHINE_AXIS_COLUMNS},
+            "duty_open": duty_open,
+            "duty_full": duty_full,
+            "tolerance": machine_tolerance(cfg, machine_id, duty_full),
+        })
+
+    standard = next((row for row in rows if row["id"] == "standard"), None)
+    base_tolerance = standard["tolerance"] if standard else 0.0
+    for row in rows:
+        # 归一：标准型＝1.000（基准点不是「更弱的那一型」）
+        row["tolerance_norm"] = row["tolerance"] / base_tolerance if base_tolerance > 0.0 else 0.0
+    values = [row["tolerance_norm"] for row in rows if row["tolerance_norm"] > 0.0]
+    spread = (max(values) / min(values)) if values else 0.0
+    fuel_floor = dash_fuel_floor(cfg)
+    return {
+        "rows": rows,
+        "fuel_floor": fuel_floor,
+        # 免伤占空比的硬上限＝燃料地板下的占空比（冷却再短也贴不上去）
+        "duty_cap": dash_invuln_duty(cfg, fuel_floor) if math.isfinite(fuel_floor) else 0.0,
+        "full_invest_level": full_level,
+        "full_invest_cooldown": dash_cooldown(cfg, full_level),
+        "tolerance_spread": spread,
+    }
+
+
 # ---------------------------------------------------------------- 体检
 
 
@@ -401,6 +679,16 @@ def check_structures(balance: dict) -> list[dict]:
 
     if not (cfg.num("spawner.boss_time_limit", 120) >= 5):
         warn("spawner.boss_time_limit", "<5 秒会被钳到 5", SRC_SPAWNER)
+
+    # 机型层综合容错跨度（防回归判据，DESIGN_BASELINE §1.19）：跨度上限＝本批设计值下的现状。
+    # 数值层任一乘区或 kit 冷却乘区被调宽都会让机型层进一步吃掉难度档差距——那属于
+    # 「改既有数值层」的另一件事，必须显式决策，不能悄悄变宽。
+    spread = machine_layer(cfg)["tolerance_spread"]
+    if spread > MACHINE_TOLERANCE_SPREAD_MAX + 1e-9:
+        warn("machines.*",
+             f"机型综合容错跨度 {spread:.4f}× 超过上限 {MACHINE_TOLERANCE_SPREAD_MAX:.4f}×"
+             "（＝比本批之前更宽：机型层会再吃掉一档难度差的一大块）",
+             SRC_MACHINE_KIT)
     return out
 
 
@@ -744,6 +1032,35 @@ def build_report(balance: dict, meta: dict | None = None) -> dict:
     ms_interval = cfg.num("mothership.gatling.interval", 0.1333) * cfg.num("mothership.upgrade.interval_mult", 0.8)
     aug_rows.append(["母舰加特林", _fmt(cfg.num("mothership.gatling.damage", 8) / cfg.num("mothership.gatling.interval", 0.1333), 1),
                      f"基础 DPS；升级后 {_fmt(ms_dmg / ms_interval, 1)}", f"里程碑 {cfg.as_int('mothership.upgrade.threshold', 5)} 起"])
+    # 相位冲刺：单层倍率在 player.dash.cooldown_stack_factor（不是 augments 分区——四条能力轴共用它），
+    # 指数是有效层本身（层 1 起就减冷却，见 dash_cooldown），收益读数是免伤占空比而非 DPS。
+    full_level = full_investment_eff_level(cfg, "phase_dash")
+    aug_rows.append([
+        "相位冲刺", _fmt(cfg.num("player.dash.cooldown_stack_factor", 0.8), 3),
+        f"每层冲刺冷却 ×{_fmt(cfg.num('player.dash.cooldown_stack_factor', 0.8), 3)}（指数＝有效层）；"
+        f"层 1 {_fmt(dash_cooldown(cfg, 1.0), 3)}s、满投资（有效层 {_fmt(full_level, 2)}）"
+        f"{_fmt(dash_cooldown(cfg, full_level), 3)}s、免伤占空比 "
+        f"{dash_invuln_duty(cfg, dash_cooldown(cfg, full_level)) * 100.0:.2f}%",
+        f"软上限 {effective_stack_cap(cfg, 'phase_dash')}",
+    ])
+
+    # 机型能力层：四轴自然量（秒）、相对基准百分比、冲刺免伤占空比（含 kit 冷却乘区）、综合容错
+    layer = machine_layer(cfg)
+    machine_natural_rows = []
+    machine_percent_rows = []
+    for entry in layer["rows"]:
+        naturals = entry["naturals"]
+        machine_natural_rows.append([
+            entry["label"],
+            *[f"{naturals[axis]:.2f}s" for axis, _ in MACHINE_AXIS_COLUMNS],
+            f"{entry['duty_open'] * 100.0:.2f}%",
+            f"{entry['duty_full'] * 100.0:.2f}%",
+        ])
+        machine_percent_rows.append([
+            entry["label"],
+            *[signed_percent(entry["percent"][axis]) for axis, _ in MACHINE_AXIS_COLUMNS],
+            f"{entry['tolerance_norm']:.3f}",
+        ])
 
     report = {
         "warnings": check_ranges(balance, expand_meta(meta, balance)) + check_structures(balance),
@@ -806,6 +1123,35 @@ def build_report(balance: dict, meta: dict | None = None) -> dict:
                 "note": "软上限来自 talent.softcaps；超出后按 talent.diminishing 递减，此处只列软上限内的名义收益。",
                 "source": f"{SRC_TALENT_ECONOMY} / {SRC_PLAYER_FIRE}",
                 "table": {"title": "增幅单层收益", "head": ["增幅", "单层倍率", "说明", "层级上限"], "rows": aug_rows},
+            },
+            {
+                "id": "machines", "title": "机型能力层",
+                "note": "四条能力轴（弹反窗 / 弹反循环 / 冲刺冷却 / 加速耗油）的自然量："
+                        "按 machines.<id>.kit.* 求值，缺键逐项回退 core 默认表（标准型四轴全基准）。"
+                        "冲刺免伤占空比＝冲刺时长 ÷ max(冷却, 燃料地板)，满投资＝phase_dash 结构上限 + 风险加点一级 + 路线加成。"
+                        "综合容错＝输出 × 有效生命 ÷ (1 − 免伤占空比@满投资)，归一后标准型＝1；"
+                        "该口径只看数值层与冲刺轴，**看不见弹反窗 / 弹反循环**。",
+                "source": f"{SRC_MACHINE_KIT} / {SRC_MACHINE_ROSTER} / {SRC_PLAYER_FIRE}",
+                "metrics": [
+                    {"label": "燃料地板 T_min",
+                     "value": f"{layer['fuel_floor']:.3f}s（dash.time + fuel.max×fuel_ratio÷fuel.regen）"},
+                    {"label": "免伤占空比上限（燃料封顶）", "value": f"{layer['duty_cap'] * 100.0:.2f}%"},
+                    {"label": "满投资冲刺冷却（标准型）",
+                     "value": f"{layer['full_invest_cooldown']:.3f}s（有效层 {layer['full_invest_level']:.2f}）"},
+                    {"label": "综合容错跨度（最大÷最小）",
+                     "value": f"{layer['tolerance_spread']:.4f}×（判据上限 {MACHINE_TOLERANCE_SPREAD_MAX:.4f}×，防回归）"},
+                ],
+                "table": {
+                    "title": "机型四轴自然量（含 kit 乘区）",
+                    "head": ["机型"] + [label for _, label in MACHINE_AXIS_COLUMNS]
+                            + ["免伤占空比（开局）", "免伤占空比（满投资）"],
+                    "rows": machine_natural_rows,
+                },
+                "table2": {
+                    "title": "相对标准型的百分比与综合容错（自然量口径；符号＝增减，不表达强弱）",
+                    "head": ["机型"] + [label for _, label in MACHINE_AXIS_COLUMNS] + ["综合容错（满投资，归一）"],
+                    "rows": machine_percent_rows,
+                },
             },
         ],
     }

@@ -185,6 +185,208 @@ class TalentAndCombatTests(unittest.TestCase):
         self.assertAlmostEqual(20 * 0.85 * 0.8, analysis.expected_incoming_damage(cfg, 20.0), places=6)
 
 
+class EffectiveLevelTests(unittest.TestCase):
+    """算例来源：csharp/tests/InfiAir.Core.Tests/Talent/TalentEconomyTests.cs（EffectiveLevel）。"""
+
+    def test_softcap_diminishes_past_the_cap(self):
+        cfg = cfg_of({"talent": {"diminishing": {"step": 0.25, "floor": 0.25},
+                                 "route": {"bonus_levels": 1.0}}})
+        # 软上限内 1:1；层 3 的第 1 级效率 0.75 → 2.75（「3 层 = 2.56s」那类标称值就是漏了这一段）
+        self.assertAlmostEqual(2.0, analysis.effective_level(cfg, 2, 2))
+        self.assertAlmostEqual(2.75, analysis.effective_level(cfg, 3, 2))
+        self.assertAlmostEqual(0.0, analysis.effective_level(cfg, 0, 2, route_core=True))
+        self.assertAlmostEqual(4.25, analysis.effective_level(cfg, 4, 2, route_core=True))
+
+    def test_diminishing_step_is_read_from_config(self):
+        # 与 C# 用例同一组数字（DiminishingStep = 0.5：第 3 级效率 0.5 → 2 + 0.5）
+        cfg = cfg_of({"talent": {"diminishing": {"step": 0.5, "floor": 0.25}}})
+        self.assertAlmostEqual(2.5, analysis.effective_level(cfg, 3, 2))
+
+    def test_focus_discount_scales_with_over(self):
+        cfg = cfg_of({"talent": {"diminishing": {"step": 0.25, "floor": 0.25},
+                                 "focus": {"penalty_per_level": 0.06, "penalty_cap": 0.4}}})
+        self.assertAlmostEqual(2.0 * (1.0 - 0.12),
+                               analysis.effective_level(cfg, 2, 2, focus_discounted=True, focus_over=2))
+
+
+class MachineKitTests(unittest.TestCase):
+    """算例来源：csharp/core/Machines/MachineKit.cs（轴域与默认表）、csharp/godot/Player.cs（四处消费点）、
+    csharp/core/Talent/TalentEconomy.cs（有效层级）。
+
+    抓的静默错误：工具看不见本批四条能力轴（改完难度对账里读不出差异），或镜像与 C# 分叉
+    （铭牌写 3.4s、实际按另一套算式算）。算例一律用显式构造的配置 + 设计定稿取值，
+    数字与 C# 侧同一算式——两侧只锁同一组数字，改一侧必须同改另一侧。
+    """
+
+    def setUp(self):
+        # 与 data/balance.json 的默认值同值（显式写出：数值调整不该让本文件变红）
+        self.cfg = cfg_of({
+            "player": {
+                "fuel": {"max": 100, "drain": 35, "regen": 20},
+                "parry": {"duration": 0.8, "active_time": 0.5, "cooldown": 3.0},
+                "dash": {"time": 0.25, "cooldown": 4.0, "cooldown_stack_factor": 0.8, "fuel_ratio": 0.25},
+            },
+            "augments": {"phase_dash": {"max_stacks": 3}},
+            "talent": {
+                "softcaps": {"phase_dash": 2},
+                "diminishing": {"step": 0.25, "floor": 0.25},
+                "route": {"bonus_levels": 1.0},
+                "focus": {"penalty_per_level": 0.06, "penalty_cap": 0.4},
+                "overcharge": {"max_per_run": 3},
+            },
+            # machines 分区只列差异键（与 core MachineKitTable 默认表同值）
+            "machines": {
+                "peregrine": {"kit": {"parry_cooldown_mult": 1.10, "dash_cooldown_mult": 0.85}},
+                "sledge": {"kit": {"dash_cooldown_mult": 1.10, "fuel_drain_mult": 0.87}},
+                "repeater": {"kit": {"parry_cooldown_mult": 0.85, "fuel_drain_mult": 1.15}},
+                "bulwark": {"kit": {"parry_window_mult": 1.40, "dash_cooldown_mult": 1.10}},
+                "colossus": {"kit": {"parry_cooldown_mult": 1.15, "fuel_drain_mult": 0.82}},
+            },
+        })
+        self.layer = analysis.machine_layer(self.cfg)
+        self.rows = {row["id"]: row for row in self.layer["rows"]}
+
+    def test_axis_naturals_match_design_values(self):
+        naturals = {mid: row["naturals"] for mid, row in self.rows.items()}
+
+        self.assertAlmostEqual(0.50, naturals["standard"]["parry_window"], places=6)
+        self.assertAlmostEqual(0.70, naturals["bulwark"]["parry_window"], places=6)     # 0.5 × 1.40
+        self.assertAlmostEqual(3.80, naturals["standard"]["parry_cycle"], places=6)     # 0.8 + 3.0
+        self.assertAlmostEqual(4.10, naturals["peregrine"]["parry_cycle"], places=6)   # 0.8 + 3.0×1.10
+        self.assertAlmostEqual(3.35, naturals["repeater"]["parry_cycle"], places=6)
+        self.assertAlmostEqual(4.25, naturals["colossus"]["parry_cycle"], places=6)
+        self.assertAlmostEqual(4.00, naturals["standard"]["dash_cooldown"], places=6)
+        self.assertAlmostEqual(3.40, naturals["peregrine"]["dash_cooldown"], places=6)
+        self.assertAlmostEqual(4.40, naturals["sledge"]["dash_cooldown"], places=6)
+        self.assertAlmostEqual(100.0 / 35.0, naturals["standard"]["fuel_boost"], places=6)   # 2.86s
+        self.assertAlmostEqual(100.0 / 40.25, naturals["repeater"]["fuel_boost"], places=6)  # 2.48s
+        self.assertAlmostEqual(100.0 / 30.45, naturals["sledge"]["fuel_boost"], places=6)    # 3.28s
+        self.assertAlmostEqual(100.0 / 28.7, naturals["colossus"]["fuel_boost"], places=6)   # 3.48s
+
+    def test_axis_percent_is_relative_to_standard(self):
+        percent = {mid: row["percent"] for mid, row in self.rows.items()}
+
+        self.assertEqual(40, percent["bulwark"]["parry_window"])
+        self.assertEqual(8, percent["peregrine"]["parry_cycle"])
+        self.assertEqual(-12, percent["repeater"]["parry_cycle"])
+        self.assertEqual(12, percent["colossus"]["parry_cycle"])
+        self.assertEqual(-15, percent["peregrine"]["dash_cooldown"])
+        self.assertEqual(10, percent["sledge"]["dash_cooldown"])
+        self.assertEqual(-13, percent["repeater"]["fuel_boost"])
+        self.assertEqual(15, percent["sledge"]["fuel_boost"])
+        self.assertEqual(22, percent["colossus"]["fuel_boost"])
+        self.assertEqual(["+40%", "-12%"],
+                         [analysis.signed_percent(percent["bulwark"]["parry_window"]),
+                          analysis.signed_percent(percent["repeater"]["parry_cycle"])])
+
+    def test_dash_invuln_duty_and_fuel_floor(self):
+        pos = "player.dash.fuel_ratio"
+        floor = self.cfg.num("player.dash.time", 0.25) + (
+            self.cfg.num("player.fuel.max", 100) * self.cfg.num(pos, 0.25)
+            / self.cfg.num("player.fuel.regen", 20))
+
+        self.assertAlmostEqual(1.5, analysis.dash_fuel_floor(self.cfg), places=6)       # 0.25 + 1.25
+        self.assertAlmostEqual(floor, self.layer["fuel_floor"], places=6)
+        # 开局（0 层）：4.00s 冷却 → 0.25 ÷ 4.00 ＝ 6.25%
+        self.assertAlmostEqual(0.0625, self.rows["standard"]["duty_open"], places=6)
+        # 满投资：有效层 4.25 → 冷却 1.5495s（还在地板之上，文档里读作 1.550s）→ 16.13%
+        self.assertAlmostEqual(1.550, self.layer["full_invest_cooldown"], places=2)
+        self.assertAlmostEqual(4.0 * 0.8 ** 4.25, self.layer["full_invest_cooldown"], places=9)
+        self.assertAlmostEqual(0.25 / analysis.dash_cooldown(self.cfg, 4.25),
+                               self.rows["standard"]["duty_full"], places=9)
+        self.assertAlmostEqual(0.1613, self.rows["standard"]["duty_full"], places=4)
+        # 游隼的冷却 1.3175s 已破燃料地板 → 被地板封顶在 0.25 ÷ 1.5 ＝ 16.67%
+        self.assertAlmostEqual(0.25 / 1.5, self.rows["peregrine"]["duty_full"], places=6)
+        self.assertAlmostEqual(0.25 / 1.5, self.layer["duty_cap"], places=6)
+        # 冷却被压到地板以下也不越过物理上限
+        self.assertLessEqual(self.rows["peregrine"]["duty_full"], self.layer["duty_cap"] + 1e-12)
+
+    def test_dash_cooldown_exponent_is_the_effective_level(self):
+        # 本批之后指数是有效层本身（层 1 起就减冷却）；0 层＝基准，越大越短
+        self.assertAlmostEqual(4.0, analysis.dash_cooldown(self.cfg, 0.0), places=6)
+        self.assertAlmostEqual(3.2, analysis.dash_cooldown(self.cfg, 1.0), places=6)
+        self.assertAlmostEqual(4.0 * 0.8 ** 4.25, analysis.dash_cooldown(self.cfg, 4.25), places=6)
+        self.assertAlmostEqual(3.4, analysis.dash_cooldown(self.cfg, 0.0, kit_mult=0.85), places=6)
+        self.assertAlmostEqual(4.25, analysis.full_investment_eff_level(self.cfg, "phase_dash"), places=6)
+
+    def test_tolerance_spread_stays_inside_the_regression_guard(self):
+        # 防回归判据（DESIGN_BASELINE §1.19）：归一后 游隼 0.906 ↔ 巨像 1.200 ＝ 约 1.325×
+        # （满投资冷却 1.5495s 那一档精算出来是 1.3249×），不得超过——机型层不得比本批之前
+        # 更宽地吃掉一档难度差（同口径一档 1.875×）
+        self.assertAlmostEqual(0.906, self.rows["peregrine"]["tolerance_norm"], places=3)
+        self.assertAlmostEqual(1.200, self.rows["colossus"]["tolerance_norm"], places=3)
+        self.assertAlmostEqual(1.0, self.rows["standard"]["tolerance_norm"], places=9)
+        self.assertLessEqual(self.layer["tolerance_spread"], analysis.MACHINE_TOLERANCE_SPREAD_MAX + 1e-9)
+        self.assertAlmostEqual(1.3249, self.layer["tolerance_spread"], places=4)
+
+    def test_kit_falls_back_to_core_defaults_without_json_keys(self):
+        # 当前 balance.json 还没有 kit 键：缺键必须逐项回退 core 默认表（标准型全 1.0），不许崩、
+        # 也不许把惩罚静默抹平成 1.0
+        bare = cfg_of({
+            "player": {"fuel": {"max": 100, "drain": 35, "regen": 20},
+                       "parry": {"duration": 0.8, "active_time": 0.5, "cooldown": 3.0},
+                       "dash": {"time": 0.25, "cooldown": 4.0, "cooldown_stack_factor": 0.8, "fuel_ratio": 0.25}},
+            "machines": {"peregrine": {"move_speed_mult": 1.15, "damage_mult": 0.9}},
+        })
+
+        self.assertAlmostEqual(0.85, analysis.machine_kit(bare, "peregrine")["dash_cooldown_mult"], places=9)
+        self.assertAlmostEqual(1.10, analysis.machine_kit(bare, "peregrine")["parry_cooldown_mult"], places=9)
+        self.assertAlmostEqual(0.82, analysis.machine_kit(bare, "colossus")["fuel_drain_mult"], places=9)
+        self.assertEqual({field: 1.0 for field in analysis.KIT_FIELDS}, analysis.machine_kit(bare, "standard"))
+        self.assertEqual({field: 1.0 for field in analysis.KIT_FIELDS}, analysis.machine_kit(bare, "no_such_machine"))
+
+        rows = {row["id"]: row for row in analysis.machine_layer(bare)["rows"]}
+        self.assertAlmostEqual(100.0 / 28.7, rows["colossus"]["naturals"]["fuel_boost"], places=6)
+
+    def test_numeric_mods_fall_back_to_roster_and_unknown_to_baseline(self):
+        # 综合容错的输入是数值层乘区：名册默认回退、未知机型回基准（与 MachineRoster.ById 同口径）
+        self.assertAlmostEqual(1.15, analysis.machine_mods(self.cfg, "peregrine")["move_speed_mult"], places=9)
+        self.assertAlmostEqual(0.85, analysis.machine_mods(self.cfg, "repeater")["fire_interval_mult"], places=9)
+        self.assertAlmostEqual(1.2, analysis.machine_mods(self.cfg, "colossus")["max_hp_mult"], places=9)
+        self.assertEqual({field: 1.0 for field in analysis.MACHINE_MOD_FIELDS},
+                         analysis.machine_mods(self.cfg, "no_such_machine"))
+
+    def test_kit_clamps_domain_and_non_finite(self):
+        cfg = cfg_of({"machines": {
+            "peregrine": {"kit": {"dash_cooldown_mult": 3.0, "fuel_drain_mult": float("nan")}},
+            "bulwark": {"kit": {"parry_window_mult": 2.0}},
+        }})
+
+        # 域钳制取边界值（不是「越界回 1.0」——那会把惩罚静默抹平）；非有限回 1.0
+        self.assertEqual(2.0, analysis.machine_kit(cfg, "peregrine")["dash_cooldown_mult"])
+        self.assertEqual(1.0, analysis.machine_kit(cfg, "peregrine")["fuel_drain_mult"])
+        self.assertEqual(1.5, analysis.machine_kit(cfg, "bulwark")["parry_window_mult"])
+
+    def test_machine_layer_survives_degenerate_keys(self):
+        # 坏配置（drain 0）不许抛：满箱加速读成 0，占空比照常算
+        cfg = cfg_of({"player": {"fuel": {"max": 100, "drain": 0, "regen": 0},
+                                 "dash": {"time": 0.25, "cooldown": 4.0, "fuel_ratio": 0.25}}})
+        layer = analysis.machine_layer(cfg)
+
+        self.assertEqual(0.0, layer["rows"][0]["naturals"]["fuel_boost"])
+        self.assertEqual(0.0, layer["duty_cap"])
+
+
+class MachineGuardTests(unittest.TestCase):
+    """体检必须能失败：这两条破坏验证就是「改哪个值会红」的存档。"""
+
+    def test_widening_a_kit_axis_fires_the_guard(self):
+        # 把游隼的冲刺冷却乘区调到域上限：它的免伤占空比掉到地板以下、综合容错跌出跨度上限
+        balance = real_balance()
+        balance["machines"]["peregrine"].setdefault("kit", {})["dash_cooldown_mult"] = 2.0
+        paths = [w["path"] for w in analysis.check_structures(balance)]
+
+        self.assertIn("machines.*", paths)
+
+    def test_widening_the_numeric_layer_fires_the_guard(self):
+        # 数值层同样进这条判据：巨像血量乘区 1.2 → 1.6 也会把跨度顶穿
+        balance = real_balance()
+        balance["machines"]["colossus"]["max_hp_mult"] = 1.6
+        paths = [w["path"] for w in analysis.check_structures(balance)]
+
+        self.assertIn("machines.*", paths)
+
+
 class MetaIntegrityTests(unittest.TestCase):
     """元数据与数值表的一致性：键改名/文件搬走后说明会静默失效，正是要在这里拦住。"""
 
@@ -246,7 +448,7 @@ class ReportShapeTests(unittest.TestCase):
     def test_report_renders_for_real_balance(self):
         report = analysis.build_report(real_balance())
         ids = [section["id"] for section in report["sections"]]
-        self.assertEqual(["difficulty", "enemy", "combat", "economy", "augments"], ids)
+        self.assertEqual(["difficulty", "enemy", "combat", "economy", "augments", "machines"], ids)
         for section in report["sections"]:
             self.assertTrue(section.get("source"), f"{section['id']} 缺公式出处")
             for key in ("table", "table2", "table3"):
