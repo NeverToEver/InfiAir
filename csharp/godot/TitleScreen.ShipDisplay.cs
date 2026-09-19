@@ -11,17 +11,31 @@ namespace InfiAir;
 /// 右侧停驻（轮廓背光 + 幽灵拖影退场 + 尾焰怠速点火 + 悬浮浮动）+ 铭牌。
 /// 时轴：0.2s 起飞 1.4s → 1.6s 落位收尾；全程 Tween/Timer，无 await。
 ///
-/// **展示哪一型由轮展袋掷（<see cref="MachineBag"/>）**：每次进标题屏从六型里换一架，
-/// 一袋之内不重复、跨袋也不连出同型——同一个顺序反复出现会被读成「只有这一型」，
-/// 而独立掷签在六型里连出同型的概率是 1/6，玩家一晚上必然撞见。
+/// **展示哪一型由轮展袋掷（<see cref="MachineBag"/>）**：进标题屏抽一架悬挂，此后每
+/// <see cref="ShowcaseInterval"/> 秒换下一架（机库巡礼），一袋之内不重复、跨袋也不连出同型
+/// ——同一个顺序反复出现会被读成「只有这一型」，而独立掷签在六型里连出同型的概率是 1/6，
+/// 玩家一晚上必然撞见。
 /// 铭牌写明此刻挂着的是哪一型、强在哪；机型面板选定后立刻换成刚选的那一型（原有反馈保留），
-/// 此时铭牌标签由「机库展示」变为「现役机型」——玩家一眼能分清「挂着看的」与「我要飞的」。
+/// 此时铭牌标签由「机库展示」变为「现役机型」——玩家一眼能分清「挂着看的」与「我要飞的」；
+/// **面板打开期间与刚换过机的一整个节拍内不轮换**（玩家正在逐型比对 / 正在读刚选的那一型）。
 /// 尾焰与喷口辉光的取位走 core `PlayerHullLayout` 的双发喷口锚点（六型共用同一套骨架坐标）。
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
     private const float ShipScale = 2.0f; // 254px 原生贴图 ×2：首次大尺寸细节展示
     private const float FlyDuration = 1.4f;
+
+    /// <summary>轮换节拍（秒）：落位（1.6s）与铭牌淡入（1.9s）都走完之后才轮到第一次换机，
+    /// 之后每 3.4s 换一架。取值理由＝铭牌三行（标签 / 机型名 / 加成）读完约 3s，
+    /// 再短会在玩家正读到一半时被换走，再长则停在某一型上等到「就这一架」的错觉。
+    /// 刻意固定不掷抖动：这里是**展台节拍**，可预期的节奏才读得出「在轮换」。</summary>
+    private const float ShowcaseInterval = 3.4f;
+
+    /// <summary>换机过渡：机体先隐后显（换贴图落在波谷），配一次轻微缩放弹——读作「这一架是换上去的」。
+    /// 不做加色闪光：过渡本就不必靠亮度表达，也就不必再为「减少闪光」分一条支路。</summary>
+    private const float SwapFadeOut = 0.12f;
+    private const float SwapFadeIn = 0.26f;
+    private const float SwapPunch = 1.03f;
 
     /// <summary>尾焰起点相对喷口锚点的下沉量（局部像素）：喷管口在锚点下方约 4.5 贴图像素（＝9 局部像素），
     /// 粒子自口部稍下起燃，读作「从喷口喷出来」而不是「罩在喷口上」。</summary>
@@ -41,6 +55,7 @@ public partial class TitleScreen : CanvasLayer
     /// 不给种子 → 时间种子，每次开机顺序不同，同一次运行内六型各出一次。</summary>
     private static readonly MachineBag ShowcaseBag = new(MachineRoster.All);
 
+    private Godot.Timer _showcaseTimer = null!;
     private Node2D _shipAnchor = null!;
     private Node2D _shipBobber = null!;
     private Node2D _warpStreaks = null!;
@@ -191,6 +206,12 @@ public partial class TitleScreen : CanvasLayer
             ignite.TweenProperty(nozzle, "scale", Vector2.One * 0.75f, 0.3).SetDelay(1.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         }
 
+        // 轮换节拍：自建即起跑（第一次换机落在 3.4s，落位与铭牌淡入都已走完）。
+        // 计时器是标题屏的子节点，随场景销毁，不必手动停。
+        _showcaseTimer = new Godot.Timer { WaitTime = ShowcaseInterval, OneShot = false, Autostart = true };
+        _showcaseTimer.Timeout += OnShowcaseTick;
+        AddChild(_showcaseTimer);
+
         BuildShipPlate();
 
         // 机型变更订阅：标题屏的机型面板就地选定后（不切场景），悬挂展示必须跟着换外形——
@@ -280,19 +301,68 @@ public partial class TitleScreen : CanvasLayer
         }
     }
 
-    /// <summary>机型变更（标题屏面板选定 / 「继续上次出击」同步存档机型）：机体本体与两枚幽灵拖影
-    /// 一起换贴图，铭牌跟着刷新。拖影通常已淡出退场，但玩家可能在飞入途中就选完机型——
-    /// 只换本体的话，旧的残影会叠在新型上多留半秒。</summary>
+    /// <summary>机型变更（标题屏面板选定 / 「继续上次出击」同步存档机型）：换成刚定的那一型，
+    /// 并把节拍重起——玩家刚做完选择，展示机不能在一拍之内就被轮换走（那会读成「没选上」）。</summary>
     private void OnMachineChanged(string id)
     {
-        _showcase = MachineRoster.ById(id);
-        var tex = GD.Load<Texture2D>(MachineRoster.SpritePath(_showcase));
-        _playerTex = tex;
-        SetShipTexture(_shipBody, tex);
-        foreach (var ghost in _ghosts)
+        ApplyShowcase(MachineRoster.ById(id));
+        RestartShowcaseClock();
+    }
+
+    /// <summary>轮换拍：从轮展袋取下一架挂上去。机型面板开着时**跳过这一拍**——玩家正在逐型比对，
+    /// 展示机不能在他眼皮底下换成别的；面板关闭时会把节拍重起，故跳过不会留下「半拍」。</summary>
+    private void OnShowcaseTick()
+    {
+        if (MachinePanelOpen())
         {
-            SetShipTexture(ghost, tex);
+            return;
         }
+
+        ApplyShowcase(ShowcaseBag.Next());
+    }
+
+    /// <summary>节拍重起（换机 / 面板关闭后调用）：下一次轮换从此刻起算满一整拍。</summary>
+    private void RestartShowcaseClock()
+    {
+        if (GodotObject.IsInstanceValid(_showcaseTimer))
+        {
+            _showcaseTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// 把某一型挂上去：机体本体与两枚幽灵拖影一起换贴图，铭牌跟着刷新。
+    /// 拖影通常已淡出退场，但玩家可能在飞入途中就选完机型——只换本体的话，旧的残影会叠在新型上多留半秒。
+    ///
+    /// 过渡＝先隐后显（换贴图落在波谷）+ 一次轻微缩放弹：贴着悬浮浮动的机体直接换贴图是「闪了一下」，
+    /// 而「隐—换—显」读作「这一架是换上去的」。换贴图写在 Tween 回调里，故过渡中途再被换一次
+    /// （面板连点 / 节拍撞车）也只是把波谷挪到下一次——贴图与铭牌永远同一步落地。
+    /// </summary>
+    private void ApplyShowcase(MachineSpec spec)
+    {
+        _showcase = spec;
+        var tex = GD.Load<Texture2D>(MachineRoster.SpritePath(spec));
+
+        var swap = CreateTween();
+        swap.TweenProperty(_shipBody, "modulate:a", 0.12f, SwapFadeOut)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.In);
+        swap.TweenCallback(Callable.From(() =>
+        {
+            _playerTex = tex;
+            SetShipTexture(_shipBody, tex);
+            foreach (var ghost in _ghosts)
+            {
+                SetShipTexture(ghost, tex);
+            }
+        }));
+        swap.TweenProperty(_shipBody, "modulate:a", 1.0f, SwapFadeIn)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+
+        var punch = _shipBobber.CreateTween();
+        punch.TweenProperty(_shipBobber, "scale", Vector2.One * SwapPunch, 0.1)
+            .SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
+        punch.TweenProperty(_shipBobber, "scale", Vector2.One, 0.2)
+            .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
 
         RefreshPlate(punch: true);
     }

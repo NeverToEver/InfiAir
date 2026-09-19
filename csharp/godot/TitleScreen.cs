@@ -498,6 +498,9 @@ public partial class TitleScreen : CanvasLayer
         {
             _machinePanel = null;
             SetEntriesFocusable(true);
+            // 轮换节拍自关面板这一刻重起：面板期间展示机停在玩家比对的那一型上，
+            // 若按原节拍继续，刚关面板就可能立刻被换走（半拍内换掉会被读成「选择丢了」）。
+            RestartShowcaseClock();
         };
         AddChild(panel);
         SetEntriesFocusable(false);
