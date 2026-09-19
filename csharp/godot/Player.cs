@@ -581,7 +581,7 @@ public partial class Player : CharacterBody2D
             ShakeHit,
             CfgFx.Float("augments.second_wind.duration", 3.0f, 0.0f),
             CfgFx.Float("augments.second_wind.heal_per_sec", 3.0f, 0.0f));
-        _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
+        _dash.Configure(DashDistance, DashTime, AfterimageInterval);
         // 事件流光：时长钳 0.05 下限（0 会让进度一帧跳满，等于没有扫过过程；且它是 Tick 型计时），
         // 幅度只钳非负——负幅度在着色器里是减光
         _sweepTime = CfgFx.Float("effects.motion.sweep_time", _sweepTime, CfgFx.IntervalFloor);
@@ -1038,7 +1038,7 @@ public partial class Player : CharacterBody2D
 
         // 残影生成间隔 ÷ 密度倍率（游隼更密）；寿命倍率在 PlayerVisuals 内生效
         AfterimageInterval = Mathf.Max(_afterimageIntervalCfg / (float)feel.AfterimageRateMult, 0.0f);
-        _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
+        _dash.Configure(DashDistance, DashTime, AfterimageInterval);
 
         // 炮口辉光尺寸 ×档案倍率（重锤炮口冲击读数更大）；构建晚于本函数首调，null 安全
         if (_muzzleGlow != null)

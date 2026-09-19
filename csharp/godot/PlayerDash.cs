@@ -28,15 +28,14 @@ public class PlayerDash
     // ---- 数值配置（Player._load_balance 经 Configure 注入；与脚本默认值一致） ----
     public float DashDistance { get; private set; } = 200.0f;
     public float DashTime { get; private set; } = 0.25f;
-    /// <summary>冲刺基础冷却上限（满值；实际生效上限经 Player.dash_cooldown_max 按增幅 缩放）。</summary>
-    public float DashCooldownMax { get; private set; } = 4.0f;
     public float AfterimageInterval { get; private set; } = 0.08f;
 
-    public void Configure(float distance, float time, float cooldown, float afterimageInterval)
+    /// <summary>注意：本类**不持有**冷却上限——生效上限的唯一单源是 <c>Player._dashCooldownMax</c>
+    /// （置值与 HUD 充能环的分母都取它）。这里再存一份只会成为「改了没反应」的假旋钮。</summary>
+    public void Configure(float distance, float time, float afterimageInterval)
     {
         DashDistance = distance;
         DashTime = time;
-        DashCooldownMax = cooldown;
         AfterimageInterval = afterimageInterval;
     }
 
