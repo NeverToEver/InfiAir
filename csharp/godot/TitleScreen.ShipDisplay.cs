@@ -313,7 +313,7 @@ public partial class TitleScreen : CanvasLayer
     /// 展示机不能在他眼皮底下换成别的；面板关闭时会把节拍重起，故跳过不会留下「半拍」。</summary>
     private void OnShowcaseTick()
     {
-        if (MachinePanelOpen())
+        if (MachineWheelOpen())
         {
             return;
         }

@@ -72,8 +72,8 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>练习设置面板（P 打开；打开期间标题屏不再消费按键——否则面板上按任意键会直接开新局）。</summary>
     private PracticePanel? _practicePanel;
 
-    /// <summary>机型选择面板（M 打开；与练习面板同一条「打开期间标题屏不消费按键」的守卫）。</summary>
-    private MachinePanel? _machinePanel;
+    /// <summary>机型选择轮盘（M 打开；与练习面板同一条「打开期间标题屏不消费按键」的守卫）。</summary>
+    private MachineWheelPanel? _machineWheel;
 
     /// <summary>底部「教程」入口按钮（手柄可聚焦：dpad/摇杆移动焦点、A 确认，键盘 T 与点击照旧）。</summary>
     private Button _tutorialEntry = null!;
@@ -104,8 +104,8 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>练习设置面板是否展开（探针断「手柄确认能进练习入口」）。</summary>
     public bool PracticePanelOpen() => _practicePanel != null;
 
-    /// <summary>机型选择面板是否展开（探针断「手柄确认能进机型入口」）。</summary>
-    public bool MachinePanelOpen() => _machinePanel != null;
+    /// <summary>机型选择轮盘是否展开（探针断「手柄确认能进机型入口」）。</summary>
+    public bool MachineWheelOpen() => _machineWheel != null;
 
     public override void _Ready()
     {
@@ -274,7 +274,7 @@ public partial class TitleScreen : CanvasLayer
         _practiceEntry.Pressed += OpenPracticePanel;
         hintRow.AddChild(_practiceEntry);
         _machineEntry = MakeEntryButton((string)Tr("TITLE_MACHINE"), UITheme.TextDim);
-        _machineEntry.Pressed += OpenMachinePanel;
+        _machineEntry.Pressed += OpenMachineWheel;
         hintRow.AddChild(_machineEntry);
         AddChild(hintRow);
         var tutIn = hintRow.CreateTween();
@@ -331,7 +331,7 @@ public partial class TitleScreen : CanvasLayer
 
         // 面板（练习 / 机型）打开期间标题屏不消费任何输入：面板自己收 Esc/方向键，但「按任意键开局」若照旧生效，
         // 在面板上敲空格/回车会直接开一局（而不是切那一行选项）。
-        if (_practicePanel != null || _machinePanel != null)
+        if (_practicePanel != null || _machineWheel != null)
         {
             return;
         }
@@ -358,7 +358,7 @@ public partial class TitleScreen : CanvasLayer
             if (kc == Key.M)
             {
                 GetViewport().SetInputAsHandled();
-                OpenMachinePanel();
+                OpenMachineWheel();
                 return;
             }
 
@@ -456,7 +456,7 @@ public partial class TitleScreen : CanvasLayer
         }
         else if (owner == _machineEntry)
         {
-            OpenMachinePanel();
+            OpenMachineWheel();
         }
     }
 
@@ -490,13 +490,13 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>打开机型选择面板（M）：面板自带遮罩与逐行预览，选定即经生产单口
     /// <c>GameState.SetMachine</c> 落地（不必确认）；取消（Esc）即自关。
     /// _started 不置位——理由同练习面板。</summary>
-    private void OpenMachinePanel()
+    private void OpenMachineWheel()
     {
-        var panel = new MachinePanel();
-        _machinePanel = panel;
+        var panel = new MachineWheelPanel();
+        _machineWheel = panel;
         panel.Closed += () =>
         {
-            _machinePanel = null;
+            _machineWheel = null;
             SetEntriesFocusable(true);
             // 轮换节拍自关面板这一刻重起：面板期间展示机停在玩家比对的那一型上，
             // 若按原节拍继续，刚关面板就可能立刻被换走（半拍内换掉会被读成「选择丢了」）。
