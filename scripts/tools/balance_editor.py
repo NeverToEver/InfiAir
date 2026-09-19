@@ -320,7 +320,14 @@ def main() -> None:
         sys.exit(2)
 
     editor = Editor(balance_path, readonly=args.readonly)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(editor))
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(editor))
+    except OSError as e:
+        # 本机常有两个实例并存（旧的没关就再开一个）：裸 traceback 只说明「地址被占用」，
+        # 却不说下一步该做什么——而这里正有一个现成答案（换个端口）
+        print(f"[balance-editor] 端口 {args.port} 起不来（多半已有实例在跑）：{e}\n"
+              f"  换个端口：--port {args.port + 1}；或先关掉已开的那个窗口", file=sys.stderr)
+        sys.exit(2)
     url = f"http://127.0.0.1:{args.port}/"
     print(f"[balance-editor] {url}  ->  {balance_path}{'  [只读]' if args.readonly else ''}")
     print("[balance-editor] Ctrl+C 退出")
