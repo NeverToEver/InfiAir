@@ -11,8 +11,8 @@ namespace InfiAir;
 /// 一眼只需回答「能不能用」），不用指针表盘——指针读作「模拟量测」，会诱导玩家去读数而非判断可用性。
 /// 两者共用同一构件、只换字形与身份色，保证仪表盘只有一个「方形构件」语汇而不是每元素一套隐喻。
 ///
-/// 三态（状态即读数，不看数值也能判断）：
-///   Charging＝字形压暗 + 环按进度填充；Ready＝字形点亮 + 满环 + 一次性外扩脉冲；Locked＝整体压暗 + 锁定横杠。
+/// 两态（状态即读数，不看数值也能判断）：
+///   Charging＝字形压暗 + 环按进度填充；Ready＝字形点亮 + 满环 + 一次性外扩脉冲。
 /// 静止零逐帧（仅就绪脉冲与充能追赶期间推进）；脉冲按 reduce_flash 递减。
 /// Control 子类，_Draw 程序化绘制（文件名与类型同名）。
 /// </summary>
@@ -56,7 +56,6 @@ public partial class AbilitySocket : Control
     private float _target = 1.0f;
     private float _shown = 1.0f;
     private bool _ready = true;
-    private bool _locked;
     private bool _reduceFlash;
     private float _pulse = -1.0f;
     private float _deny = -1.0f;
@@ -119,19 +118,6 @@ public partial class AbilitySocket : Control
 
     /// <summary>就绪脉冲进度（探针读口）：-1 表示未在播（含减少闪光门控），0..1 为外扩中。</summary>
     public float ReadyPulsePhase => _pulse;
-
-    /// <summary>未解锁（如未取相位冲刺增幅）：整体压暗 + 锁定横杠，与「充能中」明确区分。</summary>
-    public void SetLocked(bool locked)
-    {
-        if (locked == _locked)
-        {
-            return;
-        }
-
-        _locked = locked;
-        SetProcess(true);
-        QueueRedraw();
-    }
 
     /// <summary>否认脉冲（§2.14）：冷却中/燃料不足按下本槽对应能力时的一圈向内收拢危险色弧。
     /// 减闪下不播（FlashBudget 单源门控）——环形冷却读数本身仍在回答「还差多少」。</summary>
@@ -224,29 +210,20 @@ public partial class AbilitySocket : Control
         }
 
         var center = Size * 0.5f;
-        var lit = _ready && !_locked;
-        var glyphAlpha = _locked ? 0.22f : (lit ? 1.0f : 0.34f);
+        var glyphAlpha = _ready ? 1.0f : 0.34f;
 
         // 瓦片底：未就绪更暗（读数靠亮度层级，不靠边框粗细）
-        var bgAlpha = lit ? 0.30f : 0.16f;
+        var bgAlpha = _ready ? 0.30f : 0.16f;
         DrawColoredPolygon(_chamfer, new Color(_accent, bgAlpha));
-        var borderCol = _locked
-            ? new Color(UITheme.TextDim, 0.35f)
-            : new Color(lit ? _accent : new Color(UITheme.TextDim, 1.0f), lit ? 0.9f : 0.5f);
+        var borderCol = _ready
+            ? new Color(_accent, 0.9f)
+            : new Color(UITheme.TextDim, 0.5f);
         DrawPolyline(ClosedFrame(), borderCol, 1.0f, true);
 
         DrawGlyph(center, glyphAlpha);
 
-        // 充能环：从正上方顺时针填充；未解锁不画环（无充能语义）
-        if (!_locked)
-        {
-            DrawChargeRing(center);
-        }
-
-        if (_locked)
-        {
-            DrawLockBar(center);
-        }
+        // 充能环：从正上方顺时针填充
+        DrawChargeRing(center);
 
         if (_pulse >= 0.0f)
         {
@@ -303,19 +280,11 @@ public partial class AbilitySocket : Control
         return _frameLoop;
     }
 
-    /// <summary>锁定横杠：一道压在字形上的短横线，与「充能中」的压暗明确区分。</summary>
-    private void DrawLockBar(Vector2 center)
-    {
-        var half = Mathf.Min(Size.X, Size.Y) * 0.16f;
-        DrawLine(center - new Vector2(half, 0.0f), center + new Vector2(half, 0.0f),
-            new Color(UITheme.TextDim, 0.75f), 2.0f, true);
-    }
-
     /// <summary>功能字形（形状即语义）：冲刺＝三重右向箭头；弹反＝开口弧盾 + 回弹点。
     /// 可用半径扣掉环与内缩后已很小，故字形按「占满可用圆」画，不再二次收缩。</summary>
     private void DrawGlyph(Vector2 center, float alpha)
     {
-        var col = new Color(_locked ? UITheme.TextDim : _accent.Lightened(_ready ? 0.45f : 0.1f), alpha);
+        var col = new Color(_accent.Lightened(_ready ? 0.45f : 0.1f), alpha);
         var r = Mathf.Min(Size.X, Size.Y) * 0.5f - RingInset - RingWidth - 1.0f;
         if (r <= 3.0f)
         {

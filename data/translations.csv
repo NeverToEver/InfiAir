@@ -66,7 +66,7 @@ AUG_ARMOR_DESC,"受到的伤害 ×85%","Damage taken ×85%"
 AUG_EVASION_NAME,"闪避","Evasion"
 AUG_EVASION_DESC,"20% 概率完全闪避","20% chance to fully dodge"
 AUG_PHASE_DASH_NAME,"相位冲刺","Phase Dash"
-AUG_PHASE_DASH_DESC,"解锁空格冲刺，此后每级冷却 -20%","Unlock Space dash; each further level -20% cooldown"
+AUG_PHASE_DASH_DESC,"每级冲刺冷却 -20%","-20% dash cooldown per level"
 AUG_SLOW_FIELD_NAME,"慢速力场","Slow Field"
 AUG_SLOW_FIELD_DESC,"敌机与 Boss 移速 -20%","Enemies & Bosses -20% speed"
 AUG_EFFICIENT_BOOST_NAME,"高效推进","Efficient Boost"
@@ -205,8 +205,8 @@ TUT_S1_OBJ,"%s 移动，%s 瞄准，按住 %s 开火
 Catch an amber bracket frame with your crosshair to make bullets home in
 Destroy marked targets %d/%d"
 TUT_S2_OBJ,"按住 %s 加速（耗燃料，松开恢复）：%d/%d
-%s 相位突进（需 %d%% 燃料）：%d/%d","Hold %s to boost (drains fuel): %d/%d
-%s to phase dash (needs %d%% fuel): %d/%d"
+%s 相位突进（冲刺期间免疫伤害，需 %d%% 燃料）：%d/%d","Hold %s to boost (drains fuel): %d/%d
+%s to phase dash (you are untouchable while dashing; needs %d%% fuel): %d/%d"
 TUT_S3_OBJ,"击落全部 %d 架敌机（%d/%d）
 本阶段受伤不会阵亡","Shoot down all %d enemies (%d/%d)
 You cannot die in this stage"

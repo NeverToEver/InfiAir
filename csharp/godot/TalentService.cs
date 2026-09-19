@@ -541,20 +541,6 @@ public sealed partial class TalentService : RefCounted
         TalentsChanged?.Invoke();
     }
 
-    /// <summary>层级直写（教程关卡授予）：含 Augments 同步与广播，与加点同口径但不扣缓存。</summary>
-    public void GrantLevel(StringName id, int level)
-    {
-        if (!_maxLevels.ContainsKey(id))
-        {
-            return;
-        }
-
-        _levels[id] = Mathf.Clamp(level, 0, MaxLevel(id));
-        SyncAugment(id);
-        GameState.Instance.EmitSignal(GameState.SignalName.AugmentsChanged);
-        TalentsChanged?.Invoke();
-    }
-
     /// <summary>读档还原（本局存档）：层级/风险加点/路线/代币/超载槽/缓存点值序列整体覆盖。
     /// 仅接受已知节点 id（未知 id 忽略，防手改存档注入）；补给超载档按补给档位上限
     /// <see cref="BonusOverchargeSlotsMax"/> 钳制（<see cref="TalentEconomy.ClampBonusSlots"/>）；

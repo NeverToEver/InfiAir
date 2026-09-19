@@ -551,9 +551,10 @@ public partial class Player : CharacterBody2D
         DashDistance = CfgFx.Float("player.dash.distance", DashDistance, 0.0f);
         // dash.time 钳 0.05 下限——0/负值时 UpdateMove 的 DashDistance/DashTime 除零得 inf → 位置 NaN
         DashTime = CfgFx.Float("player.dash.time", DashTime, CfgFx.IntervalFloor);
-        // dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——配 0
-        // 且无 phase_dash 层数时 DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0
-        // = NaN（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
+        // dash.cooldown 钳 0.05 下限（与 fuel.max/dash.time 同族）——本键配 0 会被此处拦住，
+        // 但机型冲刺乘区或 cooldown_stack_factor 配 0 时 DashCooldownMax() 仍得 0，
+        // DashReadyRatio() 的 CooldownRemaining()/DashCooldownMax() = 0/0 = NaN
+        //（Mathf.Clamp 不拦 NaN），渗入 HUD 充能条
         DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, CfgFx.IntervalFloor);
         DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
         AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
@@ -951,9 +952,9 @@ public partial class Player : CharacterBody2D
         _spreadShotCount = AugmentCap(AugSpreadShot);
         _pierceCount = AugmentCap(AugPiercing);
         _explosiveEnabled = AugmentEnabled(AugExplosive);
-        var dashStacks = (int)GameState.Instance.AugmentLevel(AugPhaseDash);
-        _dashUnlocked = dashStacks > 0;
-        _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, Mathf.Max((float)GameState.Instance.TalentEffLevel(AugPhaseDash) - 1f, 0f));
+        // 指数直接取有效层级（−1 曾是「层 1＝解锁」的化石：解锁语义已移到基准层，
+        // 现在它与另外八个乘算增幅的 factor^effLevel 惯例一致）
+        _dashCooldownMax = AugmentScale(AugPhaseDash, DashCooldownMaxValue, (float)GameState.Instance.TalentEffLevel(AugPhaseDash));
         // ---- 作战增幅扩展（乘算走 EffLevel 浮点层级；整数语义走层数）----
         // 锁定锥余弦无条件装载（不随天赋点亮与否）：探针的只读口要拿生产真值，
         // 未点亮时生产不消费它（_homingAugTurnRate=0 → 不走这条取目标路径），故无行为影响
@@ -1110,19 +1111,12 @@ public partial class Player : CharacterBody2D
         _fuelLocked = false;
     }
 
-    public bool DashUnlocked() => _dashUnlocked;
-
     public float DashCooldownMax() => _dashCooldownMax;
 
     public float DashFuelCost() => FuelMax * DashFuelRatio;
 
     public float DashReadyRatio()
     {
-        if (!DashUnlocked())
-        {
-            return 0.0f;
-        }
-
         return 1.0f - Mathf.Clamp(_dash.CooldownRemaining() / DashCooldownMax(), 0.0f, 1.0f);
     }
 
@@ -1154,7 +1148,7 @@ public partial class Player : CharacterBody2D
     private float _fuelDrainRate = 35.0f;
     private float _fuelRegenRate = 20.0f;
 
-    /// <summary>空间换时间：射速/伤害/弹速/冲刺解锁与冲刺冷却上限随增幅 变化一次性缓存，
+    /// <summary>空间换时间：射速/伤害/弹速/冲刺冷却上限随增幅 变化一次性缓存，
     /// 避免 _PhysicsProcess 每帧与每发 Fire 调用 AugmentLevel 字典查找 + Pow。</summary>
     private float _fireIntervalValue = 0.15f;
     private int _bulletDamageValue = 10;
@@ -1162,7 +1156,6 @@ public partial class Player : CharacterBody2D
     private int _spreadShotCount;
     private int _pierceCount;
     private bool _explosiveEnabled;
-    private bool _dashUnlocked;
     private float _dashCooldownMax = 4.0f;
 
     // ---- 作战增幅扩展（homing/salvo/deflector/graze_field/dash_strike）----
@@ -1322,8 +1315,7 @@ public partial class Player : CharacterBody2D
         }
 
         _visuals.UpdateParryVisuals(_parry.ShieldExpand(), _parry.ShineProgress(), ParryRadius, ParryArcDeg, d, _simTime);
-        if (DashUnlocked()
-            && Input.IsActionJustPressed(ActDash)
+        if (Input.IsActionJustPressed(ActDash)
             && !_dash.IsDashing())
         {
             if (_dash.CooldownRemaining() <= 0.0f && _fuel >= DashFuelCost())

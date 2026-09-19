@@ -367,9 +367,7 @@ public partial class Tutorial : Node2D
 
             case TutorialGoalKind.Maneuver:
                 {
-                    // 加速与相位突进
-                    // 教程授予相位冲刺（天赋域层级直写口，含 Augments 同步广播）
-                    GameState.Instance.Talent.GrantLevel(new StringName("phase_dash"), 1);
+                    // 加速与相位突进（冲刺开局即可用，无需授予层级）
                     _prevDashing = false;
                     SetStageObjective();
                     break;

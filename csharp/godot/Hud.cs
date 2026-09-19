@@ -894,13 +894,11 @@ public partial class Hud : CanvasLayer
             }
         }
 
-        // 冲刺：未取增幅时整槽锁定（与「充能中」区分），已解锁则推充能进度与就绪态
-        var dashUnlocked = player.DashUnlocked();
-        _dashSocket.SetLocked(!dashUnlocked);
-        var dashRatio = dashUnlocked ? player.DashReadyRatio() : 0.0f;
+        // 冲刺：推充能进度与就绪态（开局即可用，无解锁态）
+        var dashRatio = player.DashReadyRatio();
         _dashSocket.SetRatio(dashRatio);
         // 就绪态直接写（SetReady 内部只在翻转时动作，故每轮直调无副作用、无需调用侧去重）
-        _lastDashFull = dashUnlocked && dashRatio >= DashFullRatio ? 1 : 0;
+        _lastDashFull = dashRatio >= DashFullRatio ? 1 : 0;
         _dashSocket.SetReady(_lastDashFull == 1);
 
         // 弹反：满格＝可用（二进制语义），其余时间按冷却充能

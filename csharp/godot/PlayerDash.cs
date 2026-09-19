@@ -4,7 +4,7 @@ namespace InfiAir;
 
 /// <summary>
 /// 玩家相位冲刺组件。
-/// Dash 状态机与计时；经 Player 属性转发与公开方法交互。需要解锁增幅（dash_unlocked）且耗 25% 满值燃料。
+/// Dash 状态机与计时；经 Player 属性转发与公开方法交互。开局即可用，耗 25% 满值燃料。
 /// 纯 C# 逻辑类（无信号/导出）：由 C# Player 组合持有；GameState 经
 /// Instance 门面访问。
 /// </summary>
@@ -57,7 +57,7 @@ public class PlayerDash
     /// <summary>冷却递减（Player._physics_process 每帧调用）。</summary>
     public void TickCooldown(float delta) => DashCooldown = Mathf.Max(DashCooldown - delta, 0.0f);
 
-    /// <summary>启动冲刺（Player 门面已校验 unlock/冷却/未冲刺/燃料；扣 25% 满值燃料）。</summary>
+    /// <summary>启动冲刺（Player 门面已校验冷却/未冲刺/燃料；扣 25% 满值燃料）。</summary>
     public void Start(Vector2 inputDir, Player player)
     {
         Dashing = true;
