@@ -34,9 +34,49 @@ public partial class GameState : Node
     /// 回退默认值须与 balance.json 一致（损坏/缺键时全局比例不错位）。</summary>
     public double WorldScale { get; set; } = 0.4;
 
+    /// <summary>载入时的文件时间戳（秒，0 = 取不到）。标题屏据此判断数值文件被外部改过——
+    /// 导出包里 res:// 在 PCK 内、取不到时间戳，判定自然退化为「不重载」。</summary>
+    private double _balanceMtime;
+
     private void LoadBalance()
     {
         _balanceService.Load(BalancePathValue);
+        _balanceMtime = Godot.FileAccess.GetModifiedTime(BalancePathValue);
+    }
+
+    /// <summary>
+    /// 重新载入数值：LoadBalance + ApplyBalance + 游戏事件配置，即 991177b^（2026-09-07 作为
+    /// 孤儿删除）那三段式。
+    ///
+    /// **只在没有进行中的一局时调用**（标题屏，见 ReloadBalanceIfChanged）。原因是多处消费者
+    /// 「启动读一次就缓存」：Spawner 的波次参数与敌机表（原地 merge 进构造表，重跑非幂等）、
+    /// Player 的约 60 项（重跑会白送满无敌并回满燃料）、Enemy 的动效配置（每进程只读一次）。
+    /// 局内重载只会得到「一半新值一半旧值」的世界；而下一局进 main 会重建这些实例，
+    /// 所以「回标题屏生效」既安全又完整。
+    /// </summary>
+    public void ReloadBalance()
+    {
+        LoadBalance();
+        ApplyBalance();
+        if (GodotObject.IsInstanceValid(_events))
+        {
+            _events.ReloadConfig();
+        }
+    }
+
+    /// <summary>文件时间戳变了才重载，返回是否真的重载了（标题屏每秒轮询一次）。</summary>
+    public bool ReloadBalanceIfChanged()
+    {
+        var mtime = Godot.FileAccess.GetModifiedTime(BalancePathValue);
+        if (!InfiAir.Core.Config.BalanceEditorLink.NeedsReload(_balanceMtime, mtime))
+        {
+            return false;
+        }
+
+        ReloadBalance();
+        _balanceMtime = mtime;
+        GD.Print($"[balance] 数值已重新载入（{BalancePathValue} 被改动）");
+        return true;
     }
 
     /// <summary>统一配置访问：路径如 "player.fuel.drain"。缺键/类型不符回退 default。委托 BalanceService。</summary>

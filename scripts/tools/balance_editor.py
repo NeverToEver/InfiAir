@@ -350,7 +350,8 @@ class Editor:
         stat = self.balance.stat()
         return 200, {"ok": True, "changes": changes, "backup": str(self.backup),
                      "file": {"mtime": stat.st_mtime, "size": stat.st_size},
-                     "message": f"已保存 {len(changes)} 处改动（原文件备份为 {self.backup.name}）"}
+                     "message": f"已保存 {len(changes)} 处改动（原文件备份为 {self.backup.name}）"
+                                f"；游戏内回到标题屏即生效"}
 
     def revert(self) -> tuple[int, dict]:
         """从备份回滚：把 .bak 覆盖回 balance.json（回滚本身也留一份回滚前的现场）。"""

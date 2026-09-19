@@ -82,6 +82,7 @@ public partial class TitleScreen : CanvasLayer
 
     public override void _Process(double delta)
     {
+        TickBalanceReload(delta);
         var d = (float)delta;
         for (var i = 0; i < WzShipPool; i++)
         {

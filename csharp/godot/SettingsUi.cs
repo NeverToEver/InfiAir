@@ -1,5 +1,6 @@
 using Godot;
 using InfiAir.Core;
+using InfiAir.Core.Config;
 using InfiAir.Core.Text;
 
 namespace InfiAir;
@@ -8,7 +9,8 @@ namespace InfiAir;
 /// 设置界面：左缘圆盘导航六页——「控制」（可改键表 + 恢复默认）、「游戏」（难度、开火方式、
 /// Ctrl/Shift 模式、辅助瞄准）、「准星」（档案/形状/参数/颜色/准星码，见 SettingsUi.CrosshairPage.cs）、
 /// 「显示」（窗口/分辨率/视角/画面增强/帧率上限/垂直同步/
-/// 鼠标锁定）、「音频」（主/音乐/音效音量）、「辅助与关于」（无障碍项 + 版本与操作速查）。
+/// 鼠标锁定）、「音频」（主/音乐/音效音量）、「辅助与关于」（无障碍项 + 版本与操作速查 +
+/// 数值管理器入口，见 BalanceEditorLauncher）。
 /// 面板内芯片行保留焦点链可达性（改键/滑杆等控件页，方向键让位焦点导航）。
 /// 改键：点「改键」进入捕获态，下一按键即绑定（右键撤销 / Esc 取消），冲突键从占用者移除并提示来源。
 /// </summary>
@@ -87,6 +89,9 @@ public partial class SettingsUi : RadialMenuLayer
     private Label _joyLayoutLabel = null!; // 手柄·当前布局指示（Xbox/PS）
     private Label _versionLabel = null!;
     private Label _cheatsheetLabel = null!;
+    private Label _managerStatusLabel = null!;       // 数值管理器状态行
+    private Button _managerButton = null!;           // 数值管理器入口按钮
+    private BalanceEditorLauncher? _managerLauncher; // 跨语言重建保留：探测状态与 HTTPRequest 子节点都挂在它上面
     private ChamferedPanel _plate = null!;
     private ColorRect _dim = null!;
 
@@ -967,7 +972,73 @@ public partial class SettingsUi : RadialMenuLayer
         page.AddChild(_versionLabel);
         _cheatsheetLabel = UITheme.MakeLabel(CheatsheetText(), UITheme.FontCaption, UITheme.TextDim);
         page.AddChild(_cheatsheetLabel);
+        // 数值管理器：本机开发工具的入口，放页尾——它对导出包不可用（工具脚本不进发布包），
+        // 不该挡在版本与操作速查之前
+        page.AddChild(UITheme.MakeSectionHeader(Tr("SET_MANAGER")));
+        _managerStatusLabel = UITheme.MakeLabel("", UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left);
+        page.AddChild(_managerStatusLabel);
+        var managerRow = new HBoxContainer();
+        managerRow.AddThemeConstantOverride("separation", 16);
+        page.AddChild(managerRow);
+        _managerButton = UITheme.MakeButton(Tr("SET_MANAGER_OPEN"));
+        _managerButton.CustomMinimumSize = new Vector2(220.0f, 44.0f);
+        _managerButton.Pressed += OnManagerPressed;
+        managerRow.AddChild(_managerButton);
+        page.AddChild(UITheme.MakeLabel(Tr("SET_MANAGER_DESC"), UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Left));
+        EnsureManagerLauncher();
+        RefreshManagerRow();
         return page;
+    }
+
+    /// <summary>数值管理器联动节点：只建一次（语言切换会重建页面，但探测器与它的状态要跨重建保留）。</summary>
+    private void EnsureManagerLauncher()
+    {
+        if (_managerLauncher == null || !GodotObject.IsInstanceValid(_managerLauncher))
+        {
+            _managerLauncher = new BalanceEditorLauncher();
+            AddChild(_managerLauncher);
+            _managerLauncher.Changed += RefreshManagerRow;
+        }
+
+        _managerLauncher.Probe();
+    }
+
+    private void OnManagerPressed()
+    {
+        if (_managerLauncher == null || !GodotObject.IsInstanceValid(_managerLauncher))
+        {
+            return;
+        }
+
+        _managerLauncher.LaunchOrOpen();
+        RefreshManagerRow();
+    }
+
+    /// <summary>刷新状态行与按钮可用性。页面重建（语言切换）会让旧 Label 排队释放，故每次都要判
+    /// 实例有效性——探测器是异步的，回调可能落在「旧页已释放、新页刚建」的窗口里。</summary>
+    private void RefreshManagerRow()
+    {
+        if (!GodotObject.IsInstanceValid(_managerStatusLabel) || !GodotObject.IsInstanceValid(_managerButton))
+        {
+            return;
+        }
+
+        // 分支判断在 core（BalanceEditorLink.StatusKey/ToneOf）：这一行不可自动点击，把
+        // 「什么状态显示哪句」收进去才能被单测钉住；这里只做 Tr() 与配色
+        var available = _managerLauncher != null && GodotObject.IsInstanceValid(_managerLauncher)
+                        && _managerLauncher.Available;
+        var running = available && _managerLauncher!.Running;
+        var busy = available && _managerLauncher!.Busy;
+        var failure = available ? _managerLauncher!.FailureKey : "";
+
+        _managerStatusLabel.Text = Tr(BalanceEditorLink.StatusKey(available, running, busy, failure));
+        _managerStatusLabel.AddThemeColorOverride("font_color", BalanceEditorLink.ToneOf(available, running, busy, failure) switch
+        {
+            BalanceEditorLink.StatusTone.Failure => UITheme.Danger,
+            BalanceEditorLink.StatusTone.Active => UITheme.AccentGold,
+            _ => UITheme.TextDim,
+        });
+        _managerButton.Disabled = !available || busy;
     }
 
     /// <summary>操作速查全文：标题行 + 五行按键速查，键名一律经设备感知取值口（键鼠＝键名 /

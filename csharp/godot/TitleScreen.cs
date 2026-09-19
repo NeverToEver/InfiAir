@@ -94,6 +94,29 @@ public partial class TitleScreen : CanvasLayer
         var fadeTween = fadeIn.CreateTween();
         fadeTween.TweenProperty(fadeIn, "color:a", 0.0f, 0.5).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         fadeTween.TweenCallback(Callable.From(fadeIn.QueueFree));
+
+        // 进标题屏先对一次表，避免停在这里期间文件已被改动却要到下次开机才生效
+        GameState.Instance.ReloadBalanceIfChanged();
+    }
+
+    /// <summary>数值文件检查间隔（秒）。标题屏是唯一的安全点：此刻没有进行中的一局，
+    /// 而下一局进 main 会重建 Spawner/Player/对象池等「启动读一次」的消费者实例——
+    /// 局内重载只会得到一半新值一半旧值的世界（理由见 GameState.ReloadBalance）。</summary>
+    private const double BalanceCheckInterval = 1.0;
+
+    private double _balanceCheckTimer;
+
+    /// <summary>由 Warzone 的 _Process（本类唯一的逐帧回调）转发进来，避免两个 partial 各写一个 _Process。</summary>
+    private void TickBalanceReload(double delta)
+    {
+        _balanceCheckTimer -= delta;
+        if (_balanceCheckTimer > 0.0)
+        {
+            return;
+        }
+
+        _balanceCheckTimer = BalanceCheckInterval;
+        GameState.Instance.ReloadBalanceIfChanged();
     }
 
     private void BuildTitleUi()
