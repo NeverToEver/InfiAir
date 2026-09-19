@@ -148,7 +148,7 @@ public partial class EnrageSequence : RefCounted
 
     /// <summary>
     /// 狂暴序列驱动：TRANSITION（蓄力抖动滑入轨道，1 型悬停原地）→ ACTIVE（各型差异化攻击）
-    /// → RELEASE_HOLD（各型收尾爆发，BOSS_REDESIGN §5.4 峰值）→ RETURN（飞回战斗位）→ NONE（常规「余怒」循环）。
+    /// → RELEASE_HOLD（各型收尾爆发峰值）→ RETURN（飞回战斗位）→ NONE（常规「余怒」循环）。
     /// </summary>
     public void Update(float delta, Boss boss)
     {
@@ -385,7 +385,7 @@ public partial class EnrageSequence : RefCounted
         return c + new Vector2(Enemy.CosFast(angle), Enemy.SinFast(angle)) * radius;
     }
 
-    /// <summary>ACTIVE 计时耗尽：进入释放阶段——解血锁、复位玩家减速 + 各型收尾爆发起手（BOSS_REDESIGN §5.4 峰值）。</summary>
+    /// <summary>ACTIVE 计时耗尽：进入释放阶段——解血锁、复位玩家减速 + 各型收尾爆发起手。</summary>
     private void BeginReleaseHold(Boss boss)
     {
         _phase = EnrageReleaseHold;
@@ -435,7 +435,7 @@ public partial class EnrageSequence : RefCounted
         _returnTarget = new Vector2(Mathf.Clamp(boss.Position.X, bounds.X, bounds.Y), boss.FightAnchorY());
     }
 
-    /// <summary>狂暴期玩家减速（替代原作 is_controls_locked 定身，BOSS_REDESIGN §4.3）：移速 ×0.35，
+    /// <summary>狂暴期玩家减速（替代原作 is_controls_locked 定身）：移速 ×0.35，
     /// 仍可瞄准/射击/冲刺；TRANSITION+ACTIVE 有效。</summary>
     private void LockPlayerMovement(Boss boss)
     {
@@ -566,7 +566,7 @@ public partial class EnrageSequence : RefCounted
     /// <summary>2 型释放起手——记录当前位置为回轨道底部起点。</summary>
     private void ReleaseBeginStalker(Boss boss) => _releaseOrigin = boss.Position;
 
-    /// <summary>3 型释放起手——16 向环弹 + 全部在场小怪齐射（BOSS_REDESIGN §5.4 峰值一次性结算）。</summary>
+    /// <summary>3 型释放起手——16 向环弹 + 全部在场小怪齐射（峰值一次性结算）。</summary>
     private void ReleaseBeginHive(Boss boss)
     {
         _fire.FireRing(

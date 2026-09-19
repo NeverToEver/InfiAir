@@ -172,7 +172,7 @@ public partial class BossAttacks : RefCounted
 
     /// <summary>
     /// 4 型「月蚀」ring_burst：360° 全圆环弹（难度分档弹数绝对值，counts.ring_burst）。
-    /// counts.ring_burst 是每档弹数绝对值（BOSS_REDESIGN §5.6）——直接消费档值（不得在基准值上叠加增量，
+    /// counts.ring_burst 是每档弹数绝对值——直接消费档值（不得在基准值上叠加增量，
     /// 否则 easy 22/medium 24/hard 26 ≈ 2× 设计密度）。
     /// </summary>
     private void HandleRingBurst(Boss boss)
@@ -217,7 +217,7 @@ public partial class BossAttacks : RefCounted
     /// </summary>
     public void Update(float delta, Boss boss)
     {
-        // 狙击 telegraph：瞄准线前 0.2s 微跟踪玩家后固定，0.35s 到点沿线出弹（BOSS_REDESIGN §4.2/§5.2）
+        // 狙击 telegraph：瞄准线前 0.2s 微跟踪玩家后固定，0.35s 到点沿线出弹
         if (_sniperAimElapsed >= 0.0f)
         {
             _sniperAimElapsed += delta;

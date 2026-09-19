@@ -215,7 +215,7 @@ public partial class Hud : CanvasLayer
     private const float InfoBannerFadeSeconds = 0.4f;
 
     /// <summary>
-    /// Boss 血条阶段刻度线（META_HUD_DESIGN §4.2）：随血条显隐的覆盖层，比例由 <see cref="BossBarSegments.Ticks"/>
+    /// Boss 血条阶段刻度线：随血条显隐的覆盖层，比例由 <see cref="BossBarSegments.Ticks"/>
     /// 从阶段阈值派生后注入（段界即阈值；本控件不持有阈值，也不另存刻度常量）。
     /// </summary>
     public partial class BossBarTicks : Control
@@ -845,7 +845,7 @@ public partial class Hud : CanvasLayer
         }
 
         _pollTimer = _pollInterval;
-        // Boss 逃跑倒计时（约 0.1s 节流轮询，BOSS_REDESIGN §4.5）：血条存在且剩余 ≤10s 起显示
+        // Boss 逃跑倒计时（约 0.1s 节流轮询）：血条存在且剩余 ≤10s 起显示
         if (_boss != null && GodotObject.IsInstanceValid(_boss) && _bossBar.Visible)
         {
             var remaining = _boss.EscapeRemaining();
@@ -1516,7 +1516,7 @@ public partial class Hud : CanvasLayer
         RefreshBossName();
     }
 
-    /// <summary>阶段切换瞬间血条短闪（META_HUD_DESIGN §4.2）。减少闪光下只刷新名牌——整条 600px 血条被抬到
+    /// <summary>阶段切换瞬间血条短闪。减少闪光下只刷新名牌——整条 600px 血条被抬到
     /// 2.2 倍亮度再回落正是该开关要挡的光敏脉冲（门控判据单源在 core FlashBudget，
     /// 同血条的掉段闪在 SegmentedBar 内走同一处）。</summary>
     private void OnBossPhaseChanged(int phase)
