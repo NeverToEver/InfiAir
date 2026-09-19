@@ -115,6 +115,7 @@ data/            balance.json (single source of numbers) · translations.csv (zh
 assets/          sprites / audio / fonts / shaders
 packaging/       Install / uninstall scripts and desktop entries shipped in releases
 scripts/ci/      CI gate scripts
+scripts/tests/   Offline tool tests (balance editor + analysis, stdlib unittest)
 scripts/tools/   Asset generators and balance editor (Python)
 docs/            Design baseline · direction & debt · external references · release notes · README screenshots
 builds/          Export and packaging output (not tracked)
@@ -122,7 +123,7 @@ builds/          Export and packaging output (not tracked)
 
 ## Development
 
-- **Tune gameplay numbers in `data/balance.json` only** (visual editing: `python3 scripts/tools/balance_editor.py`, stdlib-only); **every UI palette token lives in `csharp/godot/UITheme.cs`** (VFX/particle colors embedded in a `.tscn` are owned by that scene file).
+- **Tune gameplay numbers in `data/balance.json` only** (visual editing: `python3 scripts/tools/balance_editor.py`, stdlib-only). The editor offers search, undo, a change list (copyable as a Markdown table) and backup rollback; it annotates each key with its description, unit and valid range from `scripts/tools/balance_meta.json` (out-of-range values turn red and state how the code reacts), and its "balance analysis" tab renders difficulty curves, combat pacing, economy/progression, per-stack augment returns and a value health check — every formula labelled with its C# source. Use `--readonly` to view without editing, `--balance <path>` to point it at a copy. **Every UI palette token lives in `csharp/godot/UITheme.cs`** (VFX/particle colors embedded in a `.tscn` are owned by that scene file).
 - **Assets are procedurally generated**: `scripts/tools/regenerate_all.sh` re-runs every generator in a fixed order (needs Python 3 + Pillow); its output should match the committed assets — an empty `git diff` afterwards means it does.
 - **Build**: `dotnet build` (warnings are errors, `TreatWarningsAsErrors`).
 - **Pre-commit verification gates and commit-message rules live in [AGENTS.md](AGENTS.md)**; CI runs the same gate set as the local workflow.

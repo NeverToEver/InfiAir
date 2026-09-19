@@ -10,7 +10,7 @@ Godot 4.7 .NET + C#（零 GDScript），GL Compatibility，1920×1080；平台 P
 
 | 要做的事 | 唯一路径 | 备注 |
 | --- | --- | --- |
-| 调数值 | `data/balance.json` | 可视化：`python3 scripts/tools/balance_editor.py`；代码回退默认值不得与它分叉 |
+| 调数值 | `data/balance.json` | 可视化：`python3 scripts/tools/balance_editor.py`（键的说明 / 单位 / 取值范围在 `scripts/tools/balance_meta.json`，权威仍是代码里的钳制）；代码回退默认值不得与它分叉 |
 | 改 UI 配色 | `csharp/godot/UITheme.cs` | 场景内嵌的 VFX / 粒子色以对应 `.tscn` 为准 |
 | 改玩家可见文案 | `data/translations.csv` | 中英双列；键缺失玩家就会看到键名 |
 | 改帧级口径（单帧推进上限等） | `csharp/godot/FrameCache.cs` | |
@@ -69,12 +69,13 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 
 ## 5 门禁
 
-本地一把跑完：`python3 scripts/ci/gates.py`——四步主干，判据是**游戏正常路径跑得起来**：
+本地一把跑完：`python3 scripts/ci/gates.py`——五步主干，判据是**游戏正常路径跑得起来**：
 
 | 步骤 | 判什么 |
 | --- | --- |
 | `build` | `dotnet build` 零警告（`TreatWarningsAsErrors`） |
 | `unit_tests` | `csharp/tests` 全绿，且不能空跑（TRX 用例数 > 0） |
+| `tool_tests` | `scripts/tests` 全绿，且不能空跑（用例数 > 0）：数值管理器的形状校验 / 行尾与数值形态、元数据与数值表的对账、分析公式的 C# 算例镜像 |
 | `import` | 资源导入无错误 |
 | `smoke` | 无头固定步长跑生产 `main.tscn`，开机直达标题屏（完成标记 `[boot] 标题屏就绪`） |
 

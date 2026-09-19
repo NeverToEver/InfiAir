@@ -2,7 +2,7 @@ name: CI
 
 # InfiAir 持续集成（最小主干）。
 # 判据只有一件事：游戏正常路径跑得起来，且 core 纯逻辑没有回归。
-# 步骤：C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟（main.tscn 开机直达标题屏）。
+# 步骤：C# 构建零警告 → core 层单测 → 离线工具链自测 → 资源导入无警告 → 无头冒烟（main.tscn 开机直达标题屏）。
 # 依赖口径：项目代码零第三方库（官方 action/安装脚本/引擎/模板）；测试设施只用 .NET SDK 与
 # Godot 引擎本身——不再需要 Xvfb/Mesa 软光栅与 Pillow（截图探针与素材复现性门禁已退役）。
 
@@ -25,7 +25,7 @@ env:
 
 jobs:
   fast-gate:
-    name: Fast gate (build + unit tests + import + boot smoke)
+    name: Fast gate (build + unit tests + tool tests + import + boot smoke)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,6 +44,9 @@ jobs:
 
       - name: Core unit tests
         run: bash scripts/ci/check_unit_tests.sh
+
+      - name: Offline tool tests (balance editor + analysis)
+        run: bash scripts/ci/check_tool_tests.sh
 
       - name: Cache Godot mono engine
         id: cache-godot

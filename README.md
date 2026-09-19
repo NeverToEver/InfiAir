@@ -115,6 +115,7 @@ data/            balance.json 数值单源 · translations.csv 双语翻译表
 assets/          sprites / 音频 / 字体 / shader
 packaging/       发布包内的安装 / 卸载脚本与桌面项
 scripts/ci/      CI 门禁脚本
+scripts/tests/   Python 工具链自测（数值编辑器与分析引擎，标准库 unittest）
 scripts/tools/   素材生成器与数值编辑器（Python）
 docs/            设计定稿 · 方向与债务 · 外部依据 · 发布说明 · README 截图
 builds/          导出与打包产物（不入库）
@@ -122,7 +123,7 @@ builds/          导出与打包产物（不入库）
 
 ## 开发
 
-- **数值调参只改 `data/balance.json`**（可视化编辑：`python3 scripts/tools/balance_editor.py`，仅依赖 Python 标准库）；**UI 调色板只改 `csharp/godot/UITheme.cs`**（场景文件内嵌的 VFX/粒子配色以对应 `.tscn` 为准）。
+- **数值调参只改 `data/balance.json`**（可视化编辑：`python3 scripts/tools/balance_editor.py`，仅依赖 Python 标准库）。编辑器带搜索过滤、撤销、改动清单（可复制成 Markdown 表格）与备份回滚，并按 `scripts/tools/balance_meta.json` 显示每个键的中文说明、单位与取值范围（越界标红并说明代码会怎么处置）；「平衡分析」页给出难度曲线、战斗节奏、经济与进度、增幅每层收益与取值体检，每条公式标了 C# 出处。`--readonly` 只读查看，`--balance <路径>` 指向副本试用。**UI 调色板只改 `csharp/godot/UITheme.cs`**（场景文件内嵌的 VFX/粒子配色以对应 `.tscn` 为准）。
 - **素材为程序化生成**：`scripts/tools/regenerate_all.sh` 按固定顺序重跑全部生成器（需 Python 3 + Pillow），输出应与仓库现有资产一致——重跑后 `git diff` 为空即正确。
 - **构建**：`dotnet build`（零警告口径，`TreatWarningsAsErrors`）。
 - **提交前必过的验证门禁与提交信息规范见 [AGENTS.md](AGENTS.md)**；CI 与本地是同一套口径。

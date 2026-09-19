@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InfiAir 数值管理器</title>
+<link rel="stylesheet" href="/ui/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>InfiAir 数值管理器</h1>
+    <span id="file-path" class="mono dim">data/balance.json</span>
+  </div>
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="搜索键名 / 说明（/ 聚焦）" autocomplete="off">
+    <span id="search-count" class="dim"></span>
+  </div>
+  <div class="actions">
+    <button id="btn-changes" title="查看未保存改动（Ctrl+D）">改动 <span id="change-badge" class="badge zero">0</span></button>
+    <button id="btn-undo" title="撤销（Ctrl+Z）">撤销</button>
+    <button id="btn-redo" title="重做（Ctrl+Shift+Z）">重做</button>
+    <button id="btn-reload" title="丢弃未保存改动，重新从磁盘载入">重载</button>
+    <button id="btn-revert" title="用 balance.json.bak 覆盖当前文件">回滚备份</button>
+    <button id="btn-save" class="primary" title="写入 balance.json（Ctrl+S）">保存</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="side-title">分区</div>
+    <nav id="nav"></nav>
+    <label class="filter"><input type="checkbox" id="only-changed"> 只看已改动</label>
+  </aside>
+
+  <main>
+    <div class="tabs">
+      <button class="tab active" data-tab="values">数值</button>
+      <button class="tab" data-tab="analysis">平衡分析</button>
+    </div>
+    <section id="tab-values" class="tab-panel active">
+      <div id="groups"></div>
+    </section>
+    <section id="tab-analysis" class="tab-panel">
+      <div class="analysis-bar">
+        <span class="dim">分析基于当前编辑内容（含未保存改动）</span>
+        <button id="btn-analyze">重新计算</button>
+      </div>
+      <div id="analysis"></div>
+    </section>
+  </main>
+</div>
+
+<aside id="drawer" class="drawer">
+  <div class="drawer-head">
+    <strong>未保存改动</strong>
+    <span id="drawer-count" class="dim"></span>
+    <span class="spacer"></span>
+    <button id="btn-copy-changes" title="复制为 Markdown 表格，可直接贴进提交正文">复制</button>
+    <button id="btn-close-drawer">关闭</button>
+  </div>
+  <div id="change-list" class="drawer-body"></div>
+</aside>
+<div id="drawer-scrim" class="scrim"></div>
+
+<footer>
+  <span id="status">正在载入…</span>
+  <span class="spacer"></span>
+  <span id="file-meta" class="dim mono"></span>
+</footer>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

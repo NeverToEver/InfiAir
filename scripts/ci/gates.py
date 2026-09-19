@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """InfiAir 本地门禁统一入口（Windows / Linux / macOS 通用）。
 
-按顺序跑完全部四步：C# 构建零警告 → core 层单测 → 资源导入无警告 → 无头冒烟（主场景开机）。
-判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
+按顺序跑完全部五步：C# 构建零警告 → core 层单测 → 离线工具链自测 → 资源导入无警告 → 无头冒烟
+（主场景开机）。判定逻辑与口径只有一份（scripts/ci/*.sh + dotnet build），本脚本只做 Windows 侧的调度：
 自动发现 bash（Git Bash 优先、WSL 兜底）与 Godot 可执行文件，并按目标 shell 转换路径。
 口径见 AGENTS.md「验证门禁」。
 
 用法：
-    python3 scripts/ci/gates.py                  # 全部四步
+    python3 scripts/ci/gates.py                  # 全部五步
     python3 scripts/ci/gates.py --only smoke     # 只跑指定步（slug 见 --list）
     python3 scripts/ci/gates.py --godot D:\\tools\\godot-mono\\godot-mono.exe
 
@@ -35,6 +35,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 STEPS = (
     {"slug": "build", "name": "C# 构建零警告", "kind": "dotnet", "script": "", "godot": False},
     {"slug": "unit_tests", "name": "core 层单测", "kind": "bash", "script": "check_unit_tests.sh", "godot": False},
+    {"slug": "tool_tests", "name": "离线工具链自测（数值编辑器与分析引擎）", "kind": "bash",
+     "script": "check_tool_tests.sh", "godot": False},
     {"slug": "import", "name": "资源导入无警告", "kind": "bash", "script": "check_import.sh", "godot": True},
     {"slug": "smoke", "name": "无头冒烟（主场景开机直达标题屏）", "kind": "bash", "script": "check_smoke.sh", "godot": True},
 )
@@ -43,7 +45,7 @@ STEPS = (
 # 每步墙钟上限（秒）：任一步挂死时判该步失败并继续跑后续步骤，不再无限等待（此前 subprocess.run
 # 无 timeout，CI 靠 job 的 15 分钟兜底、本地只能人工中断）。取值是实测时长的数倍，只作挂死安全阀
 # ——墙钟不是判定口径（AGENTS §5 约束的是判定与模拟，不是机器耗时），故不追求贴近实测。
-STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "import": 600, "smoke": 600}
+STEP_TIMEOUT = {"build": 900, "unit_tests": 900, "tool_tests": 300, "import": 600, "smoke": 600}
 DEFAULT_TIMEOUT = 300
 
 
