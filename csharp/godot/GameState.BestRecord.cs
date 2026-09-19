@@ -8,7 +8,8 @@ namespace InfiAir;
 /// GameState 部分定义：本局结果记录（user://best.json，跨局保留）。
 ///
 /// 边界（DESIGN_BASELINE §1.16）：只记**局末结果读数**——存活时长 / Boss 击杀 / 最高难度档 /
-/// 本局目标是否达成；**不含战力、不含分数**（计分仍是隐藏进度引擎），故不构成局外成长。
+/// 本局目标是否达成 / 机型 id（机型玩法层唯一的回流读数，口径见 `DESIGN_BASELINE` §1.16）；
+/// **不含战力、不含分数**（计分仍是隐藏进度引擎），故不构成局外成长。
 /// 与本局存档分区：死亡删档只作用于 run.json，本档案随之**更新**而非删除。
 ///
 /// 落盘时机＝本局终结（死亡 / 放弃重开），与终结删档同两处调用点；仅在实际有改善时写，
@@ -58,7 +59,9 @@ public partial class GameState : Node
     /// <summary>本局终结时把本局结果并进记录。门控与本局存档的终结删档同源（<see cref="_runActive"/>）：
     /// 教程与标题屏的玩家实体死亡不是本局，不得写记录。练习局同属「不是本局」——
     /// 它按生产语义活跃（_runActive 为真），故必须另有 <see cref="PracticeActive"/> 这一条守卫，
-    /// 否则练一次就把练习读数写进玩家的跨局记录。</summary>
+    /// 否则练一次就把练习读数写进玩家的跨局记录。
+    /// 机型标签取**本局起飞的那一型**（<see cref="MachineId"/>），只在读数真的刷新时才随记录改写
+    /// （选边判定在 core <c>BestRecord.Merge</c>）：本局一项读数都没刷新时不落盘、也不改标签。</summary>
     private void RecordRunResult()
     {
         if (!_runActive || PracticeActive)
@@ -69,7 +72,8 @@ public partial class GameState : Node
             return;
         }
 
-        var candidate = new BestRecord(RunTime, BossKills, DifficultyMultiplier, GoalAchieved());
+        var candidate = new BestRecord(
+            RunTime, BossKills, DifficultyMultiplier, GoalAchieved(), MachineId);
         BestImprovedThisRun = Best.IsImprovedBy(candidate);
         if (!BestImprovedThisRun || !BestKnown)
         {
