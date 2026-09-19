@@ -54,6 +54,13 @@ public static class PlayerHullLayout
     /// <summary>损伤烟发射点：机身后段（不遮机头）。</summary>
     public static readonly HullAnchor DamageSmoke = new("damage_smoke", 0.0, 62.0, 34.0);
 
+    /// <summary>左引擎喷口：贴图骨架的双发喷口 (108, 230)，尾焰 / 喷口辉光的取位锚点。
+    /// 尺寸取喷管环外径 12（≈两倍喷口半径），可读性判据按点状挂点口径。</summary>
+    public static readonly HullAnchor EngineLeft = new("engine_left", -19.0, 103.0, 12.0);
+
+    /// <summary>右引擎喷口（贴图 (146, 230)）。</summary>
+    public static readonly HullAnchor EngineRight = new("engine_right", 19.0, 103.0, 12.0);
+
     // ---- 机体形态层挂点（§2.18）----
 
     /// <summary>左侧机炮荚舱：炮管收放的原点（炮管自原点向机头方向伸出）。</summary>

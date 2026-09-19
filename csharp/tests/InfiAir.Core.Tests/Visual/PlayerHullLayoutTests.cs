@@ -49,6 +49,32 @@ public sealed class PlayerHullLayoutTests
         Assert.True(PlayerHullLayout.RcsLeft.X < 0.0);
     }
 
+    /// <summary>贴图骨架的机尾端：254×254 画布的 (127,236) 换到中心原点坐标系。</summary>
+    private const double TailEndY = 109.0;
+
+    [Fact]
+    public void EngineNozzles_SitInTheTailBand_NotMidHull()
+    {
+        // 尾焰从喷口出：喷口锚点必须落在主翼尖之后、机尾端之前的**尾段**。
+        // 守的静默错误＝锚点写进机身中部——尾焰照样喷、粒子照样亮，但看起来是从机腹/翼根
+        // 冒出来的（标题屏悬挂展示就曾把尾焰写在 (±66,114)：X 外挂到机身之外、Y 落在机身中段）。
+        Assert.Equal(-PlayerHullLayout.EngineLeft.X, PlayerHullLayout.EngineRight.X, 9);
+        Assert.Equal(PlayerHullLayout.EngineLeft.Y, PlayerHullLayout.EngineRight.Y, 9);
+        Assert.True(
+            PlayerHullLayout.EngineLeft.Y > PlayerHullLayout.WingtipLeft.Y,
+            $"喷口 Y={PlayerHullLayout.EngineLeft.Y} 未越过主翼尖 Y={PlayerHullLayout.WingtipLeft.Y}——落在机身中段");
+        Assert.True(
+            PlayerHullLayout.EngineLeft.Y < TailEndY,
+            $"喷口 Y={PlayerHullLayout.EngineLeft.Y} 越出机尾端 Y={TailEndY}");
+        // 双发在机身内（不外挂）：喷口比机炮挂点更靠中线
+        Assert.True(
+            System.Math.Abs(PlayerHullLayout.EngineLeft.X) < System.Math.Abs(PlayerHullLayout.GunLeft.X),
+            "喷口比机炮挂点还靠外——那不是机身内的双发");
+        Assert.True(
+            PlayerHullLayout.IsReadable(PlayerHullLayout.EngineLeft, ShippedWorldScale),
+            $"喷管环在 world_scale={ShippedWorldScale} 下只有 {PlayerHullLayout.WorldSize(PlayerHullLayout.EngineLeft, ShippedWorldScale):F2}px，低于可读线");
+    }
+
     [Fact]
     public void Anchors_StayWithinTextureCanvas()
     {
@@ -58,7 +84,7 @@ public sealed class PlayerHullLayoutTests
         {
             PlayerHullLayout.NavPort, PlayerHullLayout.NavStarboard, PlayerHullLayout.NavStrobe,
             PlayerHullLayout.RcsLeft, PlayerHullLayout.RcsRight, PlayerHullLayout.RcsRetro,
-            PlayerHullLayout.DamageSmoke,
+            PlayerHullLayout.DamageSmoke, PlayerHullLayout.EngineLeft, PlayerHullLayout.EngineRight,
         })
         {
             Assert.True(System.Math.Abs(a.X) <= half, $"{a.Name} 的 X 越出贴图半幅");

@@ -2,6 +2,7 @@ using System;
 using Godot;
 using InfiAir.Core.Machines;
 using InfiAir.Core.Text;
+using InfiAir.Core.Visual;
 
 namespace InfiAir;
 
@@ -15,12 +16,20 @@ namespace InfiAir;
 /// 而独立掷签在六型里连出同型的概率是 1/6，玩家一晚上必然撞见。
 /// 铭牌写明此刻挂着的是哪一型、强在哪；机型面板选定后立刻换成刚选的那一型（原有反馈保留），
 /// 此时铭牌标签由「机库展示」变为「现役机型」——玩家一眼能分清「挂着看的」与「我要飞的」。
-/// 尾焰/喷口位置各型共用同一套锚点。
+/// 尾焰与喷口辉光的取位走 core `PlayerHullLayout` 的双发喷口锚点（六型共用同一套骨架坐标）。
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
     private const float ShipScale = 2.0f; // 254px 原生贴图 ×2：首次大尺寸细节展示
     private const float FlyDuration = 1.4f;
+
+    /// <summary>尾焰起点相对喷口锚点的下沉量（局部像素）：喷管口在锚点下方约 4.5 贴图像素（＝9 局部像素），
+    /// 粒子自口部稍下起燃，读作「从喷口喷出来」而不是「罩在喷口上」。</summary>
+    private const float FlameDrop = 8.0f;
+
+    /// <summary>喷口锚点（贴图坐标，中心原点）→ 悬挂展示的局部坐标：锚点 × 展示缩放。</summary>
+    private static Vector2 NozzlePos(HullAnchor anchor) =>
+        new((float)(anchor.X * ShipScale), (float)(anchor.Y * ShipScale));
 
     // 铭牌：机体停驻位正下方（机体中心 y=470、半高 254 → 下缘 724；背光外圈到 670），
     // 与底部入口行（y≈1008）之间留出整段空白，故铭牌落在 y=748 起
@@ -117,46 +126,48 @@ public partial class TitleScreen : CanvasLayer
         };
         _shipBobber.AddChild(_shipBody);
 
-        // 尾焰怠速（青色对齐主色板；喷口按贴图 254px × scale 2 折算）
-        foreach (var side in new[] { -66.0f, 66.0f })
+        // 尾焰怠速：两处喷口取位＝core 喷口锚点（贴图 108/146, 230）× 展示缩放，
+        // 与机体贴图同一坐标系——尾焰从机尾双发喷出，不再从机身中段冒出来。
+        // 焰长压在铭牌上缘（局部 y≈278）之内：怠速焰是短焰，长了会穿到牌子后面。
+        foreach (var nozzlePos in new[] { NozzlePos(PlayerHullLayout.EngineLeft), NozzlePos(PlayerHullLayout.EngineRight) })
         {
             var flame = CinematicFx.Particles(new Godot.Collections.Dictionary
             {
-                ["amount"] = 36,
-                ["lifetime"] = 0.4f,
+                ["amount"] = 26,
+                ["lifetime"] = 0.26f,
                 ["direction"] = new Vector3(0.0f, 1.0f, 0.0f),
                 ["spread"] = 14.0f,
-                ["vel_min"] = 220.0f,
-                ["vel_max"] = 330.0f,
+                ["vel_min"] = 130.0f,
+                ["vel_max"] = 200.0f,
                 ["scale_min"] = 5.0f,
                 ["scale_max"] = 9.0f,
                 ["color"] = new Color(1.0f, 0.68f, 0.26f, 0.8f),
             });
-            flame.Position = new Vector2(side, 114.0f);
+            flame.Position = nozzlePos + new Vector2(0.0f, FlameDrop);
             flame.AmountRatio = 0.0f; // 点火前无粒子
             _shipBobber.AddChild(flame);
             _engines.Add(flame);
 
             var coreFlame = CinematicFx.Particles(new Godot.Collections.Dictionary
             {
-                ["amount"] = 20,
-                ["lifetime"] = 0.26f,
+                ["amount"] = 16,
+                ["lifetime"] = 0.2f,
                 ["direction"] = new Vector3(0.0f, 1.0f, 0.0f),
                 ["spread"] = 8.0f,
-                ["vel_min"] = 150.0f,
-                ["vel_max"] = 230.0f,
+                ["vel_min"] = 90.0f,
+                ["vel_max"] = 150.0f,
                 ["scale_min"] = 2.5f,
                 ["scale_max"] = 5.0f,
                 ["color"] = new Color(1.0f, 0.92f, 0.72f, 1.0f),
             });
-            coreFlame.Position = new Vector2(side, 110.0f);
+            coreFlame.Position = nozzlePos + new Vector2(0.0f, FlameDrop - 2.0f);
             coreFlame.AmountRatio = 0.0f;
             _shipBobber.AddChild(coreFlame);
             _engines.Add(coreFlame);
 
-            // 喷口辉光（SoftGlow(24) 基准 scale = 24/32 = 0.75）
+            // 喷口辉光（SoftGlow(24) 基准 scale = 24/32 = 0.75）：压在喷管口上，罩住装甲环
             var nozzle = CinematicFx.SoftGlow(24.0f, new Color(1.0f, 0.72f, 0.30f, 0.6f));
-            nozzle.Position = new Vector2(side, 108.0f);
+            nozzle.Position = nozzlePos + new Vector2(0.0f, 2.0f);
             nozzle.Scale = Vector2.Zero;
             _shipBobber.AddChild(nozzle);
             _nozzleGlows.Add(nozzle);
