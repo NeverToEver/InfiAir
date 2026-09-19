@@ -57,7 +57,7 @@ A single-player 2D top-down shoot-'em-up (danmaku / bullet hell). Pure endless a
 | R | Restart run (pause screen) |
 | Esc | Back / Pause |
 
-Title screen: **any key** new run · **C** continue last sortie · **T** tutorial (resumes per stage; the entry reads "continue tutorial" after a partial run) · **P** practice (pick boss type, starting difficulty and encounter; no progress, no saves) · **M** craft (six to choose from: Standard plus Peregrine / Sledge / Repeater / Bulwark / Colossus, each trading one stat bonus for one drawback and flying its own hull; the dial flies the old craft out and the new one in, then plays a short animation for that hull's trait — Enter / A or a click on the craft confirms, applies to the next run). Menus (pause / results / base / settings / craft) use a left-edge radial dial: rotate with arrows or the stick, press to confirm. The title screen is not part of it — its tutorial / practice / craft entries are focusable buttons (dpad/stick to focus, A to confirm), with T / P / M and mouse clicks working as before. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
+Title screen: **any key** new run · **C** continue last sortie · **T** tutorial (resumes per stage; the entry reads "continue tutorial" after a partial run) · **P** practice (pick boss type, starting difficulty and encounter; no progress, no saves) · **M** craft (six to choose from: Standard plus Peregrine / Sledge / Repeater / Bulwark / Colossus, each trading one stat bonus for one drawback and flying its own hull; the variants also differ in flight feel and ability strength — afterimage / tracer / recoil / hit-readout, plus one stronger and one weaker axis among parry window, parry cycle, dash cooldown and boost endurance, with Standard as the baseline for all four; the dial flies the old craft out and the new one in, then plays a short animation for that hull's trait — Enter / A or a click on the craft confirms, applies to the next run). Menus (pause / results / base / settings / craft) use a left-edge radial dial: rotate with arrows or the stick, press to confirm. The title screen is not part of it — its tutorial / practice / craft entries are focusable buttons (dpad/stick to focus, A to confirm), with T / P / M and mouse clicks working as before. Keyboard/mouse and gamepad are the only input surfaces (desktop only; touch is retired).
 
 ## Running
 
@@ -94,7 +94,7 @@ All three files live under Godot's `user://` directory and never interfere with 
 | macOS | `~/Library/Application Support/Godot/app_userdata/InfiAir/` |
 
 - `run.json` — this run's checkpoint (written when docking at base or on "save & exit"; deleted on death or abandon-and-restart).
-- `best.json` — cross-run result record (survival time / boss kills / highest difficulty tier / goal reached); separate from the checkpoint, so dying never touches it.
+- `best.json` — cross-run result record (survival time / boss kills / highest difficulty tier / goal reached, plus the craft used for balance data — never shown on screen); separate from the checkpoint, so dying never touches it.
 - `settings.json` — every setting: language, difficulty, window & resolution, FPS cap, key bindings, crosshair profiles, accessibility options. Delete it to reset to defaults.
 - `logs/` — runtime logs; check here first when a launch misbehaves.
 
