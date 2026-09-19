@@ -234,6 +234,19 @@
 **未能核验**：`shmups.wiki`（社区数字图书馆，含 Boghog《Bullet hell shmup 101》等机体/速度讨论）在本环境不可达，故不引用其内容；检索摘要方向（「fast, powerful ships with narrow shots, or slower weaker ships with wide shots」）与上表一致，但**未经页面核验，不作条款推断**。
 
 
+### 4.16 机型代价（减益）调研（2026-09-19）
+
+主题：**每个机型除加成外还要有一处「弱」**（`DESIGN_BASELINE` §1.17）。要证两件事——为什么每个可选项都得有代价，以及代价该给多大。
+
+| 来源 | 逐字要点 | 落地 |
+| --- | --- | --- |
+| **GameDesign.gg《Power Budget》**（游戏设计术语站 · 机制条目） | 「The total effectiveness an item, card, or character is allowed to spend across its stats and abilities at a given cost」；「**drawbacks refund budget, but players discount conditional downsides steeply, so a drawback priced at face value usually yields undercosted power**」；「mobility, hard crowd control, and high damage **cannot all ride on one champion** without the budget bursting」 | ① 每个机型是一份**能力预算**：加成花掉的额度得由代价还回来，否则六选一里必出无脑解（某一型在所有场合都不劣）；② 代价必须**无条件生效**——条件性代价会被玩家折扣掉，故五条代价全是常驻数值，没有「受伤时才…」这类触发式；③ 代价不能只做象征（同页把「代价远不抵超支」的卡牌列为预算失控的典型） |
+| **Wikipedia《Loss aversion》**（Kahneman & Tversky 前景理论） | 「the left-hand of the function increases much more steeply than gains, thus being more "painful" than the satisfaction from a comparable gain. **Empirically, losses tend to be treated as if they were twice as large as an equivalent gain.**」 | 代价的**数值**幅度必须**小于**加成（定稿取 0.5–0.7 倍）：1:1 的数值交换在体感上等于净亏（损失被放大两倍），玩家会读成「这型是来惩罚我的」；反之加成明显大于代价时取舍依然成立——代价在体感上被放大，正是它读得出来的原因 |
+
+**量级定稿**：比值带 **[0.4, 0.9]**（定稿值实测 0.50–0.73），判据钉在 `MachineRosterTests.PenaltyMagnitudeStaysBelowTheBonusButIsNotToken`——比值越上界即「代价几乎抵掉加成」，越下界即「象征性代价」，两种都判红。
+
+**与 §4.15 的衔接**：§4.15 证的是「选机体」与「火力↔机动的反向权衡」是该类型惯例；本节补的是「代价怎么给才既成立又不劝退」——两节合起来才解释得通本批为什么是「一项加成 + 一项异轴代价」。
+
 ## 5 参考来源（URL 存档）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`
@@ -242,6 +255,7 @@
 **手感与动效**：`egmatic.com/blog/how-to-make-your-game-feel-good`、`en.senkohome.com/sakurai-game-dev-{specification,motion}/`、`youtube.com/@sora_sakurai_en`、`bugnet.io/blog/animation-principles-every-game-developer-should-know`、`gamedesignskills.com/game-design/game-feel/`、`book.leveldesignbook.com/process/combat/enemy`、`sparen.github.io/ph3tutorials/ddsga2.html`、`mystpixel.com/posts/5-visual-clutter-culprits-ruining-your-indie-game-s-combat-readability/`、`scifiinterfaces.com/tag/{hologram,glow}`
 **机体形态与热读数（§4.14）**：`steamcdn-a.akamaihd.net/apps/valve/2007/NPAR07_IllustrativeRenderingInTeamFortress2.pdf`、`leagueoflegends.com/en-us/news/dev/clarity-in-league/`、`en.wikipedia.org/wiki/{Variable-sweep_wing,Grumman_F-14_Tomcat,Convair_B-36_Peacemaker,Wingtip_vortices,Red_heat,Thermal_radiation,Twelve_basic_principles_of_animation}`、`warthunder.com/en/news/{7705-development-f-14a-tomcat-into-the-danger-zone-en,8137-development-new-effects-for-aviation-in-the-sky-guardians-update-en,9195-development-firebirds-effects-improvements-to-aviation-en}`、`www1.grc.nasa.gov/beginners-guide-to-aeronautics/downwash-effects-on-lift/`、`skeletoncodemachine.com/p/mech-week-heat`、`wiki.mechlinglegends.net/index.php?title=Heat`
 **初始机型与机体差异（§4.15）**：`en.wikipedia.org/wiki/DoDonPachi`、`slynyrd.com/blog/2021/2/15/pixelblog-32-shmup-design-part-2`
+**机型代价与能力预算（§4.16）**：`gamedesign.gg/glossary/power-budget/`、`en.wikipedia.org/wiki/Loss_aversion`
 **准星与 FPS 惯例**：`ign.com/wikis/valorant/The_Best_Valorant_Crosshair_Guide`、`totalcsgo.com`、`dmarket.com`、`prosettings.net`
 **测试与引擎**：`arxiv.org/abs/2202.12777`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,audio/sync_with_audio,scripting/c_sharp/*}`
 **规则 / 文档治理**：`code.claude.com/docs/en/{memory,best-practices,skills}`、`cursor.com/docs/context/rules`、`docs.cline.bot/features/cline-rules`、`code.visualstudio.com/docs/copilot/customization/custom-instructions`、`agents.md`、`anthropic.com/engineering/effective-context-engineering-for-ai-agents`、`humanlayer.dev/blog/writing-a-good-claude-md`、`trychroma.com/research/context-rot`、`arxiv.org/abs/{2507.11538,2602.11988,2307.03172,2608.11095}`、`diataxis.fr/`、`cognitect.com/blog/2011/11/15/documenting-architecture-decisions`、`adr.github.io/`、`martinfowler.com/bliki/ArchitectureDecisionRecord.html`、`docs.gitlab.com/development/documentation/{workflow,styleguide}.html`、`kubernetes.io/docs/reference/using-api/deprecation-policy/`、`peps.python.org/pep-0387/`、`bazel.build/release/backward-compatibility`

@@ -56,7 +56,12 @@ public readonly record struct MachineModifiers(
     public double FireRateMult => FireIntervalMult > 0.0 ? 1.0 / FireIntervalMult : 1.0;
 }
 
-/// <summary>某一项乘区是否被改动（用于「本型是否只动了它该动的那一项」这类判据）。</summary>
+/// <summary>
+/// 机型加成 / 代价的文案与方向判定：轴 → 文案键、轴 + 实际乘区 → 自然量百分比 / 是否有利。
+/// **同一根轴只写一条文案键**（键里不带正负号），符号由 <see cref="SignedPercent"/> 从实际乘区反算——
+/// 写死符号的代价键在数值被调成反向时会与面板显示打架，而那是不会报错的那种坏法。
+/// 代价必须落在与加成不同的轴上，故两轴各读各的键、互不覆盖。
+/// </summary>
 public static class MachineTraitText
 {
     /// <summary>加成项的文案键（面板行与描述行共用一份）。</summary>
@@ -71,9 +76,13 @@ public static class MachineTraitText
     };
 
     /// <summary>
-    /// 加成幅度（百分比整数，供文案补参）：由**实际生效的乘区**反算，不读表里的定稿值——
-    /// 数值被调过之后面板上写的数字必须跟着走，否则玩家照着「+15%」去算却得不到那个结果。
-    /// 方向按各自语义取：速度 / 伤害 / 血量取增量，开火间隔与受到伤害取减量（越大越强）。
+    /// 该轴的**自然量**变化百分比（整数）：由实际生效的乘区反算，不读表里的定稿值——
+    /// 数值被调过之后面板上的数字必须跟着走，否则玩家照着「+15%」去算却得不到那个结果。
+    /// 「自然量」＝玩家读这一轴时心里的那个量：速度 / 伤害 / 血量就是乘区本身，
+    /// 攻击速度是**开火间隔的倒数**（间隔 ×0.85 读作「攻击速度 +18%」），
+    /// 受到伤害是**伤害乘区本身**（×0.85 读作「受到伤害 -15%」——「-」在这里是少挨打，不是变弱）。
+    /// **符号只表达自然量的增减，不表达强弱**：强弱判定见 <see cref="IsBeneficial"/>，
+    /// 两者分开，才不会为了显示好看把方向判定也一起拧过去。
     /// </summary>
     public static int Percent(MachineTrait trait, MachineModifiers mods)
     {
@@ -82,26 +91,54 @@ public static class MachineTraitText
             MachineTrait.MoveSpeed => mods.MoveSpeedMult - 1.0,
             MachineTrait.Damage => mods.DamageMult - 1.0,
             MachineTrait.FireRate => mods.FireRateMult - 1.0,
-            MachineTrait.Defense => 1.0 - mods.DamageTakenMult,
+            MachineTrait.Defense => mods.DamageTakenMult - 1.0,
             MachineTrait.MaxHealth => mods.MaxHpMult - 1.0,
             _ => 0.0,
         };
 
         return (int)Math.Round(value * 100.0, MidpointRounding.AwayFromZero);
     }
+
+    /// <summary>带符号的百分比（供 `%s` 文案补参）：`+15%` / `-10%` / `+0%`。
+    /// 符号即 <see cref="Percent"/> 的符号，故面板上的正负永远等于该轴自然量的实际变化。</summary>
+    public static string SignedPercent(MachineTrait trait, MachineModifiers mods)
+    {
+        var percent = Percent(trait, mods);
+        return (percent < 0 ? "-" : "+") + Math.Abs(percent) + "%";
+    }
+
+    /// <summary>
+    /// 该轴此刻是否朝**对玩家有利**的方向偏（加成必须是，代价必须不是）。
+    /// 方向按轴而定：速度 / 伤害 / 血量递增为有利，开火间隔与受到伤害递减为有利。
+    /// 与 <see cref="Percent"/> 的符号**不是一回事**——受到伤害轴上的 `-15%` 是有利（少挨打），
+    /// 攻击速度轴上的 `-11%` 是不利（打得慢）；把两者混成一个符号，必有一头显示反。
+    /// </summary>
+    public static bool IsBeneficial(MachineTrait trait, MachineModifiers mods) => trait switch
+    {
+        MachineTrait.MoveSpeed => mods.MoveSpeedMult > 1.0,
+        MachineTrait.Damage => mods.DamageMult > 1.0,
+        MachineTrait.FireRate => mods.FireIntervalMult < 1.0,
+        MachineTrait.Defense => mods.DamageTakenMult < 1.0,
+        MachineTrait.MaxHealth => mods.MaxHpMult > 1.0,
+        _ => false,
+    };
 }
 
 /// <summary>
-/// 机型定义：「id → 文案键 / 贴图名 / 加成项」的映射只写在这里（数值另在 <c>balance.json machines.*</c>）。
+/// 机型定义：「id → 文案键 / 贴图名 / 加成项 / 代价项」的映射只写在这里（数值另在 <c>balance.json machines.*</c>）。
 ///
-/// 分两处放的理由与全库同口径：**结构**（有哪几型、每型动哪一项、叫什么、用哪套贴图）属纯逻辑，
+/// 分两处放的理由与全库同口径：**结构**（有哪几型、每型动哪两项、叫什么、用哪套贴图）属纯逻辑，
 /// 与 Godot 无关且要被单测钉住；**数值**属可调项，单源在 `data/balance.json`，
-/// 由引擎层按 <see cref="Trait"/> 对应的键读取覆盖（读不到即回退到本表的默认乘区）。
+/// 由引擎层按 <see cref="Trait"/> / <see cref="Penalty"/> 对应的键读取覆盖（读不到即回退本表的默认乘区）。
+///
+/// **每型一项加成 + 一项代价**（标准型两者皆无）：代价必须落在与加成**不同的轴**上，
+/// 否则两笔相抵只剩中间值，玩家读不到「这是一架什么样的飞机」。
 /// </summary>
 public sealed record MachineSpec(
     string Id,
     string NameKey,
     MachineTrait Trait,
+    MachineTrait Penalty,
     MachineModifiers Defaults)
 {
     /// <summary>贴图名主干：标准型沿用既有文件名，特种型一律 <c>player_ship_&lt;id&gt;</c>。</summary>
@@ -109,14 +146,14 @@ public sealed record MachineSpec(
 }
 
 /// <summary>
-/// 初始机型名册（纯逻辑，零 Godot 依赖）：六型 = 标准型（无加成，沿用既有外观与既有数值）
-/// + 五型特种型（各一项加成，各一套外观）。
+/// 初始机型名册（纯逻辑，零 Godot 依赖）：六型 = 标准型（无加成、无代价，沿用既有外观与既有数值）
+/// + 五型特种型（**各一项加成 + 各一项代价**，各一套外观）。
 ///
 /// **为什么必须有标准型**：机型是开局前的一次选择，而它不能把既有玩家的默认体验改掉——
 /// 旧档（settings.json / run.json）里没有机型键，一律归一到标准型，行为与加机型之前逐位一致；
 /// 同时它给五型加成提供可读的基准点（面板上「+15%」是相对什么而言的）。
 ///
-/// 数值取向见 <c>docs/DESIGN_BASELINE.md</c> §1.17，行业依据见 <c>docs/REFERENCES.md</c> §4.15。
+/// 数值取向见 <c>docs/DESIGN_BASELINE.md</c> §1.17，行业依据见 <c>docs/REFERENCES.md</c> §4.15 / §4.16。
 /// </summary>
 public static class MachineRoster
 {
@@ -127,15 +164,24 @@ public static class MachineRoster
     /// 名册（顺序 ＝ 面板行的顺序，索引稳定）：标准型在首位 ＝ 默认选中项。
     /// 乘区默认值须与 <c>data/balance.json machines.&lt;id&gt;.*</c> 一致（两侧分叉时 json 完整则看不出来，
     /// 只有 json 缺失/损坏才回退到错值——改一侧必须同时改另一侧，见 AGENTS.md §3）。
+    ///
+    /// 代价的取值规则（依据见 <c>REFERENCES</c> §4.16）：**无条件**、与加成**不同轴**、
+    /// 数值幅度约为加成的 0.5–0.7 倍——损失在体感上约为等量收益的两倍，1:1 的数值交换体感是亏的；
+    /// 而象征性的小代价又抵不住收益（能力预算不成立）。三条都由 <c>MachineRosterTests</c> 钉住。
     /// </summary>
     public static readonly IReadOnlyList<MachineSpec> All = new MachineSpec[]
     {
-        new(StandardId, "MACHINE_NAME_STANDARD", MachineTrait.None, MachineModifiers.Baseline),
-        new("peregrine", "MACHINE_NAME_PEREGRINE", MachineTrait.MoveSpeed, new MachineModifiers(1.15, 1.0, 1.0, 1.0, 1.0)),
-        new("sledge", "MACHINE_NAME_SLEDGE", MachineTrait.Damage, new MachineModifiers(1.0, 1.2, 1.0, 1.0, 1.0)),
-        new("repeater", "MACHINE_NAME_REPEATER", MachineTrait.FireRate, new MachineModifiers(1.0, 1.0, 0.85, 1.0, 1.0)),
-        new("bulwark", "MACHINE_NAME_BULWARK", MachineTrait.Defense, new MachineModifiers(1.0, 1.0, 1.0, 0.85, 1.0)),
-        new("colossus", "MACHINE_NAME_COLOSSUS", MachineTrait.MaxHealth, new MachineModifiers(1.0, 1.0, 1.0, 1.0, 1.2)),
+        new(StandardId, "MACHINE_NAME_STANDARD", MachineTrait.None, MachineTrait.None, MachineModifiers.Baseline),
+        new("peregrine", "MACHINE_NAME_PEREGRINE", MachineTrait.MoveSpeed, MachineTrait.Damage,
+            new MachineModifiers(1.15, 0.9, 1.0, 1.0, 1.0)),
+        new("sledge", "MACHINE_NAME_SLEDGE", MachineTrait.Damage, MachineTrait.MoveSpeed,
+            new MachineModifiers(0.9, 1.2, 1.0, 1.0, 1.0)),
+        new("repeater", "MACHINE_NAME_REPEATER", MachineTrait.FireRate, MachineTrait.Defense,
+            new MachineModifiers(1.0, 1.0, 0.85, 1.12, 1.0)),
+        new("bulwark", "MACHINE_NAME_BULWARK", MachineTrait.Defense, MachineTrait.FireRate,
+            new MachineModifiers(1.0, 1.0, 1.12, 0.85, 1.0)),
+        new("colossus", "MACHINE_NAME_COLOSSUS", MachineTrait.MaxHealth, MachineTrait.MoveSpeed,
+            new MachineModifiers(0.88, 1.0, 1.0, 1.0, 1.2)),
     };
 
     /// <summary>机型数（面板行数与环形切换的模数）。</summary>

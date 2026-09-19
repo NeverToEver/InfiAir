@@ -117,18 +117,23 @@
 	},
 	"machines": {
 		"peregrine": {
-			"move_speed_mult": 1.15
+			"move_speed_mult": 1.15,
+			"damage_mult": 0.9
 		},
 		"sledge": {
+			"move_speed_mult": 0.9,
 			"damage_mult": 1.2
 		},
 		"repeater": {
-			"fire_interval_mult": 0.85
+			"fire_interval_mult": 0.85,
+			"damage_taken_mult": 1.12
 		},
 		"bulwark": {
+			"fire_interval_mult": 1.12,
 			"damage_taken_mult": 0.85
 		},
 		"colossus": {
+			"move_speed_mult": 0.88,
 			"max_hp_mult": 1.2
 		}
 	},

@@ -38,31 +38,33 @@ public sealed class MachineRosterTests
         Assert.Equal(5, CountSpecialists());
     }
 
+    /// <summary>每型恰好动两项：它宣称的加成轴与代价轴，且两者**不同轴**——
+    /// 同轴会两笔相抵只剩一个中间值（读起来像「什么都没变」），而异轴才读得出「这是一架什么样的飞机」。</summary>
     [Fact]
-    public void EverySpecialistMovesExactlyItsOwnTrait()
+    public void EverySpecialistMovesExactlyItsBonusAndPenaltyAxes()
     {
         foreach (var spec in MachineRoster.All)
         {
-            var mods = spec.Defaults;
-            var moved = new List<MachineTrait>();
-            if (mods.MoveSpeedMult != 1.0) moved.Add(MachineTrait.MoveSpeed);
-            if (mods.DamageMult != 1.0) moved.Add(MachineTrait.Damage);
-            if (mods.FireIntervalMult != 1.0) moved.Add(MachineTrait.FireRate);
-            if (mods.DamageTakenMult != 1.0) moved.Add(MachineTrait.Defense);
-            if (mods.MaxHpMult != 1.0) moved.Add(MachineTrait.MaxHealth);
+            var moved = MovedAxes(spec.Defaults);
 
             if (spec.Trait == MachineTrait.None)
             {
-                Assert.Equal(MachineModifiers.Baseline, mods); // 标准型 = 全 1.0，不得偷偷加成
+                Assert.Equal(MachineModifiers.Baseline, spec.Defaults); // 标准型 = 全 1.0，不得偷偷加成或代价
+                Assert.Equal(MachineTrait.None, spec.Penalty);
+                Assert.Empty(moved);
                 continue;
             }
 
-            Assert.Equal(new[] { spec.Trait }, moved); // 恰好一项，且是它宣称的那一项
+            Assert.NotEqual(MachineTrait.None, spec.Penalty);
+            Assert.NotEqual(spec.Trait, spec.Penalty); // 加成与代价不得同轴
+            Assert.Equal(2, moved.Count);
+            Assert.Contains(spec.Trait, moved);
+            Assert.Contains(spec.Penalty, moved);
         }
     }
 
     [Fact]
-    public void EverySpecialistBonusPointsTheStrongWay()
+    public void EverySpecialistBonusPointsTheStrongWayAndPenaltyTheWeakWay()
     {
         foreach (var spec in MachineRoster.All)
         {
@@ -71,11 +73,47 @@ public sealed class MachineRosterTests
                 continue;
             }
 
-            // 加成项必须往「更强」的方向走：速度/伤害/血量递增，间隔/受伤递减。
-            // 写反了（如 0.85 的加速或 1.15 的减伤）编译、冒烟全过，只有玩家会觉得「这机型是来惩罚我的」。
-            var percent = MachineTraitText.Percent(spec.Trait, spec.Defaults);
-            Assert.True(percent > 0, $"{spec.Id} 的加成方向写反了：{percent}%");
+            // 加成项必须往「更强」的方向走（速度/伤害/血量递增，间隔/受伤递减），代价项必须往「更弱」走。
+            // 写反了（如 0.85 的加速、1.15 的减伤，或一条反而让机体更强的「代价」）编译、冒烟全过，
+            // 只有玩家会觉得「这机型是来惩罚我的」或者「代价栏写着扣分实际却在送分」。
+            Assert.True(MachineTraitText.IsBeneficial(spec.Trait, spec.Defaults), $"{spec.Id} 的加成方向写反了");
+            Assert.False(MachineTraitText.IsBeneficial(spec.Penalty, spec.Defaults), $"{spec.Id} 的代价方向写反了");
         }
+    }
+
+    /// <summary>
+    /// 代价幅度必须**小于**加成、又不小到只是象征：损失在体感上约为等量收益的两倍（REFERENCES §4.16），
+    /// 1:1 的数值交换玩家体感是亏的；而象征性小代价抵不住收益，能力预算不成立。
+    /// 判据取比值带 [0.4, 0.9]（定稿值实测 0.50–0.73）。
+    /// </summary>
+    [Fact]
+    public void PenaltyMagnitudeStaysBelowTheBonusButIsNotToken()
+    {
+        foreach (var spec in MachineRoster.All)
+        {
+            if (spec.Trait == MachineTrait.None)
+            {
+                continue;
+            }
+
+            var bonus = Math.Abs(MachineTraitText.Percent(spec.Trait, spec.Defaults));
+            var penalty = Math.Abs(MachineTraitText.Percent(spec.Penalty, spec.Defaults));
+            Assert.True(bonus > 0, $"{spec.Id} 没有加成");
+            var ratio = penalty / (double)bonus;
+            Assert.True(ratio is >= 0.4 and <= 0.9, $"{spec.Id} 的代价/加成比 {ratio:F2} 越界（应在 0.4–0.9）");
+        }
+    }
+
+    /// <summary>与基线相比被改动的轴（顺序固定，便于断言）。</summary>
+    private static List<MachineTrait> MovedAxes(MachineModifiers mods)
+    {
+        var moved = new List<MachineTrait>();
+        if (mods.MoveSpeedMult != 1.0) moved.Add(MachineTrait.MoveSpeed);
+        if (mods.DamageMult != 1.0) moved.Add(MachineTrait.Damage);
+        if (mods.FireIntervalMult != 1.0) moved.Add(MachineTrait.FireRate);
+        if (mods.DamageTakenMult != 1.0) moved.Add(MachineTrait.Defense);
+        if (mods.MaxHpMult != 1.0) moved.Add(MachineTrait.MaxHealth);
+        return moved;
     }
 
     [Fact]
@@ -161,13 +199,29 @@ public sealed class MachineRosterTests
         Assert.Equal(15, MachineTraitText.Percent(MachineTrait.MoveSpeed, new MachineModifiers(1.15, 1, 1, 1, 1)));
         Assert.Equal(20, MachineTraitText.Percent(MachineTrait.Damage, new MachineModifiers(1, 1.2, 1, 1, 1)));
         Assert.Equal(18, MachineTraitText.Percent(MachineTrait.FireRate, new MachineModifiers(1, 1, 0.85, 1, 1))); // 1/0.85 = +17.6%
-        Assert.Equal(15, MachineTraitText.Percent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 0.85, 1)));
+        Assert.Equal(-15, MachineTraitText.Percent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 0.85, 1)));
         Assert.Equal(20, MachineTraitText.Percent(MachineTrait.MaxHealth, new MachineModifiers(1, 1, 1, 1, 1.2)));
         Assert.Equal(0, MachineTraitText.Percent(MachineTrait.None, MachineModifiers.Baseline));
 
         // 改了取值就得跟着变（这条是「文案不许写死」的判据）
         Assert.Equal(30, MachineTraitText.Percent(MachineTrait.MoveSpeed, new MachineModifiers(1.3, 1, 1, 1, 1)));
-        Assert.Equal(-10, MachineTraitText.Percent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 1.1, 1)));
+        Assert.Equal(10, MachineTraitText.Percent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 1.1, 1)));
+
+        // 面板上的正负号取自实际乘区（不是写死在文案里）：调成反向，显示跟着反向
+        Assert.Equal("+15%", MachineTraitText.SignedPercent(MachineTrait.MoveSpeed, new MachineModifiers(1.15, 1, 1, 1, 1)));
+        Assert.Equal("-10%", MachineTraitText.SignedPercent(MachineTrait.Damage, new MachineModifiers(1, 0.9, 1, 1, 1)));
+        Assert.Equal("+0%", MachineTraitText.SignedPercent(MachineTrait.None, MachineModifiers.Baseline));
+        // 攻击速度轴读的是间隔的倒数：间隔 ×1.12 → 打得慢 11%
+        Assert.Equal("-11%", MachineTraitText.SignedPercent(MachineTrait.FireRate, new MachineModifiers(1, 1, 1.12, 1, 1)));
+        // 受到伤害轴读的是伤害乘区本身：×0.85 是「少挨 15%」（有利），×1.12 是「多挨 12%」（不利）——
+        // 与 IsBeneficial 的方向**相反**，这正是最容易显示反的一处
+        Assert.Equal("-15%", MachineTraitText.SignedPercent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 0.85, 1)));
+        Assert.Equal("+12%", MachineTraitText.SignedPercent(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 1.12, 1)));
+        Assert.True(MachineTraitText.IsBeneficial(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 0.85, 1)));
+        Assert.False(MachineTraitText.IsBeneficial(MachineTrait.Defense, new MachineModifiers(1, 1, 1, 1.12, 1)));
+        Assert.True(MachineTraitText.IsBeneficial(MachineTrait.FireRate, new MachineModifiers(1, 1, 0.85, 1, 1)));
+        Assert.False(MachineTraitText.IsBeneficial(MachineTrait.FireRate, new MachineModifiers(1, 1, 1.12, 1, 1)));
+        Assert.False(MachineTraitText.IsBeneficial(MachineTrait.None, MachineModifiers.Baseline));
 
         Assert.Equal("MACHINE_TRAIT_STANDARD", MachineTraitText.Key(MachineTrait.None));
         foreach (var spec in MachineRoster.All)
@@ -198,7 +252,7 @@ public sealed class MachineRosterTests
             }
         }
 
-        // 每型加成的那一项必须真的在数值表里有键（否则调参界面里根本看不到它）
+        // 每型的加成项与代价项都必须真的在数值表里有键（否则调参界面里根本看不到它）
         foreach (var spec in MachineRoster.All)
         {
             if (spec.Trait == MachineTrait.None)
@@ -208,6 +262,8 @@ public sealed class MachineRosterTests
 
             Assert.True(machines.ContainsKey(spec.Id), $"数值表缺少机型：{spec.Id}");
             Assert.True(machines[spec.Id].ContainsKey(FieldFor(spec.Trait)), $"数值表缺少加成键：{spec.Id}.{FieldFor(spec.Trait)}");
+            Assert.True(machines[spec.Id].ContainsKey(FieldFor(spec.Penalty)), $"数值表缺少代价键：{spec.Id}.{FieldFor(spec.Penalty)}");
+            Assert.Equal(2, machines[spec.Id].Count); // 只列这两项，别的一项不留
         }
     }
 

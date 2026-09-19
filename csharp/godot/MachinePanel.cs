@@ -6,7 +6,7 @@ using InfiAir.Core.Text;
 namespace InfiAir;
 
 /// <summary>
-/// 初始机型面板（标题屏 M 与底部「机型」入口共用的一份 UI）：左列六行机型（名字 + 加成幅度）
+/// 初始机型面板（标题屏 M 与底部「机型」入口共用的一份 UI）：左列六行机型（名字 + 加成 / 代价两行）
 /// + 右侧机体预览 + 底部提示行。选定即写 <c>GameState.SetMachine</c>（唯一写入口），面板**不自动关闭**
 /// ——玩家可以逐型点过去比一比，Esc 退。
 ///
@@ -38,8 +38,10 @@ public partial class MachinePanel : CanvasLayer
     private readonly Button[] _rowButtons = new Button[MachineRoster.Count];
     private readonly ColorRect[] _rowMarks = new ColorRect[MachineRoster.Count];
     private readonly Label[] _rowTraits = new Label[MachineRoster.Count];
+    private readonly Label[] _rowPenalties = new Label[MachineRoster.Count];
     private TextureRect _preview = null!;
     private Label _previewTrait = null!;
+    private Label _previewPenalty = null!;
 
     /// <summary>预览中的行号（焦点行；＝打开时的生效行）。</summary>
     private int _previewRow;
@@ -95,6 +97,10 @@ public partial class MachinePanel : CanvasLayer
         _previewTrait = UITheme.MakeLabel(string.Empty, UITheme.FontBody, UITheme.AccentGold);
         _previewTrait.CustomMinimumSize = new Vector2(PreviewPx, 0.0f);
         side.AddChild(_previewTrait);
+        // 代价一行与加成同处一块面板、字号同档但压暗一档：读得到，但不与「这型强在哪」抢视线
+        _previewPenalty = UITheme.MakeLabel(string.Empty, UITheme.FontBody, UITheme.TextDim);
+        _previewPenalty.CustomMinimumSize = new Vector2(PreviewPx, 0.0f);
+        side.AddChild(_previewPenalty);
 
         // 提示行：机型既是本局的起飞参数也是偏好，玩家在按 Esc 之前必须看到「选了会怎样」
         var note = UITheme.MakeLabel((string)Tr("MACHINE_NOTE"), UITheme.FontCaption, UITheme.TextDim);
@@ -109,7 +115,8 @@ public partial class MachinePanel : CanvasLayer
         _rowButtons[_previewRow].GrabFocus();
     }
 
-    /// <summary>一行：行首生效标记条 + 机型按钮（显示名，点击或回车/A 选定）+ 右侧次级色加成幅度。
+    /// <summary>一行：行首生效标记条 + 机型按钮（显示名，点击或回车/A 选定）+ 右侧「加成 / 代价」两行。
+    /// 两行同列上下排（不是并排）：并排时六行的文字宽度不齐，扫描列会被打散；代价压暗一档与加成区分。
     /// 标记条恒占位（改 alpha 而非 Visible）——换标记时行内不重排，否则六行文字会左右抖一下。</summary>
     private void AddRow(Control list, int row)
     {
@@ -135,14 +142,18 @@ public partial class MachinePanel : CanvasLayer
         button.FocusEntered += () => PreviewRow(captured);
         line.AddChild(button);
 
-        var trait = UITheme.MakeLabel(string.Empty, UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Right);
-        trait.CustomMinimumSize = new Vector2(220.0f, 0.0f);
-        trait.VerticalAlignment = VerticalAlignment.Center;
-        line.AddChild(trait);
+        var traits = new VBoxContainer { CustomMinimumSize = new Vector2(240.0f, 0.0f) };
+        traits.AddThemeConstantOverride("separation", 0);
+        var bonus = UITheme.MakeLabel(string.Empty, UITheme.FontCaption, UITheme.Text, HorizontalAlignment.Right);
+        var penalty = UITheme.MakeLabel(string.Empty, UITheme.FontCaption, UITheme.TextDim, HorizontalAlignment.Right);
+        traits.AddChild(bonus);
+        traits.AddChild(penalty);
+        line.AddChild(traits);
 
         _rowButtons[row] = button;
         _rowMarks[row] = mark;
-        _rowTraits[row] = trait;
+        _rowTraits[row] = bonus;
+        _rowPenalties[row] = penalty;
     }
 
     /// <summary>当前生效的机型 id（探针读口：与 GameState 同源，不另存一份）。</summary>
@@ -198,7 +209,9 @@ public partial class MachinePanel : CanvasLayer
         // TextureFilter 不覆盖：别处用到机体贴图的两处（机内 Player、标题屏悬挂展示）都不设过滤，
         // 预览处单开一档会让同一张贴图在两处观感不一致
         _preview.Texture = GD.Load<Texture2D>(MachineRoster.SpritePath(spec));
-        _previewTrait.Text = TraitText(spec);
+        _previewTrait.Text = TraitText(spec.Trait, spec.Id);
+        // 标准型没有代价：留空而不是把「无加成 · 基准配置」印两遍（同一句话连写两行像排版事故）
+        _previewPenalty.Text = spec.Penalty == MachineTrait.None ? string.Empty : TraitText(spec.Penalty, spec.Id);
     }
 
     private void RefreshRows()
@@ -216,16 +229,19 @@ public partial class MachinePanel : CanvasLayer
             _rowMarks[i].Color = isCurrent ? UITheme.Accent : new Color(UITheme.Accent, 0.0f);
             _rowButtons[i].AddThemeColorOverride("font_color", nameColor);
             _rowButtons[i].AddThemeColorOverride("font_focus_color", nameColor);
-            _rowTraits[i].Text = TraitText(spec);
+            _rowTraits[i].Text = TraitText(spec.Trait, spec.Id);
+            // 标准型没有代价：留空串而不是「代价 +0%」——后者读起来像一项负面读数
+            _rowPenalties[i].Text = spec.Penalty == MachineTrait.None ? string.Empty : TraitText(spec.Penalty, spec.Id);
         }
     }
 
-    /// <summary>某一型的加成文案：百分比由**实际生效的乘区**反算（数值被调过，面板上的数字跟着走），
-    /// 标准型那条没有占位符——多传的参数由 GdFormat 忽略，不必在这一层分支。</summary>
-    private string TraitText(MachineSpec spec)
+    /// <summary>某一轴（加成或代价）的文案：百分比与**正负号**都由实际生效的乘区反算
+    /// （数值被调过、甚至被调成反向，面板上的数字与符号都跟着走），标准型那条没有占位符——
+    /// 多传的参数由 GdFormat 忽略，不必在这一层分支。</summary>
+    private string TraitText(MachineTrait trait, string machineId)
         => GdFormat.Format(
-            Tr(MachineTraitText.Key(spec.Trait)),
-            MachineTraitText.Percent(spec.Trait, GameState.Instance.MachineModsFor(spec.Id)));
+            Tr(MachineTraitText.Key(trait)),
+            MachineTraitText.SignedPercent(trait, GameState.Instance.MachineModsFor(machineId)));
 
     public override void _UnhandledInput(InputEvent @event)
     {
