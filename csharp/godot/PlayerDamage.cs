@@ -35,6 +35,10 @@ public class PlayerDamage
     public float InvincibleTime { get; private set; } = 1.5f;
     public float ArmorMult { get; private set; } = 0.85f;
     public float EvasionChance { get; private set; } = 0.2f;
+    /// <summary>机体乘区（机型防御加成；1.0 = 无减伤）。**独立于 armorMult**——护甲要加点才有、
+    /// 机型开局就带，两条路叠乘（口径见 core DamageMitigation.Resolve）。写入口只有一个
+    /// <see cref="SetDamageTakenMult"/>：它随机型变更在局内改，不跟着 Configure 的启动注入走。</summary>
+    public float DamageTakenMult { get; private set; } = 1.0f;
     public float RegenPerSec { get; private set; } = 2.0f;
     public float ShakeHit { get; private set; } = 12.0f;
     /// <summary>second_wind 逆境回血：受击后持续秒数 / 每秒每层回复量（Configure 注入）。</summary>
@@ -58,6 +62,10 @@ public class PlayerDamage
 
     public void SetInvincible(float seconds) => Invincible = seconds;
 
+    /// <summary>机型换装时更新机体减伤乘区（Player.ApplyMachineFactors 调用；值已由
+    /// <c>MachineRoster.Sanitize</c> 收口在 [0.25, 4]，此处不再钳——两处钳制只会互相掩盖）。</summary>
+    public void SetDamageTakenMult(float value) => DamageTakenMult = value;
+
     public float InvincibleRemaining() => Invincible;
 
     /// <summary>
@@ -66,7 +74,7 @@ public class PlayerDamage
     /// 口径单源在 DamageMitigation 的四档归属——闪避档的规格是「完全免伤、**子弹照常销毁**」，
     /// 与盾吸收一致；两者都不置无敌、不消耗单帧守卫、不掉血。
     /// 顺序：拦截守卫（死/无敌/冲刺/本帧已结算）→ 20% 闪避 → 盾吸收（每层一次全额）→
-    /// 护甲 ×0.85 → 结算；对全部伤害源生效。
+    /// 护甲 ×0.85 → **机型减伤乘区** → 结算；对全部伤害源生效。
     /// fromPos：伤害源世界坐标（Meta HUD 定向波纹）；Vector2.INF = 无方向（均匀环）。
     /// </summary>
     public bool TakeDamage(float amount, Vector2 fromPos, Player player)
@@ -88,6 +96,7 @@ public class PlayerDamage
             GameState.Instance.AugmentLevel(ShieldId) > 0,
             GameState.Instance.AugmentLevel(ArmorId) > 0,
             ArmorMult,
+            DamageTakenMult,
             amount);
         if (result.Outcome == DamageOutcome.Evaded)
         {

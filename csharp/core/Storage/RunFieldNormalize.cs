@@ -26,6 +26,12 @@ public static class RunFieldNormalize
     public static double ReadNum(IReadOnlyDictionary<string, object?> data, string key, double fallback) =>
         data.TryGetValue(key, out var raw) && TryClampNum(raw, out var value) ? value : fallback;
 
+    /// <summary>读存档字符串字段（机型 id 这类**白名单串**的读取口）：缺键 / 判型不符 / 空串一律回退
+    /// <paramref name="fallback"/>。白名单校验由调用方做（本类不认识业务取值），这里只保证拿到的是字符串——
+    /// 手改档里的对象 / 数组 / 数字不得让后续比较抛错或静默落空。</summary>
+    public static string ReadString(IReadOnlyDictionary<string, object?> data, string key, string fallback) =>
+        data.TryGetValue(key, out var raw) && raw is string text && text.Length > 0 ? text : fallback;
+
     /// <summary>数值 → int 域：非数值返回 false；有限值向零截断并钳 [0, int.MaxValue]，非有限返回 false。
     /// 记录读档的 Variant 非 Int/Float 时载入为 <c>null</c>，即由此判否回退。</summary>
     public static bool TryClampInt(object? raw, out int value)

@@ -159,6 +159,9 @@ public partial class GameState : Node
             // combat
             ["health"] = Health,
             ["augments"] = Augments.Duplicate(),
+            // 机型属本局起飞配置（不是战场态）：继续出击必须照原样起飞——读档换了机型
+            // 等于换了一架飞机（血上限/射速/贴图全变），那就不叫「接着飞」了
+            ["machine"] = MachineId,
             // talent
             ["talent_levels"] = talent,
             ["talent_overcharged"] = overcharged,
@@ -174,9 +177,16 @@ public partial class GameState : Node
         };
     }
 
-    /// <summary>还原本局状态。顺序固定：talent → combat → score → progress → missions。</summary>
+    /// <summary>还原本局状态。顺序固定：机型 → talent → combat → score → progress → missions。</summary>
     private void ApplyRunDict(Godot.Collections.Dictionary d)
     {
+        // 0) 机型先还原：它决定血上限乘区，必须早于 talent 的 extra_life 与 health 钳制，
+        //    否则「巨像型（×1.2）读档」会先按标准型的上限钳一次血量（120 血档被削到 100 再还原不回来）。
+        //    旧档缺键（本功能之前存的档）→ 回落玩家偏好；偏好也被手改坏 → 名册归一为标准型。
+        //    SetMachine 会把偏好同步成存档里的机型（本局不能换机，飞的就是该显示的那一型）。
+        var savedMachine = ReadSaveString(d.GetValueOrDefault("machine", ""), string.Empty);
+        SetMachine(string.IsNullOrEmpty(savedMachine) ? _settings.MachineId : savedMachine);
+
         // 1) talent 先还原（extra_life 层级决定 MaxHealth，必须先于 health 写入）
         _talent.RestoreRunState(
             ReadIntMap(d.GetValueOrDefault("talent_levels", new Godot.Collections.Dictionary())),

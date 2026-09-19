@@ -38,7 +38,10 @@ public static class DamageMitigation
 
     /// <summary>第二段：减免顺序（调用方已确认未被 <see cref="Blocks"/> 拦下）。
     /// evasionRoll 只在 <paramref name="hasEvasion"/> 为真时由调用方掷出（语序与随机消耗见 <see cref="Blocks"/>）；
-    /// 判定为严格小于（<c>&lt;</c>）：恰好等于概率不闪避。</summary>
+    /// 判定为严格小于（<c>&lt;</c>）：恰好等于概率不闪避。
+    /// <paramref name="damageTakenMult"/> 是**机体乘区**（机型防御加成），乘在护甲之后、与护甲是否点亮无关——
+    /// 护甲是增幅（加点才有）、机型开局就带，两条路各管各的。调用方须给有限且 ≥0 的值
+    /// （域收口在 <c>MachineRoster.Sanitize</c>）；本函数不钳制。</summary>
     public static DamageMitigationResult Resolve(
         bool hasEvasion,
         float evasionRoll,
@@ -46,6 +49,7 @@ public static class DamageMitigation
         bool hasShield,
         bool hasArmor,
         float armorMult,
+        float damageTakenMult,
         float amount)
     {
         if (hasEvasion && evasionRoll < evasionChance)
@@ -53,14 +57,15 @@ public static class DamageMitigation
             return new DamageMitigationResult(DamageOutcome.Evaded, amount);
         }
 
-        // 盾吸收优先于护甲：吸收的是全额伤害（先打折再吸层＝每层挡得更少，盾的实际价值对不上文案）
+        // 盾吸收优先于护甲：吸收的是全额伤害（先打折再吸层＝每层挡得更少，盾的实际价值对不上文案）。
+        // 盾层与闪避同为全额——机体防御乘区只作用于真正落到血条上的那笔伤害。
         if (hasShield)
         {
             return new DamageMitigationResult(DamageOutcome.ShieldAbsorbed, amount);
         }
 
         return new DamageMitigationResult(
-            DamageOutcome.Applied, hasArmor ? amount * armorMult : amount);
+            DamageOutcome.Applied, amount * (hasArmor ? armorMult : 1.0f) * damageTakenMult);
     }
 
     /// <summary>单帧守卫记账：只有实际结算才写下当前帧号（返回新的 LastHitFrame）。

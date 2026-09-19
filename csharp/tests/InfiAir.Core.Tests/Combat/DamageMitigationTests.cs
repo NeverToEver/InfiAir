@@ -29,7 +29,7 @@ public sealed class DamageMitigationTests
     {
         var result = DamageMitigation.Resolve(
             hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
-            hasShield: true, hasArmor: true, armorMult: ArmorMult, amount: Amount);
+            hasShield: true, hasArmor: true, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.ShieldAbsorbed, result.Outcome);
         Assert.Equal(Amount, result.Amount); // 盾吸全额：护甲不得先打折
     }
@@ -39,13 +39,13 @@ public sealed class DamageMitigationTests
     {
         var result = DamageMitigation.Resolve(
             hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
-            hasShield: false, hasArmor: true, armorMult: ArmorMult, amount: Amount);
+            hasShield: false, hasArmor: true, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.Applied, result.Outcome);
         Assert.Equal(8.5f, result.Amount, 3);
 
         var bare = DamageMitigation.Resolve(
             hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
-            hasShield: false, hasArmor: false, armorMult: ArmorMult, amount: Amount);
+            hasShield: false, hasArmor: false, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.Applied, bare.Outcome);
         Assert.Equal(Amount, bare.Amount);
     }
@@ -55,13 +55,13 @@ public sealed class DamageMitigationTests
     {
         var evaded = DamageMitigation.Resolve(
             hasEvasion: true, evasionRoll: EvasionChance - 0.0001f, evasionChance: EvasionChance,
-            hasShield: true, hasArmor: true, armorMult: ArmorMult, amount: Amount);
+            hasShield: true, hasArmor: true, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.Evaded, evaded.Outcome); // 闪避优先于盾：盾层不得消耗
 
         // 恰好等于概率不闪避（原实现是 < 而非 <=；改成 <= 会让闪避率悄悄高一点）
         var boundary = DamageMitigation.Resolve(
             hasEvasion: true, evasionRoll: EvasionChance, evasionChance: EvasionChance,
-            hasShield: true, hasArmor: true, armorMult: ArmorMult, amount: Amount);
+            hasShield: true, hasArmor: true, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.ShieldAbsorbed, boundary.Outcome);
     }
 
@@ -70,8 +70,40 @@ public sealed class DamageMitigationTests
     {
         var result = DamageMitigation.Resolve(
             hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
-            hasShield: false, hasArmor: true, armorMult: ArmorMult, amount: Amount);
+            hasShield: false, hasArmor: true, armorMult: ArmorMult, damageTakenMult: 1.0f, amount: Amount);
         Assert.Equal(DamageOutcome.Applied, result.Outcome);
+    }
+
+    /// <summary>机体乘区（机型防御加成，生产值 0.85 = 壁垒型）：乘在护甲之后，且**与护甲是否点亮无关**——
+    /// 护甲要加点才有、机型开局就带。坏法：把乘区并进 armorMult（未点护甲时防御加成整体失效，
+    /// 而「裸机也硬」恰是这型机体的全部意义）或让盾/闪避也吃它（盾层价值低于文案）。</summary>
+    [Fact]
+    public void HullMultiplierAppliesWithoutArmorAndNeverTouchesShieldOrEvasion()
+    {
+        const float Hull = 0.85f;
+
+        var bare = DamageMitigation.Resolve(
+            hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
+            hasShield: false, hasArmor: false, armorMult: ArmorMult, damageTakenMult: Hull, amount: Amount);
+        Assert.Equal(DamageOutcome.Applied, bare.Outcome);
+        Assert.Equal(8.5f, bare.Amount, 3); // 10 × 0.85，未点护甲也照样减
+
+        var withArmor = DamageMitigation.Resolve(
+            hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
+            hasShield: false, hasArmor: true, armorMult: ArmorMult, damageTakenMult: Hull, amount: Amount);
+        Assert.Equal(10.0f * ArmorMult * Hull, withArmor.Amount, 4); // 两条路叠乘
+
+        var shielded = DamageMitigation.Resolve(
+            hasEvasion: false, evasionRoll: 0.0f, evasionChance: EvasionChance,
+            hasShield: true, hasArmor: true, armorMult: ArmorMult, damageTakenMult: Hull, amount: Amount);
+        Assert.Equal(DamageOutcome.ShieldAbsorbed, shielded.Outcome);
+        Assert.Equal(Amount, shielded.Amount); // 盾吸全额（返回值仅供日志；乘区不进盾的账面）
+
+        var evaded = DamageMitigation.Resolve(
+            hasEvasion: true, evasionRoll: 0.0f, evasionChance: EvasionChance,
+            hasShield: false, hasArmor: false, armorMult: ArmorMult, damageTakenMult: Hull, amount: Amount);
+        Assert.Equal(DamageOutcome.Evaded, evaded.Outcome);
+        Assert.Equal(Amount, evaded.Amount);
     }
 
     [Fact]
@@ -180,6 +212,7 @@ public sealed class DamageMitigationTests
                 ShieldLayers > 0,
                 HasArmor,
                 ArmorMult,
+                1.0f,
                 amount);
             if (result.Outcome == DamageOutcome.ShieldAbsorbed)
             {

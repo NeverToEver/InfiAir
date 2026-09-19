@@ -50,6 +50,31 @@ public sealed class RunFieldNormalizeTests
         Assert.Equal(1.0, RunFieldNormalize.ReadNum(data, "absent", 1.0));
     }
 
+    /// <summary>机型 id 这类白名单串的读取口：判型不符与空串都回退，绝不让对象 / 数组漏到比较侧
+    /// （漏过去后 `ById` 收到的不是字符串，白名单归一就成了孤岛——机型悄悄变回标准型而无人知晓）。</summary>
+    [Fact]
+    public void ReadString_FallsBackOnMissingWrongTypeAndEmpty()
+    {
+        var data = new Dictionary<string, object?>
+        {
+            ["ok"] = "peregrine",
+            ["empty"] = "",
+            ["num"] = 12L,
+            ["obj"] = new Dictionary<string, object?> { ["id"] = "sledge" },
+            ["arr"] = new List<object?> { "colossus" },
+            ["nul"] = null,
+        };
+
+        Assert.Equal("peregrine", RunFieldNormalize.ReadString(data, "ok", "standard"));
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "empty", "standard"));
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "num", "standard"));
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "obj", "standard"));
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "arr", "standard"));
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "nul", "standard"));
+        // 旧档（本功能之前存的 run.json / settings.json）没有机型键 —— 正是这一条
+        Assert.Equal("standard", RunFieldNormalize.ReadString(data, "machine", "standard"));
+    }
+
     [Fact]
     public void ReadIntMap_ClampsValuesAndSkipsNonNumeric()
     {

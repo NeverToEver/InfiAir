@@ -17,6 +17,10 @@
 从 glow/engine_glow 图元层提取发光像素——R=霓虹走线/航行灯/座舱，B=引擎喷口，
 供 ship_energy.gdshader 运行期叠加（基础贴图生成逻辑零改动）。
 
+受击帧拆成「对任意机型施加损伤」的 apply_hit_1/apply_hit_2（本文件只放裂纹图元本身，
+调用方负责在正常帧实例上按顺序叠加）；初始机型的另外五套外观见
+generate_machine_sprites.py，它们与标准型共用这套骨架与裂纹。
+
 附件锚点（贴图像素坐标，供 scripts/player_buff_visuals.gd 对齐机体部位）：
     机头尖端 (127, 16)   座舱 (127, 92)    鸭翼翼尖 (84/170, 96)
     主翼翼尖 (12/242, 206)                翼根前缘 (104/150, 118)
@@ -291,9 +295,11 @@ def player_ship() -> Ship:
     return s
 
 
-def player_ship_hit_1() -> Ship:
-    """受击帧1：轻度损伤——裂纹 + 能量闪烁 + 小火花。"""
-    s = player_ship()  # 基于正常帧叠加损伤
+def apply_hit_1(s: Ship) -> Ship:
+    """轻度损伤叠加：裂纹 + 能量闪烁 + 小火花（原地修改并返回同一实例）。
+
+    供任意机型复用——裂纹坐标按 254×254 骨架写死（机身中段与机翼内段），故各机型在这两处
+    必须有实体甲板，否则裂纹会飘在空中；`generate_machine_sprites.py` 的锚点自检钉住这条。"""
     # 裂纹线（橙红色，跨越机身）
     CRACK = (180, 80, 30, 255)
     CRACK_GLOW = (255, 140, 40, 180)
@@ -315,9 +321,11 @@ def player_ship_hit_1() -> Ship:
     return s
 
 
-def player_ship_hit_2() -> Ship:
-    """受击帧2：重度损伤——更多裂纹 + 暗淡 + 火花扩散 + 座舱受损。"""
-    s = player_ship_hit_1()  # 基于轻度损伤叠加
+def apply_hit_2(s: Ship) -> Ship:
+    """重度损伤叠加：更多裂纹 + 暗淡 + 火花扩散 + 座舱受损（原地修改并返回同一实例）。
+
+    **必须在已施加轻度损伤的同一实例上调用**（受击帧2 是受击帧1 的继续叠加，见
+    player_ship_hit_2）；重复叠加会得到不存在的第三档损伤。"""
     CRACK = (160, 60, 20, 255)
     CRACK_GLOW = (220, 100, 30, 200)
     # 额外裂纹（更密）
@@ -341,6 +349,16 @@ def player_ship_hit_2() -> Ship:
     dark = Image.new("RGBA", (254 * S, 254 * S), (20, 10, 5, 60))
     s.body = Image.alpha_composite(s.body, dark)
     return s
+
+
+def player_ship_hit_1() -> Ship:
+    """受击帧1：轻度损伤——裂纹 + 能量闪烁 + 小火花。"""
+    return apply_hit_1(player_ship())
+
+
+def player_ship_hit_2() -> Ship:
+    """受击帧2：重度损伤——更多裂纹 + 暗淡 + 火花扩散 + 座舱受损。"""
+    return apply_hit_2(apply_hit_1(player_ship()))
 
 
 def main() -> None:

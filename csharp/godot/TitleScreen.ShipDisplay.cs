@@ -1,4 +1,5 @@
 using Godot;
+using InfiAir.Core.Machines;
 
 namespace InfiAir;
 
@@ -6,6 +7,7 @@ namespace InfiAir;
 /// 标题屏·玩家机悬挂展示部分：自跃迁远点飞入（RadialStreaks 光线场 + 位置/尺寸减速缓动）→
 /// 右侧停驻（轮廓背光 + 幽灵拖影退场 + 尾焰怠速点火 + 悬浮浮动）。
 /// 时轴：0.2s 起飞 1.4s → 1.6s 落位收尾；全程 Tween/Timer，无 await。
+/// 机体外形跟当前机型走（标题屏机型面板选定后立刻换），尾焰/喷口位置各型共用同一套锚点。
 /// </summary>
 public partial class TitleScreen : CanvasLayer
 {
@@ -15,14 +17,24 @@ public partial class TitleScreen : CanvasLayer
     private Node2D _shipAnchor = null!;
     private Node2D _shipBobber = null!;
     private Node2D _warpStreaks = null!;
+    private Sprite2D _shipBody = null!;
     private readonly System.Collections.Generic.List<GpuParticles2D> _engines = new();
     private readonly System.Collections.Generic.List<Sprite2D> _nozzleGlows = new();
     private readonly System.Collections.Generic.List<Sprite2D> _ghosts = new();
 
     private Texture2D? _playerTex;
 
-    /// <summary>实例级缓存 GD.Load（命中引擎资源缓存）；不做 static 持有——引擎退出 finalize segfault 规则（同 ChamferedPanel.StreakTex）。</summary>
-    private Texture2D PlayerTex => _playerTex ??= GD.Load<Texture2D>("res://assets/sprites/player_ship.png");
+    /// <summary>机型变更回调：构造期建 Callable，_ExitTree 按同一实例断开。</summary>
+    private readonly Callable _onMachineChanged;
+
+    public TitleScreen()
+    {
+        _onMachineChanged = Callable.From<string>(OnMachineChanged);
+    }
+
+    /// <summary>当前机型的机体贴图（实例级缓存 GD.Load，命中引擎资源缓存；不做 static 持有——
+    /// 引擎退出 finalize segfault 规则，同 ChamferedPanel.StreakTex）。</summary>
+    private Texture2D? PlayerTex => _playerTex ??= GD.Load<Texture2D>(MachineRoster.SpritePath(GameState.Instance.Machine));
 
     private void BuildShipDisplay()
     {
@@ -70,13 +82,13 @@ public partial class TitleScreen : CanvasLayer
         }
 
         // 机体本体（微亮 modulate：星空背景下机身读得清）
-        var ship = new Sprite2D
+        _shipBody = new Sprite2D
         {
             Texture = PlayerTex,
             Scale = Vector2.One * ShipScale,
             Modulate = new Color(0.94f, 0.97f, 1.02f),
         };
-        _shipBobber.AddChild(ship);
+        _shipBobber.AddChild(_shipBody);
 
         // 尾焰怠速（青色对齐主色板；喷口按贴图 254px × scale 2 折算）
         foreach (var side in new[] { -66.0f, 66.0f })
@@ -139,6 +151,54 @@ public partial class TitleScreen : CanvasLayer
         foreach (var nozzle in _nozzleGlows)
         {
             ignite.TweenProperty(nozzle, "scale", Vector2.One * 0.75f, 0.3).SetDelay(1.3).SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
+        }
+
+        // 机型变更订阅：标题屏的机型面板就地选定后（不切场景），悬挂展示必须跟着换外形——
+        // 只按 _Ready 读一次的话，玩家选完看不到任何变化，会以为没选上。
+        // IsConnected 守卫：重入树路径不重复连接（同 Player / GameOverUi 口径）。
+        var gs = GameState.Instance;
+        if (!gs.IsConnected(GameState.SignalName.MachineChanged, _onMachineChanged))
+        {
+            gs.Connect(GameState.SignalName.MachineChanged, _onMachineChanged);
+        }
+    }
+
+    /// <summary>机型变更（标题屏面板选定 / 「继续上次出击」同步存档机型）：机体本体与两枚幽灵拖影
+    /// 一起换贴图。拖影通常已淡出退场，但玩家可能在飞入途中就选完机型——只换本体的话，
+    /// 旧的残影会叠在新型上多留半秒。</summary>
+    private void OnMachineChanged(string id)
+    {
+        var tex = GD.Load<Texture2D>(MachineRoster.SpritePath(id));
+        _playerTex = tex;
+        SetShipTexture(_shipBody, tex);
+        foreach (var ghost in _ghosts)
+        {
+            SetShipTexture(ghost, tex);
+        }
+    }
+
+    /// <summary>换一张机体贴图（节点已失效时跳过：信号可能在本节点退场的那一帧里到达）。</summary>
+    private static void SetShipTexture(Sprite2D sprite, Texture2D? texture)
+    {
+        if (GodotObject.IsInstanceValid(sprite))
+        {
+            sprite.Texture = texture;
+        }
+    }
+
+    public override void _ExitTree()
+    {
+        // 显式断开 GameState 信号连接（C# Connect 连接不随接收方释放自动断开）
+        // autoload 可能先于本节点释放（非常规拆树序），Instance getter 会抛异常，故安全取值
+        var gs = GameState.TryGetInstance();
+        if (gs == null)
+        {
+            return;
+        }
+
+        if (gs.IsConnected(GameState.SignalName.MachineChanged, _onMachineChanged))
+        {
+            gs.Disconnect(GameState.SignalName.MachineChanged, _onMachineChanged);
         }
     }
 

@@ -71,6 +71,12 @@ public sealed partial class SettingsService : RefCounted
     /// <summary>瞄准辅助强度档位（settings.json 持久化，默认 medium；常驻不可关，无 off 档；数值见 AIM_ASSIST_ORDER 注释）</summary>
     public StringName AimAssistLevel { get; set; } = new StringName("medium");
 
+    /// <summary>初始机型 id（settings.json 持久化，默认标准型 = 与加机型之前的数值/贴图逐位一致）。
+    /// 白名单在 core <see cref="InfiAir.Core.Machines.MachineRoster"/>：非法值与旧档缺键都归一标准型，
+    /// 选定与生效值由 <c>GameState.SetMachine</c> 一处收口（归一 id → 落本字段 → 写盘 → 结算血上限），
+    /// 本字段因此**没有独立 setter**——两个写入口会让「偏好」与「生效值」在某一刻静默错位。</summary>
+    public string MachineId { get; set; } = InfiAir.Core.Machines.MachineRoster.StandardId;
+
     /// <summary>Meta HUD 当前 LOD（由 MetaHealthFX._ready 从 effects.meta_health.lod 写入；0=MetaFX 接管
     /// 低血晕影，hud 旧晕影恒 0；非 0=回退路径，hud 保留低血脉动。MetaFX 离场时置 1）</summary>
     public int MetaFxLod { get; set; } = 1;
@@ -135,6 +141,7 @@ public sealed partial class SettingsService : RefCounted
         CustomWindowWidth = 1920;
         CustomWindowHeight = 1080;
         AimAssistLevel = new StringName("medium");
+        MachineId = InfiAir.Core.Machines.MachineRoster.StandardId;
         ReduceFlash = false;
         HighContrast = DefaultHighContrast;
         ShakeScale = 1.0;
@@ -1090,6 +1097,10 @@ public sealed partial class SettingsService : RefCounted
             AimAssistLevel = savedAim;
         }
 
+        // 初始机型：白名单在 core 名册（未知 id / 旧档缺键 → 标准型，不报错也不改写档案）
+        MachineId = InfiAir.Core.Machines.MachineRoster.ById(
+            ReadString(data.GetValueOrDefault("machine", new Variant()), string.Empty)).Id;
+
         // 性能：帧率上限档（白名单）+ 垂直同步；非法值保持默认，末尾统一应用到引擎
         var savedFps = ReadStringName(data.GetValueOrDefault("fps_cap", new Variant()), new StringName());
         if (FPS_CAP_LEVELS.ContainsKey(savedFps))
@@ -1281,6 +1292,7 @@ public sealed partial class SettingsService : RefCounted
             ["custom_width"] = CustomWindowWidth,
             ["custom_height"] = CustomWindowHeight,
             ["aim_assist"] = AimAssistLevel.ToString(),
+            ["machine"] = MachineId,
             ["reduce_flash"] = ReduceFlash,
             ["high_contrast"] = HighContrast,
             ["world_post_fx"] = WorldPostFx,

@@ -181,14 +181,11 @@ public partial class GameState : Node
             Mathf.Max(Cfg("reward_scaling.kill_score_ramp_factor", 0.15).AsDouble(), 0.0),
             Mathf.Clamp(Cfg("reward_scaling.graze_combo_weight", 1.0).AsDouble(), 0.0, 1.0),
             Mathf.Max(Cfg("reward_scaling.graze_difficulty_factor", 0.15).AsDouble(), 0.0));
-        // 健康配置注入 CombatStateService（Cfg 调用留 GameState 侧，钳制注释随迁；
-        // 与 ScoreService.ApplyComboConfig 同构）——max_health ≤0 使上限归零/负值，玩家秒死
-        // 与 _maxHpBase 钳制对称——负值使 extra_life 叠层反而降血上限（生存轴收紧意图相悖）
-        // 吸血比例缓存（击杀帧免 cfg 路径解析）
-        _combat.ApplyHealthConfig(
-            Mathf.Max(Cfg("player.max_health", _combat.MaxHpBase).AsDouble(), 0.1),
-            Mathf.Max(Cfg("augments.extra_life.max_hp_bonus", _combat.MaxHpBonus).AsDouble(), 0.0),
-            Mathf.Max(Cfg("augments.lifesteal.base_hp_fraction", 0.05).AsDouble(), 0.0));
+        // 健康配置注入 CombatStateService：机型乘区先解出来，血上限与吸血定额随之一起落
+        //（player.max_health ≤0 使上限归零/负值、玩家秒死；extra_life 负加成使叠层反而降上限——
+        // 两条钳制与 Cfg 调用随机型收在 GameState.Machine.cs 的 ApplyMachineHealth 里）
+        _machineMods = ResolveMachineMods(_machine);
+        ApplyMachineHealth();
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);
         GRANT_PER_VISIT = Mathf.Max((int)Cfg("base_task.grant_per_visit", GRANT_PER_VISIT).AsInt64(), 0);
@@ -482,6 +479,9 @@ public partial class GameState : Node
 
     public void ResetRun()
     {
+        // 机型：新一局取玩家在标题屏的偏好（读档则由 ApplyRunDict 第 0 步以存档为准覆盖）。
+        // 必须先于 _combat.ResetAll——后者把血量置满，而满血的分母就是这里定下的上限。
+        ApplyMachine(_settings.MachineId, persistPreference: false);
         // 健康/增幅 复位改调 CombatStateService（Augments.Clear + Health=MaxHealth；
         // 不发事件——AugmentsChanged 仍由下方直发收尾，顺序不变）
         _combat.ResetAll();

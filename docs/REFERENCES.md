@@ -211,6 +211,29 @@
 
 **边界说明**：War Thunder 两条属飞行模拟而非弹幕射击，引用的是「翼尖涡流/蒸气 = 机动读数」这一表达惯例本身；MechWarrior 的热量是**资源**（影响射速与停机），本作只借它的颜色表达，不引入过热惩罚（引入即改玩法数值，须先按 §2 定稿）。
 
+### 4.15 初始机型（开局选机体）调研（2026-09-19）
+
+主题：**开局前选一种机体、各给一项不同的加成**（`DESIGN_BASELINE` §1.17）。要证两件事——「选机体」是这一类型的通行做法，以及**单项加成该给多大**。第二件外部没有权威数字，故落点是：形状取行业惯例，**量级锚定本作自己的既有刻度**（增幅一级 / 难度档），不在网上捡数字。
+
+| 来源 | 逐字要点 | 落地 |
+| --- | --- | --- |
+| **Wikipedia《DoDonPachi》**（Cave，1997 弹幕射击代表作） | 「There are three different ships to choose between, and each ship can be played in Laser or Shot mode.」三型射击形态各不相同：A 型窄流直射、B 型为直升机（侧炮随移动方向旋转）、C 型三向散射 | 开局选机体是弹幕/纵版射击的**基础惯例**，且差异落在**手感与攻击形态**上。本作取「机型 = 一项数值乘区 + 一副专有外观」，不新增武器形态（新增形态属玩法系统扩展，代价远大于本批） |
+| 同上（火力 ↔ 机动的反向权衡，Cave 自己的实现） | 「If the fire button is held down, the floating guns combine in front of the ship to produce a vertical beam, **which provides more firepower than standard fire. This also makes the ship move more slowly.**」 | 该类型的正统做法是「火力买机动」——**取舍是设计出来的**。本批按人类要求只给加成不加惩罚，取舍只来自「六选一」的机会成本；故量级必须压在亚一层增幅之下，不能让机型替玩家把这道权衡做掉 |
+| **SLYNYRD《Pixelblog-32 Shmup Design Part 2》**（弹幕游戏设计教程） | ① 「Speed … **as speedy movements can be a disadvantage when navigating through tight spaces.**」② 论属性取值的具体数字：「**The specific attributes and quantities are a personal choice.** As the developer, you are free to implement ideas in any manner you like.」 | ① 速度是**双刃剑**（快＝灵活但难走细缝）——支持「移速加成不是纯上位」，故它与其余四项并列成立；② 教程把数值定为开发者自主项——正是本仓库 `AGENTS.md` §2「玩家可感且无客观对错 → 给依据 + 实测定稿」的口径，故量级改锚本作内部刻度（下表） |
+
+**量级锚定（本作自己的刻度，非外部数字）**：
+
+| 锚 | 值 | 说明 |
+| --- | --- | --- |
+| 一层 `power_shot` 增幅 | ×1.25（+25% 伤害） | 机型加成必须**明显小于一层增幅**：增幅要花本局赚到的天赋点，机型是开局白送 |
+| 一层 `rapid_fire` 增幅 | 间隔 ×0.75（+33% 射速） | 同上 |
+| 一层 `armor` 增幅 | ×0.85（−15% 受伤） | 壁垒型取同档或以下，且不与护甲共用一条路径（护甲要加点，机型开局就带） |
+| 难度档差距 | hard 相对 easy：敌 HP ×1.5 / 移速 ×1.2 / 刷怪间隔 ×0.8 | 机型加成远小于一档难度差——难度档仍是玩家能选的最大单一杠杆 |
+| 感知下限 | 既有可读步进（如擦弹 +5 分/层、命中音 45ms 限频） | 加成要「一眼看得出、实测算得出」，不做读不出的装饰 |
+
+**未能核验**：`shmups.wiki`（社区数字图书馆，含 Boghog《Bullet hell shmup 101》等机体/速度讨论）在本环境不可达，故不引用其内容；检索摘要方向（「fast, powerful ships with narrow shots, or slower weaker ships with wide shots」）与上表一致，但**未经页面核验，不作条款推断**。
+
+
 ## 5 参考来源（URL 存档）
 
 **许可证**：`creativecommons.org/publicdomain/zero/1.0/legalcode.{en,txt}`、`creativecommons.org/licenses/by/4.0/legalcode.txt`、`creativecommons.org/licenses/by-sa/4.0/legalcode.txt`、`opensource.org/license/ofl-1-1`、`openfontlicense.org/ofl-faq/`、`spdx.dev/learn/handling-license-info/`、`reuse.software/spec-3.3/`
@@ -218,6 +241,7 @@
 **玩法与无障碍**：`gameaccessibilityguidelines.com/{basic,intermediate,advanced}`、`learn.microsoft.com/en-us/gaming/accessibility/guidelines` 与 `.../xbox-accessibility-guidelines/{103,108,110,116,117,118}`、`riskofrain2.wiki.gg/wiki/Difficulty`、`brotato.wiki.spellsandguns.com/Endless_Mode`、`slaythespire.wiki.gg/wiki/Cards`、`en.wikipedia.org/wiki/{DoDonPachi,Battle_Garegga,Reaction_control_system}`、`github.com/GensokyoClub/th06`、`gdcvault.com/play/1023146`、`roystan.net/articles/camera-shake.html`、`hardcoregaming101.net/{battle-garegga,dodonpachi,touhou}`、`psychologyofgames.com/2017/12/using-psychology-to-design-leveling-systems/`、`tboi.com/devil-room`
 **手感与动效**：`egmatic.com/blog/how-to-make-your-game-feel-good`、`en.senkohome.com/sakurai-game-dev-{specification,motion}/`、`youtube.com/@sora_sakurai_en`、`bugnet.io/blog/animation-principles-every-game-developer-should-know`、`gamedesignskills.com/game-design/game-feel/`、`book.leveldesignbook.com/process/combat/enemy`、`sparen.github.io/ph3tutorials/ddsga2.html`、`mystpixel.com/posts/5-visual-clutter-culprits-ruining-your-indie-game-s-combat-readability/`、`scifiinterfaces.com/tag/{hologram,glow}`
 **机体形态与热读数（§4.14）**：`steamcdn-a.akamaihd.net/apps/valve/2007/NPAR07_IllustrativeRenderingInTeamFortress2.pdf`、`leagueoflegends.com/en-us/news/dev/clarity-in-league/`、`en.wikipedia.org/wiki/{Variable-sweep_wing,Grumman_F-14_Tomcat,Convair_B-36_Peacemaker,Wingtip_vortices,Red_heat,Thermal_radiation,Twelve_basic_principles_of_animation}`、`warthunder.com/en/news/{7705-development-f-14a-tomcat-into-the-danger-zone-en,8137-development-new-effects-for-aviation-in-the-sky-guardians-update-en,9195-development-firebirds-effects-improvements-to-aviation-en}`、`www1.grc.nasa.gov/beginners-guide-to-aeronautics/downwash-effects-on-lift/`、`skeletoncodemachine.com/p/mech-week-heat`、`wiki.mechlinglegends.net/index.php?title=Heat`
+**初始机型与机体差异（§4.15）**：`en.wikipedia.org/wiki/DoDonPachi`、`slynyrd.com/blog/2021/2/15/pixelblog-32-shmup-design-part-2`
 **准星与 FPS 惯例**：`ign.com/wikis/valorant/The_Best_Valorant_Crosshair_Guide`、`totalcsgo.com`、`dmarket.com`、`prosettings.net`
 **测试与引擎**：`arxiv.org/abs/2202.12777`、`developer.valvesoftware.com/wiki/Soak_testing`、`docs.godotengine.org/en/stable/tutorials/{editor/command_line_tutorial,performance/*,rendering/renderers,audio/sync_with_audio,scripting/c_sharp/*}`
 **规则 / 文档治理**：`code.claude.com/docs/en/{memory,best-practices,skills}`、`cursor.com/docs/context/rules`、`docs.cline.bot/features/cline-rules`、`code.visualstudio.com/docs/copilot/customization/custom-instructions`、`agents.md`、`anthropic.com/engineering/effective-context-engineering-for-ai-agents`、`humanlayer.dev/blog/writing-a-good-claude-md`、`trychroma.com/research/context-rot`、`arxiv.org/abs/{2507.11538,2602.11988,2307.03172,2608.11095}`、`diataxis.fr/`、`cognitect.com/blog/2011/11/15/documenting-architecture-decisions`、`adr.github.io/`、`martinfowler.com/bliki/ArchitectureDecisionRecord.html`、`docs.gitlab.com/development/documentation/{workflow,styleguide}.html`、`kubernetes.io/docs/reference/using-api/deprecation-policy/`、`peps.python.org/pep-0387/`、`bazel.build/release/backward-compatibility`

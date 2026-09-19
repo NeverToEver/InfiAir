@@ -2,6 +2,7 @@ using Godot;
 using InfiAir.Core;
 using InfiAir.Core.Combat;
 using InfiAir.Core.Input;
+using InfiAir.Core.Machines;
 using InfiAir.Core.Visual;
 
 namespace InfiAir;
@@ -239,10 +240,21 @@ public partial class Player : CharacterBody2D
     private Area2D? _hitbox;
     private GpuParticles2D? _thruster;
 
-    // ---- 受击帧纹理（按 HP 阈值切换） ----
-    private readonly Texture2D _texNormal = GD.Load<Texture2D>("res://assets/sprites/player_ship.png");
-    private readonly Texture2D _texHit1 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_1.png");
-    private readonly Texture2D _texHit2 = GD.Load<Texture2D>("res://assets/sprites/player_ship_hit_2.png");
+    // ---- 机型（balance.json machines.*；乘区乘在基准值之上，口径见 DESIGN_BASELINE §1.17） ----
+    /// <summary>本局机型（启动读一次；换机经 MachineChanged 重落，**不重跑 LoadBalance**——
+    /// 那条路会白送满无敌并回满燃料，是「启动读一次」型缓存的既定坑）。</summary>
+    private MachineSpec _machineSpec = MachineRoster.Default;
+    /// <summary>生效乘区（balance 覆盖 + 域收口后的值）。</summary>
+    private MachineModifiers _machineMods = MachineModifiers.Baseline;
+    /// <summary>未经机型乘区的配置基准值：乘区必须乘在它上面，不能乘在已含乘区的属性上——
+    /// 拿属性自身当 cfg 回退默认时，键缺失会让乘区一次一次往上叠（只在缺键那条路上看得出来）。</summary>
+    private float _maxSpeedCfg = 420.0f;
+    private float _fireIntervalCfg = 0.15f;
+
+    // ---- 受击帧纹理（按机型取、按 HP 阈值切换） ----
+    private Texture2D? _texNormal;
+    private Texture2D? _texHit1;
+    private Texture2D? _texHit2;
     private int _damageLevel; // 0=正常, 1=轻伤, 2=重伤
     private double _cachedMaxHp = 100.0; // MaxHealth 热路径缓存（extra_life 随增幅变化，AugmentsChanged 时刷新）
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
@@ -263,6 +275,7 @@ public partial class Player : CharacterBody2D
     private float _sweepAmp;             // 本次扫光幅度（基础值 × 里程碑档倍率）
 
     private readonly Callable _onRefreshAugmentFactors;
+    private readonly Callable _onMachineChanged;
     private readonly Callable _onAimAssistLevelChanged;
     private readonly Callable _onJoySettingsChanged;
     private readonly Callable _onFogEventStarted;
@@ -287,6 +300,7 @@ public partial class Player : CharacterBody2D
         _onComboChanged = Callable.From<int>(OnComboChanged);
         _onPlayerDamagedSweep = Callable.From<float, Vector2>(OnPlayerDamagedSweep);
         _onParryLanded = Callable.From(OnParryLanded);
+        _onMachineChanged = Callable.From<string>(OnMachineChanged);
     }
 
     public override void _Ready()
@@ -295,8 +309,14 @@ public partial class Player : CharacterBody2D
         _hitbox = GetNode<Area2D>("Hitbox");
         GameState.Instance.PlayerHitbox = _hitbox;
         LoadBalance();
-        RefreshAugmentFactors();
+        ApplyMachineFactors();
         var gs = GameState.Instance;
+        if (!gs.IsConnected(GameState.SignalName.MachineChanged, _onMachineChanged))
+        {
+            // 读档还原机型发生在 Main._Ready（晚于本节点），故必须订阅而不是只读一次
+            gs.Connect(GameState.SignalName.MachineChanged, _onMachineChanged);
+        }
+
         if (!gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
         {
             gs.Connect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
@@ -458,9 +478,9 @@ public partial class Player : CharacterBody2D
         _damageLevel = level;
         _sprite.Texture = level switch
         {
-            1 => _texHit1,
-            2 => _texHit2,
-            _ => _texNormal,
+            1 => _texHit1!,
+            2 => _texHit2!,
+            _ => _texNormal!,
         };
         if (_glow != null) _glow.Texture = _sprite.Texture;
         _visuals.SetDamageLevel(level); // 重伤档：损伤烟 + 引擎喘振（§2.17）
@@ -470,13 +490,14 @@ public partial class Player : CharacterBody2D
     private void LoadBalance()
     {
         // 运动/速度族钳 ≥0——负值致反向移动/反向加速
-        MaxSpeed = CfgFx.Float("player.max_speed", MaxSpeed, 0.0f);
+        // （机型乘区在 ApplyMachineFactors 里乘上，此处只读基准值）
+        _maxSpeedCfg = CfgFx.Float("player.max_speed", _maxSpeedCfg, 0.0f);
         Accel = CfgFx.Float("player.accel", Accel, 0.0f);
         Decel = CfgFx.Float("player.decel", Decel, 0.0f);
         BoostMult = CfgFx.Float("player.boost_mult", BoostMult, 0.0f);
         FineMoveMult = CfgFx.Float("player.fine_move_mult", FineMoveMult, 0.0f);
         // base_fire_interval 钳 0.05 下限（同 laser tick_interval 族）——≤0 时每物理帧开火
-        BaseFireInterval = CfgFx.Float("player.base_fire_interval", BaseFireInterval, CfgFx.IntervalFloor);
+        _fireIntervalCfg = CfgFx.Float("player.base_fire_interval", _fireIntervalCfg, CfgFx.IntervalFloor);
         BulletSpeed = CfgFx.Float("player.bullet_speed", BulletSpeed, 0.0f);
         // crit_shot.chance 钳 [0,1]——>1 刀刀暴击；multiplier 钳 ≥0——负暴击倍数致回血
         CritChanceBase = CfgFx.Float("augments.crit_shot.chance", CritChanceBase, 0.0f, 1.0f);
@@ -913,7 +934,9 @@ public partial class Player : CharacterBody2D
         _fuelDrainRate = AugmentScale(AugEfficientBoost, FuelDrain, (float)GameState.Instance.TalentEffLevel(AugEfficientBoost));
         _fuelRegenRate = AugmentScale(AugBoostRecovery, FuelRegen, (float)GameState.Instance.TalentEffLevel(AugBoostRecovery));
         _fireIntervalValue = AugmentScale(AugRapidFire, BaseFireInterval, (float)GameState.Instance.TalentEffLevel(AugRapidFire));
-        _bulletDamageValue = Mathf.Max(1, (int)AugmentScale(AugPowerShot, BulletDamage, (float)GameState.Instance.TalentEffLevel(AugPowerShot)));
+        // 机型攻击力乘区与 power_shot 叠乘，取整后再钳 ≥1（0 伤害的弹体会「打不动」而无声）
+        _bulletDamageValue = Mathf.Max(1, (int)(AugmentScale(AugPowerShot, BulletDamage, (float)GameState.Instance.TalentEffLevel(AugPowerShot))
+            * (float)_machineMods.DamageMult));
         _bulletSpeedValue = AugmentScale(AugBulletSpeed, BulletSpeed, (float)GameState.Instance.TalentEffLevel(AugBulletSpeed));
         _spreadShotCount = AugmentCap(AugSpreadShot);
         _pierceCount = AugmentCap(AugPiercing);
@@ -966,6 +989,52 @@ public partial class Player : CharacterBody2D
         // 由本方法（_Ready 首调 + AugmentsChanged 驱动）刷新，避免 _Process 每帧 Dictionary 查找。
         _cachedMaxHp = GameState.Instance.MaxHealth();
     }
+
+    /// <summary>
+    /// 机型因素落到玩家数值与贴图上：读生效乘区 → 机动/射速基准值乘上乘区 →
+    /// 重算受击减免链的减伤乘区 → 换贴图。**启动一次 + 换机时重跑**，
+    /// 刻意不重跑 <see cref="LoadBalance"/>（约 60 项配置重读会白送满无敌并回满燃料）。
+    /// 射速与伤害走 <see cref="RefreshAugmentFactors"/> 重算：它们与增幅是叠乘关系，
+    /// 在那里合成才不会出现「换了机型但缓存还是旧乘区」的静默半生效。
+    /// </summary>
+    private void ApplyMachineFactors()
+    {
+        _machineSpec = GameState.Instance.Machine;
+        _machineMods = GameState.Instance.MachineMods;
+        MaxSpeed = _maxSpeedCfg * (float)_machineMods.MoveSpeedMult;
+        BaseFireInterval = _fireIntervalCfg * (float)_machineMods.FireIntervalMult;
+        _damage.SetDamageTakenMult((float)_machineMods.DamageTakenMult);
+        RefreshAugmentFactors();
+        ApplyMachineTextures();
+    }
+
+    /// <summary>按机型换四张贴图（本体 / 两个受击帧 / 能量遮罩），并复位受击帧档位让
+    /// <see cref="UpdateDamageFrame"/> 重判一次（同档早退，不复位会停在上一型的那张图）。
+    /// 遮罩只含能量图元、不含损伤结构，故受击帧切换不动它（与 §2.3 的既有口径一致）。</summary>
+    private void ApplyMachineTextures()
+    {
+        _texNormal = GD.Load<Texture2D>(MachineRoster.SpritePath(_machineSpec));
+        _texHit1 = GD.Load<Texture2D>(MachineRoster.SpritePath(_machineSpec, HullDamageFrame.Light));
+        _texHit2 = GD.Load<Texture2D>(MachineRoster.SpritePath(_machineSpec, HullDamageFrame.Heavy));
+        if (_sprite != null)
+        {
+            _damageLevel = -1;
+            UpdateDamageFrame();
+        }
+
+        if (_energyLayer != null)
+        {
+            var mask = GD.Load<Texture2D>(MachineRoster.GlowSpritePath(_machineSpec));
+            if (mask != null)
+            {
+                _energyLayer.Texture = mask;
+            }
+        }
+    }
+
+    /// <summary>机型在局内变更（读档还原 / 标题屏选定后重进场景）→ 重落数值与贴图。
+    /// 不触发 FuelGauge/无敌等一次性初始化项：换机不是重开一局。</summary>
+    private void OnMachineChanged(string _id) => ApplyMachineFactors();
 
     /// <summary>graze_field 改变擦弹环半径后同步碰撞形状（增减层时刷新；非热路径）。</summary>
     private void RefreshGrazeShape()
@@ -2127,6 +2196,11 @@ public partial class Player : CharacterBody2D
             if (gs.IsConnected(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors))
             {
                 gs.Disconnect(GameState.SignalName.AugmentsChanged, _onRefreshAugmentFactors);
+            }
+
+            if (gs.IsConnected(GameState.SignalName.MachineChanged, _onMachineChanged))
+            {
+                gs.Disconnect(GameState.SignalName.MachineChanged, _onMachineChanged);
             }
 
             if (gs.IsConnected(GameState.SignalName.AimAssistChanged, _onAimAssistLevelChanged))

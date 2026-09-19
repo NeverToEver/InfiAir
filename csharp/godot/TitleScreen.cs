@@ -46,13 +46,19 @@ public partial class TitleScreen : CanvasLayer
     /// <summary>练习设置面板（P 打开；打开期间标题屏不再消费按键——否则面板上按任意键会直接开新局）。</summary>
     private PracticePanel? _practicePanel;
 
+    /// <summary>机型选择面板（M 打开；与练习面板同一条「打开期间标题屏不消费按键」的守卫）。</summary>
+    private MachinePanel? _machinePanel;
+
     /// <summary>底部「教程」入口按钮（手柄可聚焦：dpad/摇杆移动焦点、A 确认，键盘 T 与点击照旧）。</summary>
     private Button _tutorialEntry = null!;
 
     /// <summary>底部「练习」入口按钮（同上；键盘 P 与点击照旧）。</summary>
     private Button _practiceEntry = null!;
 
-    /// <summary>当前聚焦的入口（"tutorial" / "practice"；无焦点空串）——探针断手柄导航的落位。</summary>
+    /// <summary>底部「机型」入口按钮（同上；键盘 M 与点击照旧）。</summary>
+    private Button _machineEntry = null!;
+
+    /// <summary>当前聚焦的入口（"tutorial" / "practice" / "machine"；无焦点空串）——探针断手柄导航的落位。</summary>
     public string FocusedEntryName()
     {
         var owner = GetViewport()?.GuiGetFocusOwner();
@@ -61,11 +67,19 @@ public partial class TitleScreen : CanvasLayer
             return "tutorial";
         }
 
-        return owner == _practiceEntry ? "practice" : "";
+        if (owner == _practiceEntry)
+        {
+            return "practice";
+        }
+
+        return owner == _machineEntry ? "machine" : "";
     }
 
     /// <summary>练习设置面板是否展开（探针断「手柄确认能进练习入口」）。</summary>
     public bool PracticePanelOpen() => _practicePanel != null;
+
+    /// <summary>机型选择面板是否展开（探针断「手柄确认能进机型入口」）。</summary>
+    public bool MachinePanelOpen() => _machinePanel != null;
 
     public override void _Ready()
     {
@@ -208,7 +222,7 @@ public partial class TitleScreen : CanvasLayer
         titleIn.TweenProperty(vbox, "modulate:a", 1.0f, 0.5).SetDelay(1.0).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
         titleIn.TweenProperty(vbox, "position:x", 140.0f, 0.5).From(104.0f).SetDelay(1.0).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
 
-        // 底部入口（1.8s 淡入）：教程与练习并排一行——两处都是「不走本局」的入口，
+        // 底部入口（1.8s 淡入）：教程 / 练习 / 机型并排一行——三处都是「不走本局」的入口，
         // 分开摆会让玩家以为练习是教程的下级
         var hintRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
         hintRow.AddThemeConstantOverride("separation", 48);
@@ -232,6 +246,9 @@ public partial class TitleScreen : CanvasLayer
         _practiceEntry = MakeEntryButton((string)Tr("TITLE_PRACTICE"), UITheme.TextDim);
         _practiceEntry.Pressed += OpenPracticePanel;
         hintRow.AddChild(_practiceEntry);
+        _machineEntry = MakeEntryButton((string)Tr("TITLE_MACHINE"), UITheme.TextDim);
+        _machineEntry.Pressed += OpenMachinePanel;
+        hintRow.AddChild(_machineEntry);
         AddChild(hintRow);
         var tutIn = hintRow.CreateTween();
         tutIn.TweenProperty(hintRow, "modulate:a", 1.0f, 0.4).SetDelay(1.8).SetTrans(Tween.TransitionType.Quad).SetEase(Tween.EaseType.Out);
@@ -285,9 +302,9 @@ public partial class TitleScreen : CanvasLayer
             return;
         }
 
-        // 练习面板打开期间标题屏不消费任何输入：面板自己收 Esc/方向键，但「按任意键开局」若照旧生效，
+        // 面板（练习 / 机型）打开期间标题屏不消费任何输入：面板自己收 Esc/方向键，但「按任意键开局」若照旧生效，
         // 在面板上敲空格/回车会直接开一局（而不是切那一行选项）。
-        if (_practicePanel != null)
+        if (_practicePanel != null || _machinePanel != null)
         {
             return;
         }
@@ -309,6 +326,15 @@ public partial class TitleScreen : CanvasLayer
                 return;
             }
 
+            // 机型入口（M）与 P 同类：它也不离开标题屏（面板关掉后还能按 T/C/任意键），
+            // 故不得置 _started；必须排在「任意键开局」兜底之前，否则 M 会被兜底吃掉。
+            if (kc == Key.M)
+            {
+                GetViewport().SetInputAsHandled();
+                OpenMachinePanel();
+                return;
+            }
+
             if (kc == Key.T)
             {
                 StartFromTitle("res://scenes/tutorial.tscn");
@@ -318,6 +344,15 @@ public partial class TitleScreen : CanvasLayer
                 // 读取上次存档（仅在存在存档时消费 C；无档时 C 等同「任意键」新局）
                 GetViewport().SetInputAsHandled();
                 _started = true;
+                // 本局不能换机：继续时以存档里的机型为准。Player._Ready 早于 Main 的读档，
+                // 故必须在切场景前就落定——否则本局按标题屏的偏好起飞，与 run.json 记的那一型不一致
+                // （贴图与乘区都会是「设置里写着 A、飞的是 B」那种不报错的坏法）。
+                var runMachine = GameState.Instance.PeekRunMachineId();
+                if (!string.IsNullOrEmpty(runMachine))
+                {
+                    GameState.Instance.SetMachine(runMachine);
+                }
+
                 GameState.Instance.PendingLoadRun = true;
                 StartScene("res://scenes/main.tscn");
             }
@@ -380,7 +415,7 @@ public partial class TitleScreen : CanvasLayer
         }
     }
 
-    /// <summary>激活当前聚焦的入口（手柄 A；与按钮点击/键盘 T/P 同一处理口）。</summary>
+    /// <summary>激活当前聚焦的入口（手柄 A；与按钮点击/键盘 T/P/M 同一处理口）。</summary>
     private void ActivateFocusedEntry()
     {
         var owner = GetViewport()?.GuiGetFocusOwner();
@@ -391,6 +426,10 @@ public partial class TitleScreen : CanvasLayer
         else if (owner == _practiceEntry)
         {
             OpenPracticePanel();
+        }
+        else if (owner == _machineEntry)
+        {
+            OpenMachinePanel();
         }
     }
 
@@ -412,8 +451,41 @@ public partial class TitleScreen : CanvasLayer
         var panel = new PracticePanel();
         _practicePanel = panel;
         panel.StartRequested += setup => GameState.Instance.EnterPractice(setup);
-        panel.Closed += () => _practicePanel = null;
+        panel.Closed += () =>
+        {
+            _practicePanel = null;
+            SetEntriesFocusable(true);
+        };
         AddChild(panel);
+        SetEntriesFocusable(false);
+    }
+
+    /// <summary>打开机型选择面板（M）：面板自带遮罩与逐行预览，选定即经生产单口
+    /// <c>GameState.SetMachine</c> 落地（不必确认）；取消（Esc）即自关。
+    /// _started 不置位——理由同练习面板。</summary>
+    private void OpenMachinePanel()
+    {
+        var panel = new MachinePanel();
+        _machinePanel = panel;
+        panel.Closed += () =>
+        {
+            _machinePanel = null;
+            SetEntriesFocusable(true);
+        };
+        AddChild(panel);
+        SetEntriesFocusable(false);
+    }
+
+    /// <summary>底部入口的可聚焦性（面板打开期间关掉、退场时恢复）。面板与背后的入口同在一个视口里，
+    /// 方向键的焦点搜索会跨过遮罩：焦点一旦走出面板落到入口上，回车/ A 就经 GUI 相位激活了它
+    /// （面板之上再开一层、或直接切走场景），而标题屏的输入守卫只管自己那条 _UnhandledInput。
+    /// 入口的手柄可达性本身不变——它只在模态期间让位。</summary>
+    private void SetEntriesFocusable(bool on)
+    {
+        var mode = on ? Control.FocusModeEnum.All : Control.FocusModeEnum.None;
+        _tutorialEntry.FocusMode = mode;
+        _practiceEntry.FocusMode = mode;
+        _machineEntry.FocusMode = mode;
     }
 
     /// <summary>开局确认：logo 放大回弹 + 受激提亮、标题短线提亮、按任意键提示弹一下。

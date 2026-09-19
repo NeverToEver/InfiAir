@@ -20,8 +20,10 @@ public partial class ReturnCinematic : CanvasLayer
     private const float Transition = 0.3f; // 镜头间黑场淡入淡出（含在各镜头时长内）
     private const float OutroFade = 0.9f; // 镜头 7 末尾渐暗到全黑（与闭眼重叠，BGM 同步淡出）
 
-    // 战机贴图（static 禁止持有 Godot Resource——退出 segfault 实测；实例字段持有）
-    private readonly Texture2D _playerShip = GD.Load<Texture2D>("res://assets/sprites/player_ship.png");
+    // 战机贴图（static 禁止持有 Godot Resource——退出 segfault 实测；实例字段持有）。
+    // 取当前机型：过场里飞的是本局那一架，换机型后过场立刻跟着换（素材路径单源在 core 名册）
+    private readonly Texture2D _playerShip =
+        GD.Load<Texture2D>(InfiAir.Core.Machines.MachineRoster.SpritePath(GameState.Instance.MachineId));
 
     /// <summary>输入宽限：开播前 SKIP_GRACE 秒内忽略跳过（防实战中 WASD/Shift/Space 持续按键瞬间误触；
     /// 任意键/点击/Esc 路由统一收敛在 skip() 内受控；effects.return_skip_grace 可调）</summary>

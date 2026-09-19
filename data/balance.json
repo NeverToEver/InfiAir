@@ -115,6 +115,23 @@
 			}
 		}
 	},
+	"machines": {
+		"peregrine": {
+			"move_speed_mult": 1.15
+		},
+		"sledge": {
+			"damage_mult": 1.2
+		},
+		"repeater": {
+			"fire_interval_mult": 0.85
+		},
+		"bulwark": {
+			"damage_taken_mult": 0.85
+		},
+		"colossus": {
+			"max_hp_mult": 1.2
+		}
+	},
 	"enemies": {
 		"bullet_speed": 420,
 		"spread_bullet_speed": 340,

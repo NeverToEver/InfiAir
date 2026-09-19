@@ -72,6 +72,10 @@ public partial class GameState : Node
 
         // 设置域持久化桥在 SettingsService（设置字段应用含键位/窗口/视图缓存副作用）
         _settings.ApplySettingsDict(VariantBridge.ToVariant(result.Tree).AsGodotDictionary());
+        // 机型偏好决定生效乘区与血上限，而 ApplyBalance 早于本方法执行（开机链路里数值先就位、
+        // 设置后载入）——偏好读到之后必须再落一次生效值，否则盘上选了特种型、本局却按标准型起飞。
+        // persist=false：本次读到的正是盘上的值，回写只会给每次开机添一次无谓写盘。
+        ApplyMachine(_settings.MachineId, persistPreference: false);
     }
 
     /// <summary>当前设置字段收集落盘（键位/难度/locale 等设置项变更即调用）——

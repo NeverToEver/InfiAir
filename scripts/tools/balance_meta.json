@@ -4,6 +4,7 @@
 		"version": { "title": "版本", "note": "数值表格式版本；生产代码不读，仅供工具链识别", "source": "data/balance.json" },
 		"world_scale": { "title": "世界缩放", "note": "全部世界坐标的统一缩放系数", "source": "csharp/godot/GameState.State.cs" },
 		"player": { "title": "玩家", "note": "机体机动、火力、燃料、冲刺、弹反、擦弹与辅助瞄准", "source": "csharp/godot/Player.cs" },
+		"machines": { "title": "初始机型", "note": "六型机体的乘区；标准型不列键（全部 1.0），每个特种型只列它加成的那一项，未列的项取代码默认 1.0", "source": "csharp/core/Machines/MachineRoster.cs" },
 		"enemies": { "title": "敌机", "note": "通用弹道与机动参数 + 5 型数值表（types 下标与 spawner.unlock_scores 一一对应）", "source": "csharp/godot/Enemy.cs" },
 		"elites": { "title": "精英机", "note": "4 型精英数值表；形状与 enemies.types 相同", "source": "csharp/godot/Spawner.cs" },
 		"boss": { "title": "Boss", "note": "4 型轮换 Boss：血量、走位、分阶段弹幕、狂暴与撤退", "source": "csharp/godot/Boss.cs" },
@@ -79,6 +80,12 @@
 		"player.aim_assist.levels.*.magnet_max_speed": { "title": "磁吸最大速度", "unit": "px/帧", "source": "csharp/godot/AimFrameLayer.cs" },
 		"player.aim_assist.levels.*.cone_angle_deg": { "title": "锥形辅助角", "unit": "°", "source": "csharp/godot/AimFrameLayer.cs" },
 		"player.aim_assist.levels.*.cone_strength": { "title": "锥形辅助强度", "source": "csharp/godot/AimFrameLayer.cs" },
+
+		"machines.*.move_speed_mult": { "title": "移动速度乘区", "unit": "倍", "range": [0.25, 4], "note": "乘在 player.max_speed 上（游隼 1.15）", "source": "csharp/godot/Player.cs" },
+		"machines.*.damage_mult": { "title": "攻击力乘区", "unit": "倍", "range": [0.25, 4], "note": "乘在每发弹伤害上，与 power_shot 增幅叠乘（重锤 1.2）", "source": "csharp/godot/Player.cs" },
+		"machines.*.fire_interval_mult": { "title": "开火间隔乘区", "unit": "倍", "range": [0.25, 4], "note": "<1 为更快；乘在 player.base_fire_interval 上（连弩 0.85）", "source": "csharp/godot/Player.cs" },
+		"machines.*.damage_taken_mult": { "title": "受到伤害乘区", "unit": "倍", "range": [0.25, 4], "note": "<1 为更硬；与护甲增幅叠乘（壁垒 0.85）；域下限 0.25 防无敌", "source": "csharp/core/Combat/DamageMitigation.cs" },
+		"machines.*.max_hp_mult": { "title": "血量上限乘区", "unit": "倍", "range": [0.25, 4], "note": "乘在 player.max_health 上；吸血定额同口径跟进（巨像 1.2）", "source": "csharp/godot/GameState.State.cs" },
 
 		"enemies.bullet_speed": { "title": "敌弹速度", "unit": "px/s", "range": [0, null], "source": "csharp/godot/Enemy.cs" },
 		"enemies.spread_bullet_speed": { "title": "散射弹速度", "unit": "px/s", "range": [0, null], "source": "csharp/godot/Enemy.cs" },
