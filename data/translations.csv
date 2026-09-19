@@ -436,6 +436,8 @@ BEST_NEW,"新纪录！存活 %s · Boss %d · 难度 x%.2f","New record! Survive
 BEST_NONE,"暂无记录","No record yet"
 TITLE_PRACTICE,"P — 练习模式","P — Practice"
 TITLE_MACHINE,"M — 机型","M — Craft"
+TITLE_SHOWCASE_ACTIVE,"现役机型","Active craft"
+TITLE_SHOWCASE_ROTATION,"机库展示","Hangar display"
 GO_MENU_PRACTICE,"练习模式","Practice"
 PRACTICE_TITLE,"练习模式","Practice"
 PRACTICE_BOSS,"Boss 型别","Boss type"
