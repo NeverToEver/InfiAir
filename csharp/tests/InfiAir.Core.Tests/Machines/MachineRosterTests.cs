@@ -314,6 +314,12 @@ public sealed class MachineRosterTests
             var fields = new Dictionary<string, double>(StringComparer.Ordinal);
             foreach (var field in machine.Value.EnumerateObject())
             {
+                // feel 子分区是嵌套对象（机型手感档案，另在 MachineFeelTests 对账），此处只收平铺数值乘区
+                if (field.Value.ValueKind != JsonValueKind.Number)
+                {
+                    continue;
+                }
+
                 fields[field.Name] = field.Value.GetDouble();
             }
 

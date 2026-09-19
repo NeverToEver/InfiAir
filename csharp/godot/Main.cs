@@ -148,12 +148,14 @@ public partial class Main : Node2D
     private readonly Callable _onPlayerDied;
     private readonly Callable _onViewZoomChanged;
     private readonly Callable _onHighContrastChanged;
+    private readonly Callable _onPlayerDashed;
 
     public Main()
     {
         _onPlayerDied = Callable.From(OnPlayerDied);
         _onViewZoomChanged = Callable.From<float>(OnViewZoomChanged);
         _onHighContrastChanged = Callable.From<bool>(OnHighContrastChanged);
+        _onPlayerDashed = Callable.From<Vector2>(OnPlayerDashed);
     }
 
     public override void _Ready()
@@ -208,6 +210,11 @@ public partial class Main : Node2D
         if (!gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
         {
             gs.Connect(GameState.SignalName.PlayerDied, _onPlayerDied);
+        }
+
+        if (!gs.IsConnected(GameState.SignalName.PlayerDashed, _onPlayerDashed))
+        {
+            gs.Connect(GameState.SignalName.PlayerDashed, _onPlayerDashed);
         }
 
         _baseUi.ResumeRequested += OnResumeFromBase;
@@ -379,6 +386,11 @@ public partial class Main : Node2D
             if (gs.IsConnected(GameState.SignalName.PlayerDied, _onPlayerDied))
             {
                 gs.Disconnect(GameState.SignalName.PlayerDied, _onPlayerDied);
+            }
+
+            if (gs.IsConnected(GameState.SignalName.PlayerDashed, _onPlayerDashed))
+            {
+                gs.Disconnect(GameState.SignalName.PlayerDashed, _onPlayerDashed);
             }
 
             if (gs.IsConnected(GameState.SignalName.ViewZoomChanged, _onViewZoomChanged))
@@ -792,6 +804,20 @@ public partial class Main : Node2D
         {
             GD.PushWarning("InfiAir: 回基地自动存档失败——本局进度未落盘");
         }
+    }
+
+    /// <summary>冲刺起手（机型手感档案）：命中机型触发一次背景速度线（强度＝dash_speedline，
+    /// 标准型 0＝不触发、保持旧体验）。与战况响应同一动效强度判定口径（intensity ≤ 0 早退）。</summary>
+    private void OnPlayerDashed(Vector2 _dir)
+    {
+        var strength = (float)GameState.Instance.Feel.DashSpeedline;
+        var intensity = VisualRhythm.Instance?.Intensity ?? 0.0f;
+        if (strength <= 0.0f || intensity <= 0.0f)
+        {
+            return;
+        }
+
+        _speedLines.Burst(strength, _starfield.CurrentScrollK());
     }
 
     private void OnPlayerDied()

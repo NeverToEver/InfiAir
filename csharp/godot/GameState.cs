@@ -39,6 +39,11 @@ public partial class GameState : Node
     [Signal]
     public delegate void PlayerDiedEventHandler();
 
+    /// <summary>冲刺成功启动（Player 冲刺路径发）：Main 据手感档案触发冲刺速度线
+    /// （MachineFeel.DashSpeedline，基准 0＝标准型保持旧体验不触发）。</summary>
+    [Signal]
+    public delegate void PlayerDashedEventHandler(Vector2 dir);
+
     /// <summary>玩家实际结算受击（无敌/闪避/单帧守卫未结算不发）：Meta HUD 受击层数据源。
     /// 参数统一 float（发射/监听均为 float，不得声明为 double）。</summary>
     [Signal]
@@ -717,8 +722,9 @@ public partial class GameState : Node
     }
 
     /// <summary>命中顿帧请求（唯一入口）：档位在 balance.json effects.hit_stop.* 取时长。
+    /// scale 是机型手感档案的命中顿帧倍率（MachineFeel.HitImpactMult；基准 1.0）。
     /// 实际冻结由 GameFeelService 合成 Engine.TimeScale——与狂暴子弹时间共存不互覆盖。</summary>
-    public void RequestHitStop(Core.GameFeel.HitStopTier tier) => _gameFeel.RequestHitStop(tier);
+    public void RequestHitStop(Core.GameFeel.HitStopTier tier, double scale = 1.0) => _gameFeel.RequestHitStop(tier, scale);
 
     /// <summary>当前屏幕震动位移映射量（trauma^2；CameraShake 每帧读取）。</summary>
     public double ShakeMagnitude() => _gameFeel.ShakeOffset(1.0);

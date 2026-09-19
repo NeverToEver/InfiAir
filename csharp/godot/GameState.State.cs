@@ -185,6 +185,7 @@ public partial class GameState : Node
         //（player.max_health ≤0 使上限归零/负值、玩家秒死；extra_life 负加成使叠层反而降上限——
         // 两条钳制与 Cfg 调用随机型收在 GameState.Machine.cs 的 ApplyMachineHealth 里）
         _machineMods = ResolveMachineMods(_machine);
+        _machineFeel = ResolveMachineFeel(_machine);
         ApplyMachineHealth();
         // 基地任务轮换：刷新点数经济（≤0 钳制下限，防免费无限刷新）
         REFRESH_COST = Mathf.Max((int)Cfg("base_task.refresh_cost", REFRESH_COST).AsInt64(), 1);

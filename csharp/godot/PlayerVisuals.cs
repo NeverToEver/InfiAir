@@ -13,9 +13,10 @@ namespace InfiAir;
 /// </summary>
 public class PlayerVisuals
 {
-    /// <summary>冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）。</summary>
+    /// <summary>冲刺残影小池（预建复用，替代逐次 new Sprite2D + Tween + queue_free）。
+    /// 池尺寸按手感档案的「寿命 ÷ 间隔」扩容（游隼更密更长需要更多张同时在线）。</summary>
     private const int AfterimagePoolSize = 4;
-    private const float AfterimageFadeTime = 0.3f;
+    private const float AfterimageFadeBase = 0.3f; // 基准淡出时长（s）；实际 = 基准 × 档案寿命倍率
     private static readonly Color AfterimageColor = new(1.0f, 0.72f, 0.34f, 0.5f);
 
     private Sprite2D _sprite = null!;
@@ -40,26 +41,37 @@ public class PlayerVisuals
 
     // ---- 机体姿态（横移侧倾 + 开火后坐力，DESIGN_BASELINE §2.13）：只写贴图节点的
     // Rotation/Position，机体根节点与碰撞体不动；振幅乘动效强度（fx_intensity），0 = 关闭。
+    // 振幅键的代码默认收成一组 const（字段初值与 ApplyFeel 的 CfgFx fallback 共用一份，
+    // 重复应用才不会把「缺键回退」叠乘成第二份默认）。
+    private const float DefBankMax = 0.14f;
+    private const float DefRecoilPx = 2.5f;
+    private const float DefLagPx = 4.0f;
+    private const float DefSwayMax = 0.18f;
+    private const float DefBobPx = 1.6f;
+    private const float DefPopAmp = 0.06f;
+    private const float DefFireLightAmp = 0.35f;
+    private const float DefHitSquashAmp = 0.12f;
+    private const float DefVortexThreshold = 0.35f;
     private float _bankAngle;         // 当前侧倾角（rad，贴图本地，指数平滑逼近目标）
     private float _recoilAge = 10.0f; // 距上次开火的秒数（初值大于 3τ：开机无残余后坐力）
-    private float _bankMax = 0.14f;   // effects.motion.player_bank_max_rad（Init 读入，已乘动效强度）
+    private float _bankMax = DefBankMax;   // effects.motion.player_bank_max_rad（ApplyFeel 读入，已乘动效强度与机型乘区）
     private float _bankRate = 12.0f;  // effects.motion.player_bank_rate
-    private float _recoilPx = 2.5f;   // effects.motion.player_recoil_px（已乘世界缩放与动效强度）
+    private float _recoilPx = DefRecoilPx; // effects.motion.player_recoil_px（已乘世界缩放、动效强度与机型乘区）
     private float _recoilTau = 0.09f; // effects.motion.player_recoil_tau
 
     // ---- 机体活性（运动滞后漂移 / 转向跟随 / 悬停浮动 / 冲刺弹跳，DESIGN_BASELINE §2.16）：
     // 与姿态层同口径——只写贴图节点的 Rotation/Position/Scale，机体根节点与碰撞体不动；
     // 振幅乘动效强度（fx_intensity），0 = 回到本批之前的画面。
-    private float _lagPx = 4.0f;      // effects.motion.player_lag_px（已乘动效强度）
+    private float _lagPx = DefLagPx;      // effects.motion.player_lag_px（ApplyFeel 读入，已乘动效强度与机型乘区）
     private float _lagRate = 10.0f;   // effects.motion.player_lag_rate
     private float _lagX;              // 滞后漂移当前偏移（root 本地 x，指数平滑逼近目标）
     private float _lagY;
-    private float _swayMax = 0.18f;   // effects.motion.player_sway_max_rad（已乘动效强度）
+    private float _swayMax = DefSwayMax;   // effects.motion.player_sway_max_rad（ApplyFeel 读入，已乘动效强度与机型乘区）
     private float _swayRate = 10.0f;  // effects.motion.player_sway_rate
     private float _sway;              // 转向跟随当前角（rad，accumulated + 衰减，钳 ±max）
-    private float _bobPx = 1.6f;      // effects.motion.player_bob_px（已乘动效强度）
+    private float _bobPx = DefBobPx;      // effects.motion.player_bob_px（ApplyFeel 读入）
     private float _bobHz = 0.6f;      // effects.motion.player_bob_hz
-    private float _popAmp = 0.06f;    // effects.motion.player_dash_pop_scale（已乘动效强度）
+    private float _popAmp = DefPopAmp;    // effects.motion.player_dash_pop_scale（ApplyFeel 读入）
     private float _popTime = 0.16f;   // effects.motion.player_dash_pop_time
     private float _popAge = 10.0f;    // 距冲刺置位的秒数（初值出窗：开机无残余弹跳）
 
@@ -75,12 +87,12 @@ public class PlayerVisuals
     // ---- 机身反馈与损伤状态（DESIGN_BASELINE §2.17）：开火机身光、速度伸缩、受击压缩、
     // 损伤烟与引擎喘振、导航灯、机动喷口。与 §2.13/§2.16 同口径——只写贴图节点及其子节点
     // 的变换/调制，机体根节点与碰撞体不动；振幅乘动效强度（fx_intensity），0 = 本批之前画面。
-    private float _fireLightAmp = 0.35f;  // effects.motion.player_fire_light_amp（已乘动效强度）
+    private float _fireLightAmp = DefFireLightAmp;  // effects.motion.player_fire_light_amp（ApplyFeel 读入）
     private float _fireLightTau = 0.07f;  // effects.motion.player_fire_light_tau
     private float _stretchMax = 0.08f;    // effects.motion.player_stretch_max（已乘动效强度）
     private float _stretchRate = 10.0f;   // effects.motion.player_stretch_rate
     private float _stretch;               // 当前速度伸缩量（正=沿机头拉伸），指数平滑逼近
-    private float _hitSquashAmp = 0.12f;  // effects.motion.player_hit_squash（已乘动效强度）
+    private float _hitSquashAmp = DefHitSquashAmp;  // effects.motion.player_hit_squash（ApplyFeel 读入）
     private float _hitSquashTau = 0.10f;  // effects.motion.player_hit_squash_tau
     private float _hitAge = 10.0f;        // 距上次受击的秒数（初值大于 3τ：开机无残余压缩）
     private float _sputterAmp = 0.35f;    // effects.motion.player_sputter_amp（已乘动效强度）
@@ -140,7 +152,7 @@ public class PlayerVisuals
     private float _ventThreshold = 0.25f;   // 散热排气起始热度
     private float _ventAlpha = 0.55f;       // 排气峰值 alpha（已乘动效强度）
     private float _vortexAlpha = 0.40f;     // 翼尖涡流峰值 alpha（已乘动效强度）
-    private float _vortexThreshold = 0.35f; // 涡流起始横向加速度占比
+    private float _vortexThreshold = DefVortexThreshold; // 涡流起始横向加速度占比（ApplyFeel 读入）
     private float _deploy;                  // 0..1 机炮伸出量（指数逼近）
     private float _heat;                    // 0..1 炮管热量（开火累加、停火指数衰减）
     private float _fireHoldAge = 10.0f;     // 距最近一次开火的秒数（初值出窗：开机为收拢冷态）
@@ -175,6 +187,23 @@ public class PlayerVisuals
     private readonly System.Collections.Generic.List<Sprite2D> _afterimagePool = new();
     private int _afterimageIdx;
     private readonly System.Collections.Generic.List<Sprite2D> _activeAfterimages = new();
+    private Node _worldRoot = null!; // 残影池宿主（扩容补建 ghost 用）
+
+    // ---- 机型手感档案（core MachineFeel；DESIGN_BASELINE §1.18）：乘区只乘在表现层与
+    // 命中反馈参数上，判定与玩法数值零改动。SetMachineFeel 存档（幂等全量重算，支持换机
+    // 重应用），Init 尾部应用一次——Init 晚于 Player.ApplyMachineFactors 首调，故存档式而非直调。
+    private Core.Machines.MachineFeel _feel = Core.Machines.MachineFeel.Baseline;
+    private float _fireJitterPx;      // 连射机身微抖幅度（px，已乘动效强度；0＝无）
+    private int _smokeMinLevel = 2;   // 损伤烟 / 引擎喘振起始受击帧档（基准 2＝重伤档）
+    private float _parryGlowMult = 1.0f; // 弹反盾缘 / 流光亮度倍率
+    private float _afterimageFade = AfterimageFadeBase; // 残影淡出时长（基准 × 档案寿命倍率）
+    private Line2D? _deflectRing;     // 被弹开的一次性环闪（壁垒专属；非壁垒机不构建零开销）
+    private Sprite2D? _deflectFlash;  // 被弹开的机体中心闪光
+    private readonly System.Collections.Generic.List<Sprite2D> _deflectShards = new();
+    private float _deflectAge = 10.0f; // 距受击置位的秒数（初值出窗）
+    private const float DeflectRingTime = 0.26f; // 环闪寿命（s）
+    private const float DeflectShardTime = 0.32f; // 外溅碎片寿命（s）
+    private const float DeflectRingPx = 130.0f; // 环闪终径（贴图像素，罩住机体轮廓）
 
     // ---- 核心喷口三层软点（白芯/琥珀/红外，additive；叠加在 GpuParticles 尾焰之上） ----
     private Sprite2D? _flareCore;
@@ -226,33 +255,24 @@ public class PlayerVisuals
 
         BuildThrusterFlare();
         var fx = FxIntensity();
-        _bankMax = CfgFx.Float("effects.motion.player_bank_max_rad", _bankMax, 0.0f) * fx;
         _bankRate = CfgFx.Float("effects.motion.player_bank_rate", _bankRate, 0.0f);
-        var ws = (float)GameState.Instance.WorldScale;
-        _recoilPx = CfgFx.Float("effects.motion.player_recoil_px", _recoilPx, 0.0f) * ws * fx;
         // tau 下限取 0 而非 IntervalFloor：tau=0 是「关闭后坐力」的合法口径（RecoilFactor 对 tau≤0 返回 0），
         // 钳到 0.05 会把「关闭」误变成「极快回弹」。
         _recoilTau = CfgFx.Float("effects.motion.player_recoil_tau", _recoilTau, 0.0f);
-        // 机体活性（§2.16）：振幅乘动效强度（0 = 本批之前画面）；频率/速率不乘（缩振幅不改频率，
-        // §2.12 语义）。贴图基准缩放在 Init 时已被 Player.LoadBalance 写为设计值（0.65×ws），
-        // 冲刺弹跳以它为基准做倍增，避免每帧重算世界缩放。
-        _lagPx = CfgFx.Float("effects.motion.player_lag_px", _lagPx, 0.0f) * fx;
+        // 机体活性（§2.16）与机身反馈（§2.17）的振幅类字段改由 ApplyFeel 统一赋值
+        // （基准 × 动效强度 × 机型手感乘区，幂等全量重算）——机型手感档案叠加在这些参数上，
+        // 放 Init 会被覆盖、增量乘会叠乘，故收口到一处；速率 / 频率类不受机型档案（缩振幅不改频率）
         _lagRate = CfgFx.Float("effects.motion.player_lag_rate", _lagRate, 0.0f);
-        _swayMax = CfgFx.Float("effects.motion.player_sway_max_rad", _swayMax, 0.0f) * fx;
         _swayRate = CfgFx.Float("effects.motion.player_sway_rate", _swayRate, 0.0f);
-        _bobPx = CfgFx.Float("effects.motion.player_bob_px", _bobPx, 0.0f) * fx;
         _bobHz = CfgFx.Float("effects.motion.player_bob_hz", _bobHz, 0.0f);
-        _popAmp = CfgFx.Float("effects.motion.player_dash_pop_scale", _popAmp, 0.0f) * fx;
         _popTime = CfgFx.Float("effects.motion.player_dash_pop_time", _popTime, 0.0f);
         _thrusterRate = CfgFx.Float("effects.motion.player_thruster_rate", _thrusterRate, 0.0f);
         // 弹跳初始即「已出窗」（time+1）：即使误配超长窗（≥10s）也不会在开机时把机体弹一下
         _popAge = _popTime + 1.0f;
         // 机身反馈与损伤状态（§2.17）：同 §2.16 口径（振幅乘动效强度、频率/速率不乘）
-        _fireLightAmp = CfgFx.Float("effects.motion.player_fire_light_amp", _fireLightAmp, 0.0f) * fx;
         _fireLightTau = CfgFx.Float("effects.motion.player_fire_light_tau", _fireLightTau, 0.0f);
         _stretchMax = CfgFx.Float("effects.motion.player_stretch_max", _stretchMax, 0.0f) * fx;
         _stretchRate = CfgFx.Float("effects.motion.player_stretch_rate", _stretchRate, 0.0f);
-        _hitSquashAmp = CfgFx.Float("effects.motion.player_hit_squash", _hitSquashAmp, 0.0f) * fx;
         _hitSquashTau = CfgFx.Float("effects.motion.player_hit_squash_tau", _hitSquashTau, 0.0f);
         _sputterAmp = CfgFx.Float("effects.motion.player_sputter_amp", _sputterAmp, 0.0f) * fx;
         _sputterHz = CfgFx.Float("effects.motion.player_sputter_hz", _sputterHz, 0.0f);
@@ -268,13 +288,69 @@ public class PlayerVisuals
         _ventThreshold = CfgFx.Float("effects.motion.player_gun_vent_threshold", _ventThreshold, 0.0f, 1.0f);
         _ventAlpha = CfgFx.Float("effects.motion.player_gun_vent_alpha", _ventAlpha, 0.0f, 1.0f) * fx;
         _vortexAlpha = CfgFx.Float("effects.motion.player_vortex_alpha", _vortexAlpha, 0.0f, 1.0f) * fx;
-        _vortexThreshold = CfgFx.Float("effects.motion.player_vortex_threshold", _vortexThreshold, 0.0f, 1.0f);
         _fireHoldAge = _gunHoldTime + 1.0f; // 初始即出窗：开机是收拢冷态，不弹一下枪
         BuildDamageSmoke();
         BuildManeuverNozzles();
         BuildNavLights();
         BuildHullRig();
         _spriteScaleBase = sprite.Scale;
+        _worldRoot = worldRoot;
+        ApplyFeel();
+    }
+
+    /// <summary>机型手感档案下发（Player.ApplyMachineFactors 调用；Init 前调用只存档，
+    /// Init 尾部统一应用——消费参数由 Init 从 balance 读入，早于 Init 应用会被覆盖）。
+    /// 全量重算（基准 × 档案倍率）而非增量乘：重复调用不叠乘，换机即生效。</summary>
+    public void SetMachineFeel(Core.Machines.MachineFeel feel)
+    {
+        _feel = Core.Machines.MachineFeelTable.Sanitize(feel);
+        if (_sprite != null)
+        {
+            ApplyFeel();
+        }
+    }
+
+    /// <summary>档案应用到消费参数（幂等全量重算）：基准 cfg × 动效强度 × 机型乘区。
+    /// 振幅类字段的**唯一赋值点**（Init 只赋速率 / 频率类）——重复调用不叠乘，换机即生效。
+    /// 键与量级锚定同 §2.13/§2.16/§2.17/§2.18（档案只乘系数，不换算式）。</summary>
+    private void ApplyFeel()
+    {
+        var fx = FxIntensity();
+        var ws = (float)GameState.Instance.WorldScale;
+        var feel = _feel;
+
+        // §2.13 姿态 + §2.16 活性 + §2.17 机身反馈 + §2.18 涡流的振幅类
+        // （fallback 用 const 代码默认而非字段值：键缺失时重算不叠乘）
+        _bankMax = CfgFx.Float("effects.motion.player_bank_max_rad", DefBankMax, 0.0f) * fx * (float)feel.BankMult;
+        _recoilPx = CfgFx.Float("effects.motion.player_recoil_px", DefRecoilPx, 0.0f) * ws * fx * (float)feel.RecoilPxMult;
+        _lagPx = CfgFx.Float("effects.motion.player_lag_px", DefLagPx, 0.0f) * fx * (float)feel.LagPxMult;
+        _swayMax = CfgFx.Float("effects.motion.player_sway_max_rad", DefSwayMax, 0.0f) * fx * (float)feel.SwayMult;
+        _bobPx = CfgFx.Float("effects.motion.player_bob_px", DefBobPx, 0.0f) * fx * (float)feel.BobPxMult;
+        _popAmp = CfgFx.Float("effects.motion.player_dash_pop_scale", DefPopAmp, 0.0f) * fx * (float)feel.DashPopScaleMult;
+        _fireLightAmp = CfgFx.Float("effects.motion.player_fire_light_amp", DefFireLightAmp, 0.0f) * fx * (float)feel.FireLightMult;
+        _hitSquashAmp = CfgFx.Float("effects.motion.player_hit_squash", DefHitSquashAmp, 0.0f) * fx * (float)feel.HitSquashMult;
+        _vortexThreshold = Mathf.Clamp(
+            CfgFx.Float("effects.motion.player_vortex_threshold", DefVortexThreshold, 0.0f, 1.0f) * (float)feel.VortexThresholdMult, 0.0f, 1.0f);
+
+        _fireJitterPx = (float)feel.FireJitterPx * fx;
+        _smokeMinLevel = feel.SmokeMinLevel;
+        _parryGlowMult = (float)feel.ParryGlowMult;
+        _afterimageFade = AfterimageFadeBase * (float)feel.AfterimageLifeMult;
+
+        // 残影池按「寿命 ÷ 基准间隔」扩容：更密更长的档案需要更多张同时在线（只增不减）
+        var need = Mathf.CeilToInt(_afterimageFade / 0.08f);
+        for (var i = _afterimagePool.Count; i < Mathf.Max(AfterimagePoolSize, need); i++)
+        {
+            var ghost = new Sprite2D { Visible = false, Modulate = AfterimageColor };
+            _worldRoot.CallDeferred(Node.MethodName.AddChild, ghost);
+            _afterimagePool.Add(ghost);
+        }
+
+        // 壁垒「被弹开」读数（①）：受击环闪 + 火花外溅；只在该型构建（非壁垒机零节点开销）
+        if (feel.Deflect && _deflectRing == null)
+        {
+            BuildDeflectFx();
+        }
     }
 
     /// <summary>动效强度（0..1）：设置项 fx_intensity 的每帧直读（取值口单源在设置服务）。</summary>
@@ -302,8 +378,61 @@ public class PlayerVisuals
         _ventBurst = 0.0f;
     }
 
-    /// <summary>受击置位（扣血生效路径）：贴图横向压扁回弹（受击压缩，§2.17）。</summary>
-    public void NotifyHit() => _hitAge = 0.0f;
+    /// <summary>被弹开读数（壁垒①）一次性构建：白金圆环（罩住机体轮廓）+ 中心闪光 + 四枚
+    /// 斜向外溅碎片，全部挂贴图下随机体姿态（受击瞬间在机体上读，不需要世界坐标）。
+    /// 语汇与弹反激活脉冲同源（Line2D 圆环 + additive），色相改白＝「弹开」而非「反弹」。</summary>
+    private void BuildDeflectFx()
+    {
+        var pts = new Vector2[25];
+        for (var i = 0; i < 25; i++)
+        {
+            var a = Mathf.Tau * i / 24.0f;
+            pts[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * DeflectRingPx;
+        }
+
+        _deflectRing = new Line2D
+        {
+            Points = pts,
+            Closed = true,
+            Width = 4.0f,
+            DefaultColor = new Color(1.0f, 0.96f, 0.8f, 0.0f),
+            Material = CinematicFx.AdditiveMaterial(),
+            Visible = false,
+        };
+        _sprite.AddChild(_deflectRing);
+        _deflectFlash = new Sprite2D
+        {
+            Texture = CinematicFx.SoftTexture(),
+            Material = CinematicFx.AdditiveMaterial(),
+            Scale = Vector2.One * (110.0f / CinematicFx.SoftTexSize),
+            Modulate = new Color(1.0f, 0.95f, 0.8f, 0.0f),
+        };
+        _sprite.AddChild(_deflectFlash);
+        for (var i = 0; i < 4; i++)
+        {
+            var shard = new Sprite2D
+            {
+                Texture = CinematicFx.SoftTexture(),
+                Material = CinematicFx.AdditiveMaterial(),
+                Scale = Vector2.One * (16.0f / CinematicFx.SoftTexSize),
+                Modulate = new Color(1.0f, 0.85f, 0.55f, 0.0f),
+                Position = Vector2.Zero,
+            };
+            _sprite.AddChild(shard);
+            _deflectShards.Add(shard);
+        }
+    }
+
+    /// <summary>受击置位（扣血生效路径）：贴图横向压扁回弹（受击压缩，§2.17）；
+    /// 壁垒机（档案 deflect_read）同时置「被弹开」环闪——受击读作盾把弹幕磕开而非裸挨。</summary>
+    public void NotifyHit()
+    {
+        _hitAge = 0.0f;
+        if (_deflectRing != null)
+        {
+            _deflectAge = 0.0f;
+        }
+    }
 
     /// <summary>受击帧等级下发（Player.UpdateDamageFrame 变化时调用）：重伤档开启损伤烟与引擎喘振。</summary>
     public void SetDamageLevel(int level) => _damageLevel = level;
@@ -567,8 +696,8 @@ public class PlayerVisuals
 
         _thrusterKickAge += delta;
         var kick = Mathf.Max(1.0f - _thrusterKickAge / ThrusterKickTime, 0.0f);
-        // 引擎喘振（§2.17，仅重伤档）：确定性不规则抖动，喷口读数「失稳」
-        var sputter = _damageLevel >= 2
+        // 引擎喘振（§2.17，手感档案 smoke_min_level 档起）：确定性不规则抖动，喷口读数「失稳」
+        var sputter = _damageLevel >= _smokeMinLevel
             ? 1.0f + _sputterAmp * (float)Core.Visual.BodyPose.SputterFactor(simTime, _sputterHz)
             : 1.0f;
         var kickedAlpha = Mathf.Min(_thrusterCur.Alpha * (1.0f + ThrusterKickAmp * kick) * sputter, 1.0f);
@@ -646,7 +775,7 @@ public class PlayerVisuals
         {
             var g = _activeAfterimages[i];
             var m = g.Modulate;
-            m.A -= delta / AfterimageFadeTime;
+            m.A -= delta / _afterimageFade;
             g.Modulate = m;
             if (m.A <= 0.0f)
             {
@@ -694,7 +823,18 @@ public class PlayerVisuals
         _recoilAge += delta;
         var recoil = (float)Core.Visual.BodyPose.RecoilFactor(_recoilAge, _recoilTau) * _recoilPx;
         var bob = (float)Core.Visual.BodyPose.BobOffsetPx(simTime, _bobHz, _bobPx);
-        _sprite.Position = new Vector2(_lagX, _lagY + recoil + bob);
+        // 连射机身微抖（手感档案 fire_jitter_px）：连发窗口（3τ）内确定性双频抖动——
+        // 「机枪在共振」的读数；单发机（窗口外）不抖。相位只取模拟时间，无随机源
+        var jx = 0.0f;
+        var jy = 0.0f;
+        if (_fireJitterPx > 0.0f && _recoilAge < 3.0f * _recoilTau)
+        {
+            jx = _fireJitterPx * (float)Core.Visual.BodyPose.SputterFactor(simTime, 13.0);
+            jy = _fireJitterPx * 0.6f * (float)Core.Visual.BodyPose.SputterFactor(simTime, 17.8);
+        }
+
+        _sprite.Position = new Vector2(_lagX + jx, _lagY + recoil + bob + jy);
+        UpdateDeflect(delta);
 
         UpdateManeuverNozzles(accelLocalX, accelLocalY, simTime, delta);
         UpdateNavLights(simTime);
@@ -735,6 +875,40 @@ public class PlayerVisuals
         var hd = _hitboxDot.Modulate;
         hd.A = 0.45f + 0.55f * Mathf.Abs(Enemy.SinFast(simTime * 6.0f));
         _hitboxDot.Modulate = hd;
+    }
+
+    /// <summary>被弹开环闪逐帧推进（UpdateFrame 调用）：环自 0.6× 扩张到 1× 淡出，
+    /// 碎片沿四斜向飞出淡出；出窗后零开销早退。「减少闪光」折半环闪与闪光的 alpha。</summary>
+    private void UpdateDeflect(float delta)
+    {
+        if (_deflectRing == null || _deflectAge > DeflectShardTime)
+        {
+            return;
+        }
+
+        _deflectAge += delta;
+        var flashCut = GameState.Instance.ReduceFlash ? 0.5f : 1.0f;
+        var ringT = Mathf.Min(_deflectAge / DeflectRingTime, 1.0f);
+        var ringA = (1.0f - ringT) * 0.85f * flashCut;
+        var scale = 0.6f + 0.4f * ringT;
+        _deflectRing.Visible = ringT < 1.0f;
+        _deflectRing.Scale = Vector2.One * scale;
+        _deflectRing.DefaultColor = new Color(1.0f, 0.96f, 0.8f, ringA);
+        if (_deflectFlash != null)
+        {
+            var flashA = (1.0f - Mathf.Min(_deflectAge / (DeflectRingTime * 0.5f), 1.0f)) * 0.55f * flashCut;
+            _deflectFlash.Modulate = new Color(1.0f, 0.95f, 0.8f, Mathf.Max(flashA, 0.0f));
+        }
+
+        for (var i = 0; i < _deflectShards.Count; i++)
+        {
+            var shard = _deflectShards[i];
+            // 四斜向（±45°/±135°）外溅：避开机头机尾轴线，读作「从盾面滑开」
+            var dir = (i % 2 == 0 ? 1 : -1) * new Vector2(1.0f, i < 2 ? -1.0f : 1.0f).Normalized();
+            var t = Mathf.Min(_deflectAge / DeflectShardTime, 1.0f);
+            shard.Position = dir * (DeflectRingPx * 0.9f * t);
+            shard.Modulate = new Color(1.0f, 0.85f, 0.55f, (1.0f - t) * 0.8f * flashCut);
+        }
     }
 
     /// <summary>机动喷口逐帧驱动（§2.17）：推力与加速度反向点火——右加速 → 左喷口亮，
@@ -915,7 +1089,7 @@ public class PlayerVisuals
         UpdateDamageSmoke(delta);
     }
 
-    /// <summary>损伤烟排放比驱动（§2.17）：重伤档（damage level 2）目标 = smoke_ratio，否则 0；
+    /// <summary>损伤烟排放比驱动（§2.17）：手感档案 smoke_min_level 档起目标 = smoke_ratio，否则 0；
     /// 指数平滑开关（防档位切换时烟骤开骤停），归零即停发（Emitting=false，不留常驻模拟开销）。</summary>
     private void UpdateDamageSmoke(float delta)
     {
@@ -924,7 +1098,7 @@ public class PlayerVisuals
             return;
         }
 
-        var target = _damageLevel >= 2 ? _smokeRatio : 0.0f;
+        var target = _damageLevel >= _smokeMinLevel ? _smokeRatio : 0.0f;
         if (_smokeCur <= 0.0f && target <= 0.0f)
         {
             if (_smoke.Emitting)
@@ -989,12 +1163,15 @@ public class PlayerVisuals
 
         var flash = _parryFlash / ParryFlashTime;
         var scale = 0.3f + 0.7f * expand;
+        var glow = _parryGlowMult; // 手感档案 parry_glow_mult：弹反环更亮（壁垒）
         _parryArc.Scale = Vector2.One * scale;
-        _parryArc.Modulate = new Color(1.0f, 1.0f, 1.0f, 1.0f + 1.4f * flash);
+        _parryArc.Modulate = new Color(1.0f, 1.0f, 1.0f, (1.0f + 1.4f * flash) * glow);
         // 盾缘：ACTIVE（shine>0）能量脉动，RECOVER 恒定高亮；命中闪叠加外扩 + 白金色提亮
         var pulse = shine > 0.0f ? 0.72f + 0.28f * Mathf.Abs(Mathf.Sin(simTime * 12.0f)) : 0.9f;
         _parryRim.Scale = Vector2.One * (scale * (1.0f + 0.14f * flash));
-        _parryRim.Modulate = new Color(1.0f + 1.1f * flash, 1.0f + 0.6f * flash, 1.0f, Mathf.Min(pulse + 0.6f * flash, 1.0f));
+        _parryRim.Modulate = new Color(
+            (1.0f + 1.1f * flash) * glow, (1.0f + 0.6f * flash) * glow, glow,
+            Mathf.Min((pulse + 0.6f * flash) * glow, 1.0f));
         _parryShine.Visible = shine > 0.0f;
         if (!_parryShine.Visible)
         {

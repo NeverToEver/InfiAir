@@ -74,8 +74,11 @@ public sealed partial class GameFeelService : RefCounted
         _intensity = double.IsFinite(scale) && scale > 0.0 ? Math.Min(scale, 1.0) : 0.0;
     }
 
-    /// <summary>请求一次命中顿帧（档位取时长；同帧多请求取较大者，不叠加）。</summary>
-    public void RequestHitStop(HitStopTier tier)
+    /// <summary>请求一次命中顿帧（档位取时长；同帧多请求取较大者，不叠加）。
+    /// <paramref name="scale"/> 是机型手感档案的倍率（MachineFeel.HitImpactMult，基准 1.0）：
+    /// 缩时长而非改冻结倍率——与强度设置项同一取舍（倍率逼近 0 会让帧长趋零、采样与输入
+    /// 一起失真，越短时长只减少冻结帧数）。钳 [0.5, 2]：过短读不出、过长锁输入。</summary>
+    public void RequestHitStop(HitStopTier tier, double scale = 1.0)
     {
         if (_intensity <= 0.0)
         {
@@ -83,7 +86,8 @@ public sealed partial class GameFeelService : RefCounted
         }
 
         var baseDuration = HitStopTimeline.DurationForTier(tier, _normal, _crit, _kill, _heavy);
-        _hitStop.Request(baseDuration * _intensity);
+        var k = double.IsFinite(scale) ? Math.Clamp(scale, 0.5, 2.0) : 1.0;
+        _hitStop.Request(baseDuration * _intensity * k);
     }
 
     /// <summary>屏幕震动唯一累加入口：震源振幅 ÷ 参考振幅 = trauma 增量。

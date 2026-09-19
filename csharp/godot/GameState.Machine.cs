@@ -24,6 +24,7 @@ public partial class GameState : Node
 {
     private MachineSpec _machine = MachineRoster.Default;
     private MachineModifiers _machineMods = MachineModifiers.Baseline;
+    private MachineFeel _machineFeel = MachineFeel.Baseline;
 
     /// <summary>机型变更（选定 / 读档还原 / 恢复默认）后发出：Player 据此重读数值与贴图。
     /// 信号带 id 而非下标——存档、设置、平衡表三处引用的都是 id，下标只在面板内部用。</summary>
@@ -38,6 +39,13 @@ public partial class GameState : Node
 
     /// <summary>当前生效的乘区（balance.json 覆盖 + 域收口后的值，非名册默认值）。</summary>
     public MachineModifiers MachineMods => _machineMods;
+
+    /// <summary>当前生效的手感档案（表现层 / 手感层机型系数；与乘区同口解析，消费点在
+    /// PlayerVisuals / Bullet / Player 的表现路径——判定与玩法数值不得读它）。</summary>
+    public MachineFeel Feel => _machineFeel;
+
+    /// <summary>任一机型的生效手感档案（逐行展示 / 预览用；与生效值同一条求值路径）。</summary>
+    public MachineFeel FeelFor(string? id) => ResolveMachineFeel(MachineRoster.ById(id));
 
     /// <summary>任一机型的生效乘区（机型面板逐行显示加成幅度用）。
     /// 与生效值走同一条求值路径，面板上的数字因此不可能与实际起飞时的乘区分叉。</summary>
@@ -75,6 +83,7 @@ public partial class GameState : Node
         var changed = !string.Equals(spec.Id, _machine.Id, System.StringComparison.Ordinal);
         _machine = spec;
         _machineMods = ResolveMachineMods(spec);
+        _machineFeel = ResolveMachineFeel(spec);
         ApplyMachineHealth();
         if (persistPreference && !string.Equals(_settings.MachineId, spec.Id, System.StringComparison.Ordinal))
         {
@@ -102,6 +111,41 @@ public partial class GameState : Node
             Cfg(MachineRoster.ConfigKey(spec, MachineRoster.FireIntervalKey), defaults.FireIntervalMult).AsDouble(),
             Cfg(MachineRoster.ConfigKey(spec, MachineRoster.DamageTakenKey), defaults.DamageTakenMult).AsDouble(),
             Cfg(MachineRoster.ConfigKey(spec, MachineRoster.MaxHpKey), defaults.MaxHpMult).AsDouble()));
+    }
+
+    /// <summary>
+    /// 手感档案求值：默认表回退，逐键读 balance.json（键缺失/损坏即用默认——
+    /// 与乘区同一口径，json 只列要覆盖的差异键，未列项即 core 默认）。
+    /// 读到的值一律过 <see cref="MachineFeelTable.Sanitize"/>。
+    /// </summary>
+    private MachineFeel ResolveMachineFeel(MachineSpec spec)
+    {
+        var d = MachineFeelTable.For(spec.Id);
+        return MachineFeelTable.Sanitize(d with
+        {
+            DashPopScaleMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DashPopScaleKey), d.DashPopScaleMult).AsDouble(),
+            SwayMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.SwayKey), d.SwayMult).AsDouble(),
+            BankMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.BankKey), d.BankMult).AsDouble(),
+            VortexThresholdMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.VortexThresholdKey), d.VortexThresholdMult).AsDouble(),
+            RecoilPxMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.RecoilPxKey), d.RecoilPxMult).AsDouble(),
+            HitImpactMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.HitImpactKey), d.HitImpactMult).AsDouble(),
+            DirectShake = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DirectShakeKey), d.DirectShake).AsDouble(),
+            LagPxMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.LagPxKey), d.LagPxMult).AsDouble(),
+            FireLightMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.FireLightKey), d.FireLightMult).AsDouble(),
+            FireJitterPx = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.FireJitterKey), d.FireJitterPx).AsDouble(),
+            HitSquashMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.HitSquashKey), d.HitSquashMult).AsDouble(),
+            ParryGlowMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.ParryGlowKey), d.ParryGlowMult).AsDouble(),
+            BobPxMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.BobPxKey), d.BobPxMult).AsDouble(),
+            AfterimageLifeMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.AfterimageLifeKey), d.AfterimageLifeMult).AsDouble(),
+            AfterimageRateMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.AfterimageRateKey), d.AfterimageRateMult).AsDouble(),
+            DashSpeedline = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DashSpeedlineKey), d.DashSpeedline).AsDouble(),
+            MuzzleGlowMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.MuzzleGlowKey), d.MuzzleGlowMult).AsDouble(),
+            HitSparkMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.HitSparkKey), d.HitSparkMult).AsDouble(),
+            TracerLenPx = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.TracerLenKey), d.TracerLenPx).AsDouble(),
+            DamageFrameMult = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DamageFrameKey), d.DamageFrameMult).AsDouble(),
+            SmokeMinLevel = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.SmokeMinLevelKey), d.SmokeMinLevel).AsInt32(),
+            DeflectRead = Cfg(MachineFeelTable.ConfigKey(spec, MachineFeelTable.DeflectReadKey), d.DeflectRead).AsDouble(),
+        });
     }
 
     /// <summary>

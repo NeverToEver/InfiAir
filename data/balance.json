@@ -118,23 +118,60 @@
 	"machines": {
 		"peregrine": {
 			"move_speed_mult": 1.15,
-			"damage_mult": 0.9
+			"damage_mult": 0.9,
+			"feel": {
+				"dash_pop_scale_mult": 1.5,
+				"sway_mult": 1.4,
+				"vortex_threshold_mult": 0.6,
+				"afterimage_life_mult": 1.6,
+				"afterimage_rate_mult": 1.5,
+				"dash_speedline": 0.85
+			}
 		},
 		"sledge": {
 			"move_speed_mult": 0.9,
-			"damage_mult": 1.2
+			"damage_mult": 1.2,
+			"feel": {
+				"recoil_px_mult": 1.6,
+				"hit_impact_mult": 1.35,
+				"direct_shake": 5.0,
+				"lag_px_mult": 1.5,
+				"muzzle_glow_mult": 1.45,
+				"hit_spark_mult": 1.4
+			}
 		},
 		"repeater": {
 			"fire_interval_mult": 0.85,
-			"damage_taken_mult": 1.12
+			"damage_taken_mult": 1.12,
+			"feel": {
+				"fire_light_mult": 1.45,
+				"fire_jitter_px": 1.2,
+				"tracer_len_px": 22.0,
+				"muzzle_glow_mult": 1.15
+			}
 		},
 		"bulwark": {
 			"fire_interval_mult": 1.12,
-			"damage_taken_mult": 0.85
+			"damage_taken_mult": 0.85,
+			"feel": {
+				"sway_mult": 0.55,
+				"bank_mult": 0.55,
+				"hit_squash_mult": 0.5,
+				"parry_glow_mult": 1.35,
+				"damage_frame_mult": 0.7,
+				"deflect_read": 1
+			}
 		},
 		"colossus": {
 			"move_speed_mult": 0.88,
-			"max_hp_mult": 1.2
+			"max_hp_mult": 1.2,
+			"feel": {
+				"lag_px_mult": 1.45,
+				"hit_squash_mult": 0.7,
+				"bob_px_mult": 0.5,
+				"damage_frame_mult": 1.35,
+				"smoke_min_level": 1
+			}
 		}
 	},
 	"enemies": {

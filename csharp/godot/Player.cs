@@ -259,6 +259,9 @@ public partial class Player : CharacterBody2D
     private double _cachedMaxHp = 100.0; // MaxHealth 热路径缓存（extra_life 随增幅变化，AugmentsChanged 时刷新）
     private float _damageLightRatio = 0.7f; // effects.player_damage_frame.light_ratio
     private float _damageHeavyRatio = 0.4f; // effects.player_damage_frame.heavy_ratio
+    private float _damageLightRatioCfg;     // 上两者的配置基准（损伤帧阈值 × 手感档案倍率重算自基准，防叠乘）
+    private float _damageHeavyRatioCfg;
+    private float _afterimageIntervalCfg;   // 残影间隔配置基准（÷ 手感档案密度倍率）
     private Sprite2D? _glow;
     private Sprite2D? _muzzleGlow;
     private float _muzzleGlowA; // 枪口辉光剩余强度（FireInternal 置 1，_Process 指数衰减）
@@ -530,6 +533,11 @@ public partial class Player : CharacterBody2D
             _damageLightRatio = 0.7f;
             _damageHeavyRatio = 0.4f;
         }
+
+        // 配置基准缓存：损伤帧阈值会被机型手感档案再乘一档（ApplyMachineFeel），
+        // 重算一律自基准，防换机重应用时叠乘
+        _damageLightRatioCfg = _damageLightRatio;
+        _damageHeavyRatioCfg = _damageHeavyRatio;
         Invincible = SpawnInvincibleTime; // 出生保护
         // fuel.max 钳下限——0 时 FuelRatio() 的 _fuel/FuelMax 除零得 NaN
         //（燃料条显示 NaN；SetFuel 的 Clamp 上下界同为 0 致燃料机制失效）
@@ -549,6 +557,7 @@ public partial class Player : CharacterBody2D
         DashCooldownMaxValue = CfgFx.Float("player.dash.cooldown", DashCooldownMaxValue, CfgFx.IntervalFloor);
         DashFuelRatio = CfgFx.Float("player.dash.fuel_ratio", DashFuelRatio, 0.0f);
         AfterimageInterval = CfgFx.Float("player.dash.afterimage_interval", AfterimageInterval, 0.0f);
+        _afterimageIntervalCfg = AfterimageInterval; // 基准缓存：ApplyMachineFeel 再除密度倍率
         // graze_radius 钳 ≥0——负值擦弹环失效；graze_score 钳 ≥0——负分被连击乘区倒扣
         GrazeRadiusBase = CfgFx.Float("player.graze_radius", GrazeRadiusBase, 0.0f);
         GrazeScoreBase = CfgFx.Int("player.graze_score", GrazeScoreBase, 0);
@@ -685,7 +694,8 @@ public partial class Player : CharacterBody2D
         _muzzleGlow = new Sprite2D
         {
             Texture = CinematicFx.SoftTexture(),
-            Scale = Vector2.One * (30.0f * ws / 64.0f),
+            // 尺寸 ×机型手感档案倍率（重锤炮口冲击读数更大；标准型 1.0＝既有画面）
+            Scale = Vector2.One * (30.0f * ws / 64.0f * (float)GameState.Instance.Feel.MuzzleGlowMult),
             Modulate = new Color(1.0f, 0.85f, 0.5f, 0.0f),
             Material = CinematicFx.AdditiveMaterial(),
             ZIndex = 1,
@@ -1006,6 +1016,36 @@ public partial class Player : CharacterBody2D
         _damage.SetDamageTakenMult((float)_machineMods.DamageTakenMult);
         RefreshAugmentFactors();
         ApplyMachineTextures();
+        ApplyMachineFeel(GameState.Instance.Feel);
+    }
+
+    /// <summary>机型手感档案落位（core MachineFeel 的引擎消费收口；判定与玩法数值不读档案）：
+    /// 表现层参数乘区进 PlayerVisuals、损伤帧阈值与残影间隔在此折算。
+    /// 与乘区同一生效节奏（启动一次 + 换机重跑）；重算一律自 cfg 基准，重应用不叠乘。</summary>
+    private void ApplyMachineFeel(Core.Machines.MachineFeel feel)
+    {
+        _visuals.SetMachineFeel(feel);
+
+        // 损伤帧阈值 ×档位倍率（壁垒更晚切损伤帧 / 巨像更早）：域校验与 LoadBalance 同口径
+        // （越界整组回默认，防轻伤/重伤阈值挤进同一窄带后档位抖动）
+        _damageLightRatio = Mathf.Clamp(_damageLightRatioCfg * (float)feel.DamageFrameMult, 0.0f, 1.0f);
+        _damageHeavyRatio = Mathf.Clamp(_damageHeavyRatioCfg * (float)feel.DamageFrameMult, 0.0f, 1.0f);
+        if (_damageLightRatio <= _damageHeavyRatio)
+        {
+            _damageLightRatio = 0.7f;
+            _damageHeavyRatio = 0.4f;
+        }
+
+        // 残影生成间隔 ÷ 密度倍率（游隼更密）；寿命倍率在 PlayerVisuals 内生效
+        AfterimageInterval = Mathf.Max(_afterimageIntervalCfg / (float)feel.AfterimageRateMult, 0.0f);
+        _dash.Configure(DashDistance, DashTime, DashCooldownMaxValue, AfterimageInterval);
+
+        // 炮口辉光尺寸 ×档案倍率（重锤炮口冲击读数更大）；构建晚于本函数首调，null 安全
+        if (_muzzleGlow != null)
+        {
+            _muzzleGlow.Scale = Vector2.One
+                * (30.0f * (float)GameState.Instance.WorldScale / 64.0f * (float)feel.MuzzleGlowMult);
+        }
     }
 
     /// <summary>按机型换四张贴图（本体 / 两个受击帧 / 能量遮罩），并复位受击帧档位让
@@ -1289,6 +1329,7 @@ public partial class Player : CharacterBody2D
             if (_dash.CooldownRemaining() <= 0.0f && _fuel >= DashFuelCost())
             {
                 _dash.Start(inputDir, this);
+                GameState.Instance.EmitSignal(GameState.SignalName.PlayerDashed, _dash.DashDir);
                 CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
                 _visuals.NotifyDashPop();
             }
@@ -1316,6 +1357,7 @@ public partial class Player : CharacterBody2D
         if (_dashBuffer.ConsumeIfReady(_dash.CooldownRemaining() <= 0.0f && _fuel >= DashFuelCost()))
         {
             _dash.Start(inputDir, this);
+            GameState.Instance.EmitSignal(GameState.SignalName.PlayerDashed, _dash.DashDir);
             CombatVfx.DashBurst(GetParent(), GlobalPosition, _dash.DashDir, GameState.Instance.ReduceFlash);
             _visuals.NotifyDashPop();
         }

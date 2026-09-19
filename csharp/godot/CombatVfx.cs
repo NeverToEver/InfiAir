@@ -148,10 +148,11 @@ public partial class CombatVfx : RefCounted
     }
 
     /// <summary>直击观感总入口（Bullet 直击路径单行调用）：每次直击一枚小火花；
-    /// crit 为真时另加一层更亮星芒。位置取命中目标位（弹体回收后自身坐标已复位）。</summary>
-    public static void DirectHit(Node parent, Vector2 pos, Vector2 normal, bool crit, bool reduceFlash)
+    /// crit 为真时另加一层更亮星芒。sparkScale 是机型手感档案的弹着尺度倍率
+    /// （MachineFeel.HitSparkMult，基准 1.0）——只缩尺寸与亮度，碎片数量与灯光预算不变。</summary>
+    public static void DirectHit(Node parent, Vector2 pos, Vector2 normal, bool crit, bool reduceFlash, float sparkScale = 1.0f)
     {
-        ImpactSpark(parent, pos, normal, reduceFlash);
+        ImpactSpark(parent, pos, normal, reduceFlash, sparkScale);
         if (crit)
         {
             CritBurst(parent, pos, reduceFlash);
@@ -159,7 +160,7 @@ public partial class CombatVfx : RefCounted
     }
 
     /// <summary>非致命直击火花：数枚小亮片逆来袭方向溅开（此前直击无反馈）。</summary>
-    public static Node2D? ImpactSpark(Node parent, Vector2 pos, Vector2 normal, bool reduceFlash)
+    public static Node2D? ImpactSpark(Node parent, Vector2 pos, Vector2 normal, bool reduceFlash, float sparkScale = 1.0f)
     {
         if (!TryAcquireLight())
         {
@@ -184,15 +185,16 @@ public partial class CombatVfx : RefCounted
         const int ShardCount = 3;
         for (var i = 0; i < ShardCount; i++)
         {
-            // 火花集中在来袭反方向 ±60° 锥内（溅回来源侧）
+            // 火花集中在来袭反方向 ±60° 锥内（溅回来源侧）；尺度 ×机型档案（重锤弹着更重）
             var spread = (i - (ShardCount - 1) * 0.5f) * 0.6f;
             var dir = Vector2.Right.Rotated(baseAngle + spread);
-            AddShard(root, tex, dir, 5.0f, 30.0f, new Color(UITheme.AccentHot, reduceFlash ? 0.4f : 0.92f), 2.2f, SparkLife);
+            AddShard(root, tex, dir, 5.0f * sparkScale, 30.0f * sparkScale,
+                new Color(UITheme.AccentHot, reduceFlash ? 0.4f : 0.92f), 2.2f * sparkScale, SparkLife);
         }
 
         if (!reduceFlash)
         {
-            AddFlash(root, tex, 12.0f, new Color(UITheme.HoloPale, 0.6f));
+            AddFlash(root, tex, 12.0f * sparkScale, new Color(UITheme.HoloPale, 0.6f));
         }
 
         FadeAndFree(root, SparkLife);

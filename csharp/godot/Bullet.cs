@@ -77,6 +77,7 @@ public partial class Bullet : Area2D, IParryable
     /// <summary>已被弧光弹反（IParryable 契约）：防同一次挥盾把同一枚弹反射两次。</summary>
     private bool _reflected;
     private Sprite2D? _sprite;
+    private Sprite2D? _tracer; // 弹道曳光（机型手感档案 tracer_len_px；垫在弹体后，敌弹与基准机型不建）
     /// <summary>玩家弹呼吸脉冲（effects.player_bullet_pulse_*；幅度钳 ≤0.12；敌弹不脉冲，可读性优先）。</summary>
     private float _pulseAmp;
     private float _pulseHz = 2.4f;
@@ -465,13 +466,21 @@ public partial class Bullet : Area2D, IParryable
                     DespawnInternal();
                 }
 
-                // 直击反馈（玩法结算之后）：非致命也有一枚火花，暴击另加星芒
-                CombatVfx.DirectHit(GetParent(), area.GlobalPosition, -Direction, isCrit, GameState.Instance.ReduceFlash);
+                // 直击反馈（玩法结算之后）：非致命也有一枚火花，暴击另加星芒；
+                // 火花尺度 ×机型手感档案（重锤弹着更重）
+                var feel = GameState.Instance.Feel;
+                CombatVfx.DirectHit(GetParent(), area.GlobalPosition, -Direction, isCrit,
+                    GameState.Instance.ReduceFlash, (float)feel.HitSparkMult);
                 // 命中音（§2.14 输入回应层）：命中是频次最高的交互，此前只有击杀有爆炸音；
                 // 刷屏由 SfxPlayer 目录表限频（45ms 最小间隔 + 复音 2）拦截
                 GameState.Instance.PlaySfx(SfxId.Hit);
-                // 命中顿帧：暴击高一档（时序取 balance effects.hit_stop.*；同帧多命中取较大者不叠加）
-                GameState.Instance.RequestHitStop(isCrit ? HitStopTier.Crit : HitStopTier.Normal);
+                // 命中顿帧：暴击高一档，时长 ×机型档案倍率（重锤更强）
+                GameState.Instance.RequestHitStop(isCrit ? HitStopTier.Crit : HitStopTier.Normal, feel.HitImpactMult);
+                // 直击轻震（重锤手感档案；基准 0＝直击不震屏）——无障碍倍率折算单口在 Shake 内
+                if (feel.DirectShake > 0.0)
+                {
+                    GameState.Instance.Shake(feel.DirectShake);
+                }
             }
         }
         else if (area.IsInGroup(GroupPlayerHitbox))
@@ -630,6 +639,7 @@ public partial class Bullet : Area2D, IParryable
         Scale = Vector2.One;
         Modulate = Colors.White;
         EnsureTextures(); // 共享图集惰性生成（缓存于 GameState 实例字段，首次调用）
+        SetupTracer();    // 弹道曳光（机型手感档案；池化复用时按阵营重设可见性与长度）
         _sprite ??= GetNodeOrNull<Sprite2D>("Sprite2D");
         if (_sprite == null)
         {
@@ -668,6 +678,41 @@ public partial class Bullet : Area2D, IParryable
         {
             GameState.Instance.RegisterEnemyBullet(this);
         }
+    }
+
+    /// <summary>弹道曳光（机型手感档案 tracer_len_px，连弩）：软点拉长成线挂在弹根下——
+    /// 局部 -X 即弹尾（根 Rotation 与 Direction 恒同步），故零每帧开销：直线弹一次定位、
+    /// 追踪弹随根旋转自然跟转。ZIndex −1 垫在弹体之后，曳光不压弹体与敌弹读数（§2.12 判据 3）；
+    /// 与弹体同生共死（拖尾不得比判定活得久）。基准机型长度 0＝不建不显，与既有画面逐位一致。</summary>
+    private void SetupTracer()
+    {
+        var len = IsPlayerBullet ? (float)GameState.Instance.Feel.TracerLenPx : 0.0f;
+        if (len <= 0.0f)
+        {
+            if (_tracer != null)
+            {
+                _tracer.Visible = false;
+            }
+
+            return;
+        }
+
+        if (_tracer == null)
+        {
+            _tracer = new Sprite2D
+            {
+                Texture = CinematicFx.SoftTexture(),
+                Material = CinematicFx.AdditiveMaterial(),
+                ZIndex = -1,
+                Modulate = new Color(1.0f, 0.82f, 0.45f, 0.5f),
+            };
+            AddChild(_tracer);
+        }
+
+        _tracer.Visible = true;
+        // 软点以自身中心定位：向后（局部 -X）平移半长，让起点贴住弹心
+        _tracer.Position = new Vector2(-len * 0.5f, 0.0f);
+        _tracer.Scale = new Vector2(len / CinematicFx.SoftTexSize, 5.0f / CinematicFx.SoftTexSize);
     }
 
     /// <summary>外观档 → 共享贴图（纯取用，判定在 core BulletAppearance；贴图为 null 时
