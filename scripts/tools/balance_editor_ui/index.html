@@ -7,14 +7,17 @@
 <link rel="stylesheet" href="/ui/style.css">
 </head>
 <body>
+<a class="skip-link" href="#main">跳到内容</a>
+
 <header>
   <div class="brand">
     <h1>InfiAir 数值管理器</h1>
     <span id="file-path" class="mono dim">data/balance.json</span>
   </div>
   <div class="search-wrap">
+    <label class="sr-only" for="search">搜索数值键</label>
     <input id="search" type="search" placeholder="搜索键名 / 说明（/ 聚焦）" autocomplete="off">
-    <span id="search-count" class="dim"></span>
+    <span id="search-count" class="dim" aria-live="polite"></span>
   </div>
   <div class="actions">
     <button id="btn-changes" title="查看未保存改动（Ctrl+D）">改动 <span id="change-badge" class="badge zero">0</span></button>
@@ -29,29 +32,80 @@
 <div class="layout">
   <aside class="sidebar">
     <div class="side-title">分区</div>
-    <nav id="nav"></nav>
+    <nav id="nav" aria-label="数值分区"></nav>
     <label class="filter"><input type="checkbox" id="only-changed"> 只看已改动</label>
   </aside>
 
-  <main>
-    <div class="tabs">
-      <button class="tab active" data-tab="values">数值</button>
-      <button class="tab" data-tab="analysis">平衡分析</button>
+  <main id="main">
+    <div class="tabs" role="tablist" aria-label="视图">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="values">数值</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="analysis">平衡分析</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="settings">设置</button>
     </div>
-    <section id="tab-values" class="tab-panel active">
+
+    <section id="tab-values" class="tab-panel active" role="tabpanel" aria-label="数值">
+      <section class="presets" aria-labelledby="presets-title">
+        <div class="presets-head">
+          <h2 id="presets-title">快速预设</h2>
+          <span class="dim">按感受挑一个套用；它在当前值上做相对调整，随时 <kbd>Ctrl</kbd>+<kbd>Z</kbd> 撤销</span>
+        </div>
+        <div id="preset-list" class="preset-list"></div>
+      </section>
       <div id="groups"></div>
+      <p id="empty-state" class="empty-state" hidden>
+        没有匹配的键——换个更短的关键词，或按 <kbd>Esc</kbd> 清空搜索。
+      </p>
     </section>
-    <section id="tab-analysis" class="tab-panel">
+
+    <section id="tab-analysis" class="tab-panel" role="tabpanel" aria-label="平衡分析">
       <div class="analysis-bar">
         <span class="dim">分析基于当前编辑内容（含未保存改动）</span>
         <button id="btn-analyze">重新计算</button>
       </div>
       <div id="analysis"></div>
     </section>
+
+    <section id="tab-settings" class="tab-panel" role="tabpanel" aria-label="设置">
+      <div class="card">
+        <h3>文件与服务器</h3>
+        <div id="settings-file" class="kv"></div>
+        <div class="settings-actions">
+          <button id="btn-revert-2">回滚到上次保存前</button>
+          <button id="btn-origin" title="把编辑区换成 git 里已提交的那一份">恢复已提交版本</button>
+        </div>
+        <p class="card-note">服务地址 <span id="settings-endpoint" class="mono"></span>；
+          关掉本页后服务会自动退出，闲置超时也会退出——不需要手动清理后台进程。</p>
+      </div>
+
+      <div class="card">
+        <h3>精细数值操作</h3>
+        <p class="card-note">直接编辑原始 JSON：适合批量修改、从别处粘贴、精确输入。
+          应用前会先过一遍与保存相同的结构校验，改坏了不会污染编辑区。</p>
+        <div class="settings-actions">
+          <button id="btn-raw" class="primary">打开精细编辑</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>导入 / 导出</h3>
+        <p class="card-note">导出把当前编辑内容存成一个 JSON 文件；导入会把文件内容读进编辑区（仍需点保存才写盘）。</p>
+        <div class="settings-actions">
+          <button id="btn-export">导出当前数值</button>
+          <button id="btn-import">导入 JSON…</button>
+          <input id="import-file" type="file" accept="application/json,.json" hidden>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>预设说明</h3>
+        <p class="card-note">预设是相对调整：连续点两次「轻松一点」会叠乘两次。想回到官方取值用「恢复已提交版本」。</p>
+        <div id="settings-presets" class="preset-notes"></div>
+      </div>
+    </section>
   </main>
 </div>
 
-<aside id="drawer" class="drawer">
+<aside id="drawer" class="drawer" aria-hidden="true">
   <div class="drawer-head">
     <strong>未保存改动</strong>
     <span id="drawer-count" class="dim"></span>
@@ -63,8 +117,27 @@
 </aside>
 <div id="drawer-scrim" class="scrim"></div>
 
+<div id="raw-modal" class="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="raw-title">
+    <div class="modal-head">
+      <h2 id="raw-title">精细编辑（原始 JSON）</h2>
+      <span class="spacer"></span>
+      <button id="raw-format">格式化</button>
+      <button id="raw-reload">载入当前值</button>
+      <button id="raw-close">关闭</button>
+    </div>
+    <textarea id="raw-editor" spellcheck="false" aria-label="原始 JSON 内容"></textarea>
+    <div id="raw-status" class="modal-status" role="status" aria-live="polite"></div>
+    <div class="modal-foot">
+      <span class="dim">应用只改编辑区，仍需点「保存」才写入文件</span>
+      <span class="spacer"></span>
+      <button id="raw-apply" class="primary">应用到编辑区</button>
+    </div>
+  </div>
+</div>
+
 <footer>
-  <span id="status">正在载入…</span>
+  <span id="status" role="status" aria-live="polite">正在载入…</span>
   <span class="spacer"></span>
   <span id="file-meta" class="dim mono"></span>
 </footer>

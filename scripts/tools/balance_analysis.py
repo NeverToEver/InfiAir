@@ -22,6 +22,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 META_PATH = Path(__file__).resolve().parent / "balance_meta.json"
+PRESETS_PATH = Path(__file__).resolve().parent / "balance_presets.json"
 BALANCE_PATH = ROOT / "data" / "balance.json"
 
 # 公式出处（改公式前先改这里指向的文件，再改本文件的实现）
@@ -470,6 +471,92 @@ def expand_paths(template: str, tree: object) -> list[str]:
         if not paths:
             break
     return [".".join(p) for p in paths]
+
+
+def read_path(tree: object, path: str) -> object:
+    """按展开后的点路径取值（数字段走下标记）；任一段不存在返回 None。"""
+    node = tree
+    for part in path.split("."):
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        elif isinstance(node, list) and part.isdigit() and int(part) < len(node):
+            node = node[int(part)]
+        else:
+            return None
+    return node
+
+
+# ---------------------------------------------------------------- 预设
+
+# 预设操作 → 目标值的适用性：数值键吃 scale/add/set（set 须给数值），布尔键只吃 set（且须给布尔）。
+# 「为什么是相对变换」见 balance_presets.json 的 _about：写死绝对值就等于第二份数值单源。
+
+
+def load_presets(path: Path = PRESETS_PATH) -> list[dict]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    presets = payload.get("presets", [])
+    return presets if isinstance(presets, list) else []
+
+
+def _op_value(value: object, op: dict) -> tuple[bool, object]:
+    """返回 (是否适用, 新值)。不适用的一律跳过而不是报错：预设要能对着任意当前值跑。"""
+    is_bool = isinstance(value, bool)
+    if is_bool:
+        if "set" in op and isinstance(op["set"], bool):
+            return True, op["set"]
+        return False, None
+    if not is_num(value):
+        return False, None
+    if "scale" in op and is_num(op["scale"]):
+        return True, value * op["scale"]
+    if "add" in op and is_num(op["add"]):
+        return True, value + op["add"]
+    if "set" in op and is_num(op["set"]):
+        return True, op["set"]
+    return False, None
+
+
+def plan_preset(preset: dict, balance: dict) -> dict:
+    """把预设展开成变更清单（不改动任何东西）。
+
+    返回 {changes: [{path, op, from, to}], skipped: [{path, why}]}。
+    skipped 要显式带出来而不是静默丢弃：路径写错、键被改名、类型对不上时，
+    界面上「点了没反应」是最难查的一类故障。
+    """
+    changes: list[dict] = []
+    skipped: list[dict] = []
+    for op in preset.get("ops", []):
+        for template in op.get("paths", []):
+            paths = expand_paths(template, balance)
+            if not paths:
+                skipped.append({"path": template, "why": "路径在数值表里不存在"})
+                continue
+            for path in paths:
+                current = read_path(balance, path)
+                ok, new = _op_value(current, op)
+                if not ok:
+                    skipped.append({"path": path, "why": f"当前值 {current!r} 不适用该操作"})
+                    continue
+                if new != current:
+                    changes.append({"path": path, "op": next(iter(op)), "from": current, "to": new})
+    return {"changes": changes, "skipped": skipped}
+
+
+def apply_preset(preset: dict, balance: dict) -> tuple[dict, list[dict]]:
+    """返回 (改好的新树, 变更清单)；输入不被修改（调用方可能还要拿它做撤销）。"""
+    plan = plan_preset(preset, balance)
+    out = json.loads(json.dumps(balance))
+    for item in plan["changes"]:
+        parts = item["path"].split(".")
+        node = out
+        for part in parts[:-1]:
+            node = node[int(part)] if isinstance(node, list) else node[part]
+        last = parts[-1]
+        if isinstance(node, list):
+            node[int(last)] = item["to"]
+        else:
+            node[last] = item["to"]
+    return out, plan["changes"]
 
 
 def expand_meta(meta: dict, balance: dict) -> dict:

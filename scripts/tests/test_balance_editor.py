@@ -223,5 +223,107 @@ class ExpandPathsTests(unittest.TestCase):
         self.assertEqual([], analysis.expand_paths("a.nope.x", tree))
 
 
+class LifecycleTests(unittest.TestCase):
+    """服务器生命周期：防「开了不关」的判定。喂时间戳即可测，不依赖真实时钟推进。"""
+
+    def test_idle_timeout_trips(self):
+        life = editor.Lifecycle(60.0, now=0.0)
+        self.assertIsNone(life.should_exit(30.0))
+        self.assertEqual("空闲超过 1 分钟", life.should_exit(61.0))
+
+    def test_idle_timeout_can_be_disabled(self):
+        life = editor.Lifecycle(0.0, now=0.0)
+        self.assertIsNone(life.should_exit(10 ** 6))
+
+    def test_page_close_exits_only_after_grace(self):
+        life = editor.Lifecycle(0.0, now=0.0)
+        life.ping("a", 1.0)
+        life.bye("a", 2.0)
+        self.assertIsNone(life.should_exit(2.0 + editor.PAGE_CLOSE_GRACE - 0.1))
+        self.assertEqual("页面已关闭", life.should_exit(2.0 + editor.PAGE_CLOSE_GRACE + 0.1))
+
+    def test_second_page_keeps_server_alive(self):
+        # 多标签页：关掉一个不该把服务带走
+        life = editor.Lifecycle(0.0, now=0.0)
+        life.ping("a", 1.0)
+        life.ping("b", 1.0)
+        life.bye("a", 2.0)
+        self.assertIsNone(life.should_exit(100.0))
+
+    def test_dead_page_is_forgotten_by_ttl(self):
+        # 页面崩了（收不到 bye）：靠心跳超时把它忘掉，且不因此判成「页面已关闭」而误退
+        life = editor.Lifecycle(0.0, now=0.0)
+        life.ping("a", 0.0)
+        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 1.0))
+        self.assertEqual({}, life.pages)
+        self.assertIsNone(life.should_exit(editor.PAGE_TTL + 2.0))
+
+    def test_ping_clears_close_flag(self):
+        # 刷新页面会先 bye 再立刻 ping：这次 ping 必须把关闭计时清掉
+        life = editor.Lifecycle(0.0, now=0.0)
+        life.ping("a", 0.0)
+        life.bye("a", 1.0)
+        life.ping("a", 2.0)
+        self.assertIsNone(life.should_exit(3.0))
+
+
+class StateCacheTests(unittest.TestCase):
+    """/api/state 的响应缓存：键说明展开约 580 条，缓存失效写错会让界面显示旧值（静默错误）。"""
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.path = self.dir / "balance.json"
+        shutil.copy(BALANCE, self.path)
+        self.editor = editor.Editor(self.path)
+
+    def test_cache_hits_then_invalidates_on_save(self):
+        first = self.editor.state_json()
+        self.assertIs(first, self.editor.state_json())        # 同一份文件：复用同一份字节
+        payload = copy.deepcopy(self.editor.read_balance())
+        payload["player"]["max_speed"] = 999
+        self.editor.save(payload)
+        self.assertIsNot(first, self.editor.state_json())     # 落盘后必须重算
+        self.assertIn(b'"max_speed": 999', self.editor.state_json())
+
+
+class PresetEndpointTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.path = self.dir / "balance.json"
+        shutil.copy(BALANCE, self.path)
+        self.editor = editor.Editor(self.path)
+
+    def test_presets_list_shape(self):
+        presets = self.editor.presets()
+        self.assertTrue(presets, "预设清单为空：balance_presets.json 缺失或格式变了")
+        for preset in presets:
+            self.assertEqual({"id", "name", "desc", "tags"}, set(preset))
+
+    def test_unknown_preset_is_refused(self):
+        code, body = self.editor.preset_plan("no-such-preset", self.editor.read_balance())
+        self.assertEqual(404, code)
+        self.assertFalse(body["ok"])
+
+    def test_plan_returns_changes_without_skips(self):
+        code, body = self.editor.preset_plan("relaxed", self.editor.read_balance())
+        self.assertEqual(200, code)
+        self.assertTrue(body["changes"])
+        self.assertEqual([], body["skipped"])
+
+    def test_plan_rejects_non_object_payload(self):
+        code, body = self.editor.preset_plan("relaxed", ["not", "a", "tree"])
+        self.assertEqual(400, code)
+        self.assertFalse(body["ok"])
+
+    def test_origin_reads_committed_version(self):
+        code, body = editor.Editor(BALANCE).origin_balance()
+        if code == 404 and "git" in str(body.get("message", "")):
+            self.skipTest("本机没有可用的 git")
+        self.assertEqual(200, code, body)
+        self.assertIn("player", body["balance"])
+
+
 if __name__ == "__main__":
     unittest.main()

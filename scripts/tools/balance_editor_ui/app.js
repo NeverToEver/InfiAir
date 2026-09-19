@@ -1,4 +1,4 @@
-/* InfiAir 数值管理器前端：数值编辑 + 搜索过滤 + 改动清单 + 平衡分析。
+/* InfiAir 数值管理器前端：数值编辑 + 搜索 + 预设 + 改动清单 + 平衡分析 + 设置/精细编辑。
    无框架、无构建：所有状态都在本文件里，页面结构见 index.html。 */
 (() => {
   'use strict';
@@ -11,14 +11,20 @@
   let current = null;           // 编辑中的副本
   let metaMap = {};             // 具体路径 -> {title, unit, range, note, source}
   let sectionMeta = {};         // 顶层键 -> {title, note, source}
+  let presets = [];             // 预设清单（不含 ops，应用由服务端展开）
   let readonly = false;
-  let fileMeta = null;          // {path, mtime, size}
-  let fileLabel = '';           // 相对仓库根的路径，仅用于显示
-  const rows = [];              // 行记录
+  let fileMeta = null;          // {path, relative, mtime, size}
+  let fileLabel = '';
+  let idleTimeout = 0;          // 服务端空闲超时（秒），0 = 不按空闲退出
+  const rows = [];
   const rowByPath = new Map();
   const undoStack = [];
   const redoStack = [];
-  let focusBeforeDrawer = null;
+  let focusBeforeOverlay = null;
+
+  // 页面标识：心跳与「页面关闭」通知都带它。多标签页各用各的 id，
+  // 服务端因此不会把「关掉其中一个标签」误判成「全部关闭」。
+  const pageId = Math.random().toString(36).slice(2, 10);
 
   // ------------------------------------------------------------ 路径工具
 
@@ -48,6 +54,13 @@
     if (Array.isArray(v)) return v.join(', ');
     if (typeof v === 'string') return v;
     return String(v);
+  }
+
+  // 数值显示：缩放的预设会产生 0.5625000000000001 这类尾巴，展示与写回都收一下
+  function fmtNum(v, digits = 4) {
+    if (typeof v !== 'number' || Number.isInteger(v)) return String(v);
+    const rounded = Number(v.toFixed(digits));
+    return String(rounded);
   }
 
   function makeParser(value) {
@@ -100,13 +113,9 @@
     readonly = !!state.readonly;
     fileMeta = state.file;
     fileLabel = state.file.relative || state.file.path;
-    rows.length = 0;
-    rowByPath.clear();
     undoStack.length = 0;
     redoStack.length = 0;
-    build();
-    buildNav();
-    refreshAll();
+    rebuild();
     setFileMeta();
     $('file-path').textContent = fileLabel;
     setStatus(state.backup
@@ -115,14 +124,43 @@
     if (readonly) {
       $('btn-save').disabled = true;
       $('btn-revert').disabled = true;
+      $('btn-revert-2').disabled = true;
       setStatus('只读模式：可以查看与看分析，保存与回滚已禁用');
     }
+    renderSettingsFile(state);
+  }
+
+  function renderSettingsFile(state) {
+    const kv = $('settings-file');
+    const backup = state.backup;
+    kv.innerHTML = '';
+    const add = (key, value, mono = true) => {
+      const dt = document.createElement('dt');
+      dt.textContent = key;
+      const dd = document.createElement('dd');
+      dd.textContent = value;
+      if (!mono) dd.classList.remove('mono');
+      kv.appendChild(dt);
+      kv.appendChild(dd);
+    };
+    add('数值文件', state.file.path);
+    add('当前状态', state.readonly ? '只读（本次启动未开启保存）' : `大小 ${(state.file.size / 1024).toFixed(1)} KB`);
+    add('备份', backup
+      ? `${backup.path.split('/').pop()} · ${new Date(backup.mtime * 1000).toLocaleString()}`
+      : '尚无备份（首次保存时生成）');
+    $('settings-endpoint').textContent = location.origin;
   }
 
   // ------------------------------------------------------------ 构建视图
 
-  function metaFor(path) {
-    return metaMap[path] || null;
+  const metaFor = (path) => metaMap[path] || null;
+
+  function rebuild() {
+    rows.length = 0;
+    rowByPath.clear();
+    build();
+    buildNav();
+    refreshAll();
   }
 
   function build() {
@@ -154,11 +192,8 @@
       body.className = 'group-body';
       card.appendChild(body);
       groups.appendChild(card);
-      if (isLeaf(value)) {
-        addRow(body, value, [key], key);
-      } else {
-        buildChildren(body, value, [key], key);
-      }
+      if (isLeaf(value)) addRow(body, value, [key], key);
+      else buildChildren(body, value, [key], key);
     }
   }
 
@@ -171,7 +206,6 @@
       } else {
         const det = document.createElement('details');
         det.className = 'subgroup';
-        det.open = false;
         const summary = document.createElement('summary');
         const label = document.createElement('span');
         label.className = 'sub-path';
@@ -215,7 +249,10 @@
       unit.textContent = `(${meta.unit})`;
       label.appendChild(unit);
     }
-    const hintText = meta ? [meta.note, meta.range ? `取值范围 [${meta.range[0] ?? '−∞'}, ${meta.range[1] ?? '+∞'}]` : '', meta.source ? `出处 ${meta.source}` : ''].filter(Boolean).join(' · ') : '';
+    const hintText = meta
+      ? [meta.note, meta.range ? `取值范围 [${meta.range[0] ?? '−∞'}, ${meta.range[1] ?? '+∞'}]` : '',
+         meta.source ? `出处 ${meta.source}` : ''].filter(Boolean).join(' · ')
+      : '';
     const hint = document.createElement('span');
     hint.className = 'hint';
     hint.textContent = meta?.note || (meta?.source ? `出处 ${meta.source}` : '');
@@ -228,16 +265,16 @@
     if (typeof value === 'boolean') {
       input.type = 'checkbox';
       input.checked = value;
+      input.setAttribute('aria-label', path);
     } else if (typeof value === 'number') {
       input.type = 'number';
       input.step = 'any';
       input.value = value;
-    } else if (isNumArray(value) || typeof value === 'string' || value === null) {
-      input.type = 'text';
-      input.value = fmtValue(value);
+      input.setAttribute('aria-label', `${path}${meta?.title ? `（${meta.title}）` : ''}`);
     } else {
       input.type = 'text';
-      input.value = JSON.stringify(value);
+      input.value = fmtValue(value);
+      input.setAttribute('aria-label', `${path}${meta?.title ? `（${meta.title}）` : ''}`);
     }
     rowEl.appendChild(input);
 
@@ -268,7 +305,7 @@
       const before = getAt(current, parts);
       if (sameValue(before, parsed)) return;
       setAt(current, parts, parsed);
-      pushUndo(path, before, parsed);
+      pushUndo([{ path, before, after: parsed }]);
       updateRow(rec);
       onEdited();
     });
@@ -277,7 +314,7 @@
       const after = getAt(disk, parts);
       if (sameValue(before, after)) return;
       setAt(current, parts, deepCopy(after));
-      pushUndo(path, before, deepCopy(after));
+      pushUndo([{ path, before, after: deepCopy(after) }]);
       syncInput(rec);
       updateRow(rec);
       onEdited();
@@ -289,7 +326,8 @@
   function syncInput(rec) {
     const value = getAt(current, rec.parts);
     if (rec.input.type === 'checkbox') rec.input.checked = !!value;
-    else rec.input.value = isNumArray(value) ? fmtValue(value) : (typeof value === 'string' || value === null ? fmtValue(value) : String(value));
+    else if (typeof value === 'number') rec.input.value = value;
+    else rec.input.value = fmtValue(value);
     rec.rowEl.classList.remove('invalid');
   }
 
@@ -338,10 +376,7 @@
 
   function outOfRangeCount() {
     let n = 0;
-    for (const rec of rows) {
-      const value = getAt(current, rec.parts);
-      if (rangeBad(rec, value)) n++;
-    }
+    for (const rec of rows) if (rangeBad(rec, getAt(current, rec.parts))) n++;
     return n;
   }
 
@@ -355,8 +390,7 @@
     for (const link of $('nav').children) {
       const key = link.dataset.key;
       const count = list.filter((item) => item.rec.sectionKey === key).length;
-      const badge = link.querySelector('.count');
-      badge.textContent = count ? String(count) : '';
+      link.querySelector('.count').textContent = count ? String(count) : '';
     }
     const bad = outOfRangeCount();
     if (list.length || bad) {
@@ -387,14 +421,14 @@
       const jump = document.createElement('span');
       jump.className = 'jump';
       jump.textContent = '定位';
+      jump.tabIndex = 0;
       jump.addEventListener('click', () => {
         closeDrawer();
-        const rec = item.rec;
-        for (let el2 = rec.rowEl; el2; el2 = el2.parentElement) {
-          if (el2.tagName === 'DETAILS') el2.open = true;
+        for (let node = item.rec.rowEl; node; node = node.parentElement) {
+          if (node.tagName === 'DETAILS') node.open = true;
         }
-        rec.rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        rec.input.focus();
+        item.rec.rowEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        item.rec.input.focus();
       });
       p.appendChild(document.createTextNode(' '));
       p.appendChild(jump);
@@ -418,42 +452,188 @@
 
   // ------------------------------------------------------------ 撤销/重做
 
-  function pushUndo(path, before, after) {
+  // 条目两种形态：{kind:'paths', changes:[{path,before,after}]} 与
+  // {kind:'snapshot', before, after}（整棵树替换，如精细编辑 / 导入 / 恢复已提交版本）
+  function pushUndo(items) {
+    if (!items.length) return;
     const now = Date.now();
     const top = undoStack[undoStack.length - 1];
-    // 同一个键的连续输入合并成一条（打字时不该攒出几十步）
-    if (top && top.path === path && now - top.time < 900) {
-      top.after = after;
+    if (top && top.kind === 'paths' && items.length === 1 && top.changes.length === 1 &&
+        top.changes[0].path === items[0].path && now - top.time < 900) {
+      top.changes[0].after = items[0].after;   // 连续输入同一个键：合并成一步
       top.time = now;
     } else {
-      undoStack.push({ path, before, after, time: now });
+      undoStack.push({ kind: 'paths', changes: items, time: now });
     }
     if (undoStack.length > 200) undoStack.shift();
     redoStack.length = 0;
   }
 
-  function applyHistory(entry, value) {
-    const rec = rowByPath.get(entry.path);
-    if (!rec) return;
-    setAt(current, rec.parts, deepCopy(value));
-    syncInput(rec);
-    updateRow(rec);
+  function pushSnapshotUndo(before, after) {
+    undoStack.push({ kind: 'snapshot', before: deepCopy(before), after: deepCopy(after), time: Date.now() });
+    if (undoStack.length > 200) undoStack.shift();
+    redoStack.length = 0;
+  }
+
+  function applyPathChanges(entry, useBefore) {
+    for (const change of entry.changes) {
+      const rec = rowByPath.get(change.path);
+      if (!rec) continue;
+      setAt(current, rec.parts, deepCopy(useBefore ? change.before : change.after));
+      syncInput(rec);
+      updateRow(rec);
+    }
     onEdited();
-    rec.rowEl.scrollIntoView({ block: 'center' });
+    const first = rowByPath.get(entry.changes[0]?.path);
+    if (first) first.rowEl.scrollIntoView({ block: 'center' });
   }
 
   function undo() {
     const entry = undoStack.pop();
     if (!entry) return;
     redoStack.push(entry);
-    applyHistory(entry, entry.before);
+    if (entry.kind === 'snapshot') {
+      current = deepCopy(entry.before);
+      rebuild();
+      setStatus('已撤销整次替换');
+    } else {
+      applyPathChanges(entry, true);
+    }
   }
 
   function redo() {
     const entry = redoStack.pop();
     if (!entry) return;
     undoStack.push(entry);
-    applyHistory(entry, entry.after);
+    if (entry.kind === 'snapshot') {
+      current = deepCopy(entry.after);
+      rebuild();
+      setStatus('已重做整次替换');
+    } else {
+      applyPathChanges(entry, false);
+    }
+  }
+
+  // ------------------------------------------------------------ 预设
+
+  async function loadPresets() {
+    const res = await fetch('/api/presets');
+    if (!res.ok) return;
+    presets = (await res.json()).presets || [];
+    renderPresets();
+    renderPresetNotes();
+  }
+
+  function renderPresets() {
+    const list = $('preset-list');
+    list.innerHTML = '';
+    if (!presets.length) {
+      list.innerHTML = '<span class="dim">没有可用预设（scripts/tools/balance_presets.json 缺失或为空）</span>';
+      return;
+    }
+    for (const preset of presets) {
+      const card = document.createElement('div');
+      card.className = 'preset-card';
+      const head = document.createElement('div');
+      head.className = 'p-head';
+      const name = document.createElement('span');
+      name.className = 'p-name';
+      name.textContent = preset.name;
+      head.appendChild(name);
+      for (const tag of preset.tags || []) {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'p-tag';
+        tagEl.textContent = tag;
+        head.appendChild(tagEl);
+      }
+      card.appendChild(head);
+      const desc = document.createElement('div');
+      desc.className = 'p-desc';
+      desc.textContent = preset.desc;
+      card.appendChild(desc);
+      const actions = document.createElement('div');
+      actions.className = 'p-actions';
+      const previewBtn = document.createElement('button');
+      previewBtn.textContent = '看改动';
+      previewBtn.setAttribute('aria-expanded', 'false');
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'primary';
+      applyBtn.textContent = '套用';
+      actions.appendChild(previewBtn);
+      actions.appendChild(applyBtn);
+      card.appendChild(actions);
+      const diff = document.createElement('div');
+      diff.className = 'p-diff';
+      diff.hidden = true;
+      card.appendChild(diff);
+
+      previewBtn.addEventListener('click', async () => {
+        if (!diff.hidden) {
+          diff.hidden = true;
+          previewBtn.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        const plan = await requestPreset(preset.id);
+        if (!plan) return;
+        diff.innerHTML = plan.changes.length
+          ? plan.changes.map((c) => `${escapeHtml(c.path)} <span class="to">${escapeHtml(fmtNum(c.from))} → ${escapeHtml(fmtNum(c.to))}</span>`).join('<br>')
+          : '<span class="dim">当前值下没有可改的地方</span>';
+        if (plan.skipped?.length) {
+          diff.innerHTML += `<br><span class="dim">跳过 ${plan.skipped.length} 处（路径或类型不适用）</span>`;
+        }
+        diff.hidden = false;
+        previewBtn.setAttribute('aria-expanded', 'true');
+      });
+      applyBtn.addEventListener('click', () => applyPreset(preset));
+      list.appendChild(card);
+    }
+  }
+
+  function renderPresetNotes() {
+    const box = $('settings-presets');
+    box.innerHTML = '';
+    for (const preset of presets) {
+      const row = document.createElement('div');
+      row.className = 'row-note';
+      row.innerHTML = `<b>${escapeHtml(preset.name)}</b>　${escapeHtml(preset.desc)}`;
+      box.appendChild(row);
+    }
+  }
+
+  async function requestPreset(id) {
+    const res = await fetch('/api/preset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, balance: current }),
+    });
+    const body = await res.json().catch(() => ({ ok: false, message: '服务端返回无法解析' }));
+    if (!res.ok) {
+      setStatus(body.message || '预设不可用', 'error');
+      return null;
+    }
+    return body;
+  }
+
+  async function applyPreset(preset) {
+    const plan = await requestPreset(preset.id);
+    if (!plan) return;
+    const applied = [];
+    for (const item of plan.changes) {
+      const rec = rowByPath.get(item.path);
+      if (!rec) continue;
+      const before = getAt(current, rec.parts);
+      setAt(current, rec.parts, item.to);
+      syncInput(rec);
+      updateRow(rec);
+      applied.push({ path: item.path, before, after: item.to });
+    }
+    if (!applied.length) {
+      setStatus(`预设「${preset.name}」在当前值下没有可改的地方`);
+      return;
+    }
+    pushUndo(applied);           // 整条预设合成一步：一次 Ctrl+Z 全退掉
+    onEdited();
+    setStatus(`已套用预设「${preset.name}」：${applied.length} 处改动（Ctrl+Z 撤销）`, 'ok');
   }
 
   // ------------------------------------------------------------ 搜索与过滤
@@ -484,6 +664,7 @@
       openSnapshot = null;
     }
     $('search-count').textContent = query ? `${visible} / ${rows.length}` : '';
+    $('empty-state').hidden = visible > 0;
   }
 
   // ------------------------------------------------------------ 服务端往返
@@ -505,13 +686,13 @@
       disk = deepCopy(current);
       undoStack.length = 0;
       redoStack.length = 0;
-      refreshAll();          // 会重算改动数（归零）
+      refreshAll();
     }
     if (body.file) {
-      fileMeta = { ...fileMeta, ...body.file };   // 页脚的大小/修改时间跟着落盘结果走
+      fileMeta = { ...fileMeta, ...body.file };
       setFileMeta();
     }
-    setStatus(body.message, 'ok');   // 放在 refreshAll 之后：改动归零的提示不覆盖保存结果
+    setStatus(body.message, 'ok');
   }
 
   async function revert() {
@@ -537,6 +718,104 @@
     renderReport(await res.json());
   }
 
+  // ------------------------------------------------------------ 精细编辑 / 导入导出
+
+  function applyTree(tree, message) {
+    const before = current;
+    current = tree;
+    pushSnapshotUndo(before, tree);
+    rebuild();
+    setStatus(message, 'ok');
+  }
+
+  function openRawModal() {
+    focusBeforeOverlay = document.activeElement;
+    $('raw-editor').value = JSON.stringify(current, null, '\t');
+    $('raw-status').textContent = '';
+    $('raw-status').className = 'modal-status';
+    $('raw-modal').hidden = false;
+    $('raw-editor').focus();
+  }
+
+  function closeRawModal() {
+    $('raw-modal').hidden = true;
+    if (focusBeforeOverlay?.focus) focusBeforeOverlay.focus();
+  }
+
+  function setRawStatus(text, kind = '') {
+    const el = $('raw-status');
+    el.textContent = text;
+    el.className = `modal-status ${kind}`.trim();
+  }
+
+  async function applyRaw() {
+    let parsed;
+    try {
+      parsed = JSON.parse($('raw-editor').value);
+    } catch (err) {
+      setRawStatus(`JSON 语法错误：${err.message}`, 'error');
+      return;
+    }
+    setRawStatus('校验中…');
+    const res = await fetch('/api/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    });
+    const body = await res.json().catch(() => ({ ok: false, errors: ['服务端返回无法解析'] }));
+    if (!body.ok) {
+      const errors = body.errors || [body.message || '结构校验未通过'];
+      setRawStatus(`结构校验未通过（${errors.length} 处）：${errors.slice(0, 3).join('；')}`, 'error');
+      return;
+    }
+    applyTree(parsed, '精细编辑已应用到编辑区（Ctrl+Z 撤销整次替换；需点保存才写盘）');
+    closeRawModal();
+  }
+
+  function exportJson() {
+    const blob = new Blob([`${JSON.stringify(current, null, '\t')}\n`], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileLabel.split('/').pop() || 'balance.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    setStatus('已导出当前编辑内容（未保存改动也在内）');
+  }
+
+  async function importJson(file) {
+    const text = await file.text();
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      setStatus(`导入失败：不是合法 JSON（${err.message}）`, 'error');
+      return;
+    }
+    const res = await fetch('/api/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    });
+    const body = await res.json().catch(() => ({ ok: false, errors: ['服务端返回无法解析'] }));
+    if (!body.ok) {
+      const errors = body.errors || [body.message || '结构校验未通过'];
+      setStatus(`导入失败：结构不符（${errors.slice(0, 2).join('；')}）`, 'error');
+      return;
+    }
+    applyTree(parsed, `已导入 ${file.name} 到编辑区（Ctrl+Z 撤销；需点保存才写盘）`);
+  }
+
+  async function loadOrigin() {
+    const res = await fetch('/api/origin');
+    const body = await res.json().catch(() => ({ ok: false, message: '服务端返回无法解析' }));
+    if (!res.ok) {
+      setStatus(body.message || '取不到已提交版本', 'error');
+      return;
+    }
+    applyTree(body.balance, '已把「已提交版本」载入编辑区（Ctrl+Z 撤销；需点保存才写盘）');
+  }
+
   // ------------------------------------------------------------ 分析渲染
 
   function renderReport(report) {
@@ -546,9 +825,7 @@
     const box = document.createElement('div');
     box.className = 'warn-box' + (warnings.length ? ' has-warn' : '');
     box.innerHTML = `<h3>取值体检（${warnings.length} 条）</h3>`;
-    if (!warnings.length) {
-      box.innerHTML += '<div class="warn-item dim">全部登记范围与结构约束都通过。</div>';
-    }
+    if (!warnings.length) box.innerHTML += '<div class="warn-item dim">全部登记范围与结构约束都通过。</div>';
     for (const item of warnings) {
       const line = document.createElement('div');
       line.className = 'warn-item';
@@ -607,6 +884,7 @@
     const headRow = document.createElement('tr');
     for (const head of table.head) {
       const th = document.createElement('th');
+      th.scope = 'col';
       th.textContent = head;
       headRow.appendChild(th);
     }
@@ -634,34 +912,30 @@
     const yMin = Math.min(...ys, 1), yMax = Math.max(...ys, 1.05);
     const sx = (x) => PAD.l + (x - xMin) / Math.max(xMax - xMin, 1e-9) * (W - PAD.l - PAD.r);
     const sy = (y) => H - PAD.b - (y - yMin) / Math.max(yMax - yMin, 1e-9) * (H - PAD.t - PAD.b);
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
     svg.setAttribute('class', 'chart');
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    const ns = 'http://www.w3.org/2000/svg';
     const add = (tag, attrs, text) => {
       const el = document.createElementNS(ns, tag);
       for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
       if (text !== undefined) el.textContent = text;
       svg.appendChild(el);
-      return el;
     };
-    const ticks = 4;
-    for (let i = 0; i <= ticks; i++) {
-      const value = yMin + (yMax - yMin) * (i / ticks);
+    for (let i = 0; i <= 4; i++) {
+      const value = yMin + (yMax - yMin) * (i / 4);
       const y = sy(value);
       add('line', { class: 'grid-line', x1: PAD.l, x2: W - PAD.r, y1: y, y2: y });
       add('text', { x: PAD.l - 6, y: y + 3, 'text-anchor': 'end' }, value.toFixed(1));
     }
     for (let i = 0; i <= 3; i++) {
       const value = xMin + (xMax - xMin) * (i / 3);
-      const x = sx(value);
-      add('text', { x, y: H - 6, 'text-anchor': 'middle' }, `${Math.round(value)}${series.x_label || ''}`);
+      add('text', { x: sx(value), y: H - 6, 'text-anchor': 'middle' }, `${Math.round(value)}${series.x_label || ''}`);
     }
     add('line', { class: 'axis', x1: PAD.l, x2: PAD.l, y1: PAD.t, y2: H - PAD.b });
     add('line', { class: 'axis', x1: PAD.l, x2: W - PAD.r, y1: H - PAD.b, y2: H - PAD.b });
-    const points = xs.map((x, i) => `${sx(x).toFixed(2)},${sy(ys[i]).toFixed(2)}`).join(' ');
-    add('polyline', { class: 'line', points });
+    add('polyline', { class: 'line', points: xs.map((x, i) => `${sx(x).toFixed(2)},${sy(ys[i]).toFixed(2)}`).join(' ') });
     const wrap = document.createElement('div');
     wrap.appendChild(svg);
     if (series.title) {
@@ -677,17 +951,22 @@
   // ------------------------------------------------------------ 抽屉
 
   function openDrawer() {
-    focusBeforeDrawer = document.activeElement;
+    focusBeforeOverlay = document.activeElement;
     $('drawer').classList.add('open');
+    $('drawer').setAttribute('aria-hidden', 'false');
     $('drawer-scrim').classList.add('open');
     $('btn-close-drawer').focus();
   }
 
   function closeDrawer() {
     $('drawer').classList.remove('open');
+    $('drawer').setAttribute('aria-hidden', 'true');
     $('drawer-scrim').classList.remove('open');
-    if (focusBeforeDrawer?.focus) focusBeforeDrawer.focus();
+    if (focusBeforeOverlay?.focus) focusBeforeOverlay.focus();
   }
+
+  const drawerOpen = () => $('drawer').classList.contains('open');
+  const modalOpen = () => !$('raw-modal').hidden;
 
   // ------------------------------------------------------------ 事件绑定
 
@@ -722,6 +1001,18 @@
     }
   }
 
+  function selectTab(name) {
+    for (const tab of document.querySelectorAll('.tab')) {
+      const active = tab.dataset.tab === name;
+      tab.classList.toggle('active', active);
+      tab.setAttribute('aria-selected', String(active));
+    }
+    for (const panel of document.querySelectorAll('.tab-panel')) {
+      panel.classList.toggle('active', panel.id === 'tab-' + name);
+    }
+    if (name === 'analysis') analyze();
+  }
+
   function bind() {
     $('search').addEventListener('input', applyFilter);
     $('only-changed').addEventListener('change', applyFilter);
@@ -730,19 +1021,20 @@
       if (changes().length && !confirm('丢弃未保存改动并重新载入？')) return;
       load();
     });
-    $('btn-revert').addEventListener('click', () => {
+    const doRevert = () => {
       if (!confirm('用 balance.json.bak 覆盖当前文件？当前内容会另存为 .pre-revert。')) return;
       revert();
-    });
+    };
+    $('btn-revert').addEventListener('click', doRevert);
+    $('btn-revert-2').addEventListener('click', doRevert);
     $('btn-undo').addEventListener('click', undo);
     $('btn-redo').addEventListener('click', redo);
     $('btn-changes').addEventListener('click', openDrawer);
     $('btn-close-drawer').addEventListener('click', closeDrawer);
     $('drawer-scrim').addEventListener('click', closeDrawer);
     $('btn-copy-changes').addEventListener('click', async () => {
-      const text = changesAsMarkdown();
       try {
-        await navigator.clipboard.writeText(text);
+        await navigator.clipboard.writeText(changesAsMarkdown());
         setStatus(`已复制 ${changes().length} 处改动（Markdown 表格）`);
       } catch (err) {
         setStatus('复制失败：浏览器未授权剪贴板', 'error');
@@ -750,19 +1042,55 @@
     });
 
     for (const tab of document.querySelectorAll('.tab')) {
-      tab.addEventListener('click', () => {
-        for (const other of document.querySelectorAll('.tab')) other.classList.toggle('active', other === tab);
-        for (const panel of document.querySelectorAll('.tab-panel')) {
-          panel.classList.toggle('active', panel.id === 'tab-' + tab.dataset.tab);
-        }
-        if (tab.dataset.tab === 'analysis') analyze();
-      });
+      tab.addEventListener('click', () => selectTab(tab.dataset.tab));
     }
     $('btn-analyze').addEventListener('click', analyze);
+
+    // 设置页
+    $('btn-raw').addEventListener('click', openRawModal);
+    $('btn-origin').addEventListener('click', loadOrigin);
+    $('btn-export').addEventListener('click', exportJson);
+    $('btn-import').addEventListener('click', () => $('import-file').click());
+    $('import-file').addEventListener('change', (event) => {
+      const file = event.target.files?.[0];
+      if (file) importJson(file);
+      event.target.value = '';
+    });
+
+    // 精细编辑模态
+    $('raw-close').addEventListener('click', closeRawModal);
+    $('raw-apply').addEventListener('click', applyRaw);
+    $('raw-reload').addEventListener('click', () => {
+      $('raw-editor').value = JSON.stringify(current, null, '\t');
+      setRawStatus('已载入当前编辑内容');
+    });
+    $('raw-format').addEventListener('click', () => {
+      try {
+        $('raw-editor').value = JSON.stringify(JSON.parse($('raw-editor').value), null, '\t');
+        setRawStatus('已格式化', 'ok');
+      } catch (err) {
+        setRawStatus(`JSON 语法错误：${err.message}`, 'error');
+      }
+    });
+    $('raw-editor').addEventListener('input', () => {
+      $('raw-editor').classList.remove('invalid');
+      setRawStatus('');
+    });
+    $('raw-modal').addEventListener('mousedown', (event) => {
+      if (event.target === $('raw-modal')) closeRawModal();
+    });
 
     document.addEventListener('keydown', (event) => {
       const tag = (event.target.tagName || '').toLowerCase();
       const typing = tag === 'input' || tag === 'textarea';
+      if (event.key === 'Escape') {
+        if (modalOpen()) { closeRawModal(); return; }
+        if (drawerOpen()) { closeDrawer(); return; }
+        if ($('search').value) { $('search').value = ''; applyFilter(); }
+        return;
+      }
+      // 模态打开时不接管其它快捷键（Tab 由浏览器在模态内走，配合 mousedown 遮罩关闭）
+      if (modalOpen()) return;
       if (event.key === '/' && !typing) {
         event.preventDefault();
         $('search').focus();
@@ -778,16 +1106,13 @@
       } else if ((event.key === 'd' || event.key === 'D') && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         openDrawer();
-      } else if (event.key === 'Escape') {
-        if ($('drawer').classList.contains('open')) closeDrawer();
-        else if ($('search').value) { $('search').value = ''; applyFilter(); }
       }
     });
 
     window.addEventListener('beforeunload', (event) => {
       if (!changes().length) return;
       event.preventDefault();
-      event.returnValue = '';   // 部分浏览器仍要求设置该字段才会弹确认
+      event.returnValue = '';
     });
 
     window.addEventListener('scroll', () => {
@@ -801,8 +1126,31 @@
     }, { passive: true });
   }
 
+  // ------------------------------------------------------------ 心跳与生命周期
+
+  function startHeartbeat() {
+    const ping = async () => {
+      try {
+        const res = await fetch(`/api/ping?page=${pageId}`, { cache: 'no-store' });
+        if (res.ok) {
+          const body = await res.json();
+          idleTimeout = body.idle_timeout || 0;
+        }
+      } catch (err) {
+        /* 服务已退出（多半是空闲超时）：静默即可，用户下次操作会看到失败提示 */
+      }
+    };
+    ping();
+    setInterval(ping, 10000);
+    // pagehide 比 beforeunload 可靠：bfcache、移动端切后台都能触发，且 sendBeacon 不阻塞卸载
+    window.addEventListener('pagehide', () => {
+      navigator.sendBeacon?.(`/api/bye?page=${pageId}`);
+    });
+  }
+
   // ------------------------------------------------------------ 启动
 
   bind();
-  load();
+  load().then(loadPresets);
+  startHeartbeat();
 })();

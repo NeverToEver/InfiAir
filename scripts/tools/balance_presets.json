@@ -1,0 +1,64 @@
+{
+	"_about": "InfiAir 数值管理器的预设：给不熟悉单个键的人一个『按感受选』的入口。每条预设是一组**相对变换**（scale 乘 / add 加 / set 置值），作用在**当前编辑值**上——因此这里不存任何绝对数值，改 balance.json 的官方取值时无需同步本文件（这是刻意的：预设若写死绝对值，就变成第二份数值单源）。路径语法同 balance_meta.json：`*` 匹配一层字典键、`[]` 匹配数组每个元素或下标。改预设须跑 scripts/tests（键路径真实存在、类型可算、结果在登记范围内）。",
+	"presets": [
+		{
+			"id": "relaxed",
+			"name": "轻松一点",
+			"desc": "敌机更软、后期压力爬得更慢、得分更慷慨。想先熟悉走位、或者只想看风景时用。",
+			"tags": ["更简单"],
+			"ops": [
+				{ "scale": 0.75, "paths": ["difficulty.*.hp"] },
+				{ "scale": 0.7, "paths": ["enemies.hp_ramp_factor", "enemies.damage_ramp_factor"] },
+				{ "scale": 1.5, "paths": ["difficulty.*.score"] },
+				{ "scale": 1.2, "paths": ["spawner.wave_interval_start", "spawner.wave_interval_end"] }
+			]
+		},
+		{
+			"id": "assist",
+			"name": "新手辅助",
+			"desc": "辅助瞄准更强、无敌时间更长、敌弹更慢。手感仍然是弹幕游戏，只是容错更宽。",
+			"tags": ["更简单", "操作"],
+			"ops": [
+				{ "scale": 1.5, "paths": ["player.aim_assist.mark_ratio"] },
+				{ "scale": 1.3, "paths": ["player.aim_assist.levels.*.magnet_strength"] },
+				{ "scale": 1.2, "paths": ["player.aim_assist.levels.*.magnet_range"] },
+				{ "scale": 0.85, "paths": ["enemies.bullet_speed", "enemies.spread_bullet_speed", "enemies.laser_bullet_speed"] },
+				{ "scale": 1.3, "paths": ["player.invincible_time", "player.spawn_invincible_time"] }
+			]
+		},
+		{
+			"id": "calm",
+			"name": "减少干扰",
+			"desc": "关掉迷雾与两类遭遇事件：屏幕上只剩敌机与 Boss，专心练走位与弹反。",
+			"tags": ["更简单", "节奏"],
+			"ops": [
+				{ "set": false, "paths": ["fog_events.enabled"] },
+				{ "set": 0.0, "paths": ["fog_events.trigger_chance", "elite_turret_event.trigger_chance", "formation_strike_event.trigger_chance"] }
+			]
+		},
+		{
+			"id": "fast",
+			"name": "快节奏",
+			"desc": "波次更密、难度爬得更快、里程碑更容易达成。适合一次只玩十几分钟的人。",
+			"tags": ["节奏", "更困难"],
+			"ops": [
+				{ "scale": 0.7, "paths": ["spawner.wave_interval_start", "spawner.wave_interval_end", "spawner.ramp_time"] },
+				{ "scale": 1.4, "paths": ["progression.per_ten_minutes"] },
+				{ "scale": 0.8, "paths": ["milestones.base[]"] }
+			]
+		},
+		{
+			"id": "hardcore",
+			"name": "硬核",
+			"desc": "敌机更肉更痛、压力爬升更快、回血更慢。给已经打顺手、想要压力的人。",
+			"tags": ["更困难"],
+			"ops": [
+				{ "scale": 1.35, "paths": ["difficulty.*.hp"] },
+				{ "scale": 1.3, "paths": ["enemies.hp_ramp_factor"] },
+				{ "scale": 1.4, "paths": ["enemies.damage_ramp_factor"] },
+				{ "scale": 0.85, "paths": ["spawner.wave_interval_start", "spawner.wave_interval_end"] },
+				{ "scale": 1.3, "paths": ["difficulty.*.regen_delay"] }
+			]
+		}
+	]
+}

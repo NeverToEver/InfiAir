@@ -268,5 +268,58 @@ class ReportShapeTests(unittest.TestCase):
         self.assertTrue(report["sections"])
 
 
+class PresetTests(unittest.TestCase):
+    """预设：给不熟悉单个键的人用的入口，一旦路径写错或结果越界就是「点了没反应/悄悄改坏」。"""
+
+    def setUp(self):
+        self.balance = real_balance()
+        self.meta = analysis.load_meta()
+        self.presets = analysis.load_presets()
+
+    def test_presets_are_well_formed(self):
+        self.assertTrue(self.presets, "预设文件为空或格式变了")
+        ids = [p["id"] for p in self.presets]
+        self.assertEqual(len(ids), len(set(ids)), "预设 id 重复")
+        for preset in self.presets:
+            self.assertTrue(preset.get("name"), preset["id"])
+            self.assertTrue(preset.get("desc"), f"{preset['id']} 缺面向玩家的说明")
+            self.assertTrue(preset.get("ops"), f"{preset['id']} 没有任何操作")
+
+    def test_every_op_path_resolves_and_applies(self):
+        for preset in self.presets:
+            plan = analysis.plan_preset(preset, self.balance)
+            self.assertEqual([], plan["skipped"], f"{preset['id']} 有对不上的路径：{plan['skipped']}")
+            self.assertTrue(plan["changes"], f"{preset['id']} 在默认数值上没有任何改动")
+
+    def test_results_stay_inside_registered_ranges(self):
+        for preset in self.presets:
+            changed, _ = analysis.apply_preset(preset, self.balance)
+            warnings = analysis.check_ranges(changed, analysis.expand_meta(self.meta, changed))
+            self.assertEqual([], warnings, f"{preset['id']} 把值改出了登记范围：{warnings}")
+
+    def test_apply_is_relative_and_leaves_input_alone(self):
+        preset = next(p for p in self.presets if p["id"] == "relaxed")
+        before = copy.deepcopy(self.balance)
+        once, _ = analysis.apply_preset(preset, self.balance)
+        twice, _ = analysis.apply_preset(preset, once)
+        self.assertEqual(before, self.balance, "apply_preset 不该改动传入的树")
+        # 相对变换：第二次是在第一次结果上再乘一次（这正是「连点两次会叠加」的语义，界面有说明）
+        self.assertNotAlmostEqual(analysis.read_path(once, "difficulty.medium.hp"),
+                                  analysis.read_path(twice, "difficulty.medium.hp"))
+
+    def test_bool_keys_only_take_bool_set(self):
+        preset = next(p for p in self.presets if p["id"] == "calm")
+        plan = analysis.plan_preset(preset, self.balance)
+        entry = next(c for c in plan["changes"] if c["path"] == "fog_events.enabled")
+        self.assertIs(False, entry["to"])
+
+    def test_scale_operations_leave_bools_and_ints_unsupported(self):
+        # scale 落在布尔键上必须被跳过而不是算成数字（否则会写出 0.75 这种非法 bool）
+        plan = analysis.plan_preset({"id": "t", "ops": [{"scale": 0.5, "paths": ["fog_events.enabled"]}]},
+                                    self.balance)
+        self.assertEqual([], plan["changes"])
+        self.assertEqual(1, len(plan["skipped"]))
+
+
 if __name__ == "__main__":
     unittest.main()

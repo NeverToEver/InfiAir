@@ -9,6 +9,11 @@
 
 用法：
     python3 scripts/tools/balance_editor.py [--port 8931] [--no-browser] [--balance PATH] [--readonly]
+                                          [--idle-timeout 30]
+
+生命周期（防「开了不关」，见 Lifecycle）：页面关掉即自动退出；闲置超过 --idle-timeout 分钟
+也自动退出；端口上已有本工具实例时不再起第二个，直接打开那个（多标签页用页面 id 区分，
+关掉其中一个不会误判为全部关闭）。
 
 仅依赖 Python 标准库。改完数值后跑门禁（python3 scripts/ci/gates.py）。
 """
@@ -19,7 +24,13 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import sys
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -29,8 +40,65 @@ ROOT = HERE.parents[1]
 UI_DIR = HERE / "balance_editor_ui"
 DEFAULT_BALANCE = ROOT / "data" / "balance.json"
 
+# 单实例探测用的身份串：端口上跑着的若不是本工具，就不能当成「已有实例」直接复用
+APP_ID = "infiair-balance-editor"
+APP_PROTOCOL = 1
+
+# 页面关闭后的宽限（秒）：刷新、换页、开新标签都会先来一次 bye，等这么久没有新心跳才真退
+PAGE_CLOSE_GRACE = 5.0
+# 页面心跳超时（秒）：超过这么久没心跳就当作该页面已消失（崩溃或被强杀时收不到 bye）
+PAGE_TTL = 40.0
+# 看门狗轮询间隔（秒）：决定「关掉页面」到「进程消失」的延迟上限（宽限 + 间隔 ≈ 7 秒），
+# 取值同时是空闲判定的精度；2 秒一次的时间戳比较对 CPU 完全无感
+WATCHDOG_INTERVAL = 2.0
+
 sys.path.insert(0, str(HERE))
 import balance_analysis as analysis  # noqa: E402  （同目录模块，入口脚本里按需 import）
+
+
+# ------------------------------------------------------------------ 生命周期
+
+
+class Lifecycle:
+    """服务器该不该自己退出：空闲超时 + 页面心跳 + 页面关闭通知。
+
+    为什么要它：这是本机临时起的服务，用户（尤其是只想改两个数的人）关掉标签页之后
+    常常忘了后台还挂着一个进程——端口占着、内存占着，下次再开还报端口被占。
+    判定做成纯函数（should_exit 只看时间戳），可单测、不依赖真实时钟推进。
+    """
+
+    def __init__(self, idle_timeout: float, now: float = 0.0):
+        self.idle_timeout = idle_timeout          # ≤0 表示不按空闲退出
+        self.started_at = now
+        self.last_seen = now                      # 最后一次任何请求
+        self.page_seen = False                    # 是否曾有页面连上（没页面时不必等心跳）
+        self.pages: dict[str, float] = {}         # 页面 id → 最后心跳时刻
+        self.closed_at: float | None = None       # 页面全部关闭的时刻
+
+    def touch(self, now: float) -> None:
+        self.last_seen = now
+
+    def ping(self, page_id: str, now: float) -> None:
+        self.page_seen = True
+        self.pages[page_id] = now
+        self.closed_at = None
+        self.touch(now)
+
+    def bye(self, page_id: str, now: float) -> None:
+        self.pages.pop(page_id, None)
+        if not self.pages:
+            self.closed_at = now
+
+    def should_exit(self, now: float) -> str | None:
+        """返回退出原因（None = 继续跑）。判定只看时间戳，便于测试直接喂时间。"""
+        for page_id, seen in list(self.pages.items()):
+            if now - seen > PAGE_TTL:
+                del self.pages[page_id]                # 崩掉的页面：靠心跳超时清理
+        if not self.pages and self.closed_at is not None and now - self.closed_at > PAGE_CLOSE_GRACE:
+            return "页面已关闭"
+        if self.idle_timeout > 0 and now - self.last_seen > self.idle_timeout:
+            return f"空闲超过 {self.idle_timeout / 60:.0f} 分钟"
+        return None
 
 
 # ------------------------------------------------------------------ 纯逻辑
@@ -148,9 +216,76 @@ class Editor:
         self.balance = balance_path
         self.backup = balance_path.with_suffix(balance_path.suffix + ".bak")
         self.readonly = readonly
+        self._state_cache: tuple[tuple, bytes] | None = None
 
     def read_balance(self) -> dict:
         return json.loads(self.balance.read_text(encoding="utf-8"))
+
+    def _signature(self) -> tuple:
+        stat = self.balance.stat()
+        try:
+            backup = self.backup.stat()
+            backup_key: tuple | None = (backup.st_mtime_ns, backup.st_size)
+        except OSError:
+            backup_key = None
+        return (stat.st_mtime_ns, stat.st_size, backup_key, self.readonly)
+
+    def state_json(self) -> bytes:
+        """带缓存的 /api/state 响应体。
+
+        这份响应里有键说明展开出来的 580 余条记录（每条约百字节），而浏览器每次刷新、
+        每次保存后都会要一次——逐次重新解析与序列化纯属浪费。缓存键取「文件与备份的
+        mtime+size + 只读开关」，任何一个变了就重算；文件被编辑器之外的工具改动同样失效。
+        """
+        signature = self._signature()
+        if self._state_cache is not None and self._state_cache[0] == signature:
+            return self._state_cache[1]
+        payload = json.dumps(self.state(), ensure_ascii=False).encode("utf-8")
+        self._state_cache = (signature, payload)
+        return payload
+
+    def presets(self) -> list[dict]:
+        """预设清单（只发界面要用的字段；ops 留在文件里，应用时由服务端展开成变更清单）。"""
+        out = []
+        for preset in analysis.load_presets():
+            if not isinstance(preset, dict) or "id" not in preset:
+                continue
+            out.append({"id": preset["id"], "name": preset.get("name", preset["id"]),
+                        "desc": preset.get("desc", ""), "tags": preset.get("tags", [])})
+        return out
+
+    def preset_plan(self, preset_id: str, balance: object) -> tuple[int, dict]:
+        """把预设按**当前编辑值**展开成变更清单（真正落值在前端，可一步撤销）。"""
+        if not isinstance(balance, dict):
+            return 400, {"ok": False, "message": "请求体里没有数值表"}
+        preset = next((p for p in analysis.load_presets() if isinstance(p, dict) and p.get("id") == preset_id), None)
+        if preset is None:
+            return 404, {"ok": False, "message": f"没有这个预设：{preset_id}"}
+        plan = analysis.plan_preset(preset, balance)
+        return 200, {"ok": True, "changes": plan["changes"], "skipped": plan["skipped"],
+                     "name": preset.get("name", preset_id)}
+
+    def origin_balance(self) -> tuple[int, dict]:
+        """已提交版本（git HEAD 里的那份）：给「调乱了想回官方」一个不依赖备份链的落点。
+
+        备份只有上一版，预设又是相对变换（点两次会叠加），所以「回到已知良好状态」
+        需要一份稳定基准——仓库里已提交的那份正是这个语义。
+        """
+        try:
+            rel = self.balance.resolve().relative_to(ROOT).as_posix()
+        except ValueError:
+            return 404, {"ok": False, "message": "该文件不在仓库内，取不到已提交版本"}
+        try:
+            proc = subprocess.run(["git", "show", f"HEAD:{rel}"], cwd=str(ROOT),
+                                  capture_output=True, timeout=15)
+        except (OSError, subprocess.SubprocessError) as e:
+            return 404, {"ok": False, "message": f"调用 git 失败：{e}"}
+        if proc.returncode != 0:
+            return 404, {"ok": False, "message": "取不到已提交版本（不在 git 仓库，或该文件尚未提交）"}
+        try:
+            return 200, {"ok": True, "balance": json.loads(proc.stdout.decode("utf-8"))}
+        except ValueError as e:
+            return 404, {"ok": False, "message": f"已提交版本不是合法 JSON：{e}"}
 
     def state(self) -> dict:
         meta = analysis.load_meta()
@@ -227,9 +362,13 @@ class Editor:
         return 200, {"ok": True, "changes": changes, "message": f"已回滚 {len(changes)} 处（回滚前现场存为 .pre-revert）"}
 
 
-def make_handler(editor: Editor) -> type[BaseHTTPRequestHandler]:
+def make_handler(editor: Editor, life: Lifecycle) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
+        # 连接复用：页面一次加载要连发 4~5 个请求，再叠加 10 秒一次的心跳
+        protocol_version = "HTTP/1.1"
         server_version = "InfiAirBalanceEditor"
+        # 请求体上限：数值表只有几十 KB，给足余量即可拦住畸形/恶意的大包把内存吃掉
+        MAX_BODY = 32 * 1024 * 1024
 
         def log_message(self, fmt, *args):  # 静音请求日志（本机单用户工具，日志只会刷屏）
             pass
@@ -251,7 +390,15 @@ def make_handler(editor: Editor) -> type[BaseHTTPRequestHandler]:
 
         def _read_body(self) -> object:
             length = int(self.headers.get("Content-Length") or 0)
+            if length > self.MAX_BODY:
+                raise ValueError(f"请求体过大（{length} 字节）")
             return json.loads(self.rfile.read(length) or b"null")
+
+        @staticmethod
+        def _page_id(query: str) -> str:
+            """页面标识：心跳与关闭通知都带上它，多标签页才不会被「关掉一个」误判为全部关闭。"""
+            params = urllib.parse.parse_qs(query)
+            return (params.get("page") or ["default"])[0][:64]
 
         # ---- 静态资源：限定在 UI_DIR 内，杜绝 ../ 穿越读到仓库其它文件
         def _serve_asset(self, name: str) -> None:
@@ -264,21 +411,39 @@ def make_handler(editor: Editor) -> type[BaseHTTPRequestHandler]:
             self._send(200, target.read_bytes(), ctype)
 
         def do_GET(self) -> None:
-            path = self.path.split("?", 1)[0]
+            path, _, query = self.path.partition("?")
+            life.touch(time.monotonic())
             if path in ("/", "/index.html"):
                 self._serve_asset("index.html")
             elif path.startswith("/ui/"):
                 self._serve_asset(path[len("/ui/"):])
+            elif path == "/api/ping":
+                # 页面心跳：既是「还活着」的信号，也是单实例探测的身份应答
+                life.ping(self._page_id(query), time.monotonic())
+                self._send_json(200, {"app": APP_ID, "protocol": APP_PROTOCOL,
+                                      "balance": str(editor.balance), "readonly": editor.readonly,
+                                      "idle_timeout": life.idle_timeout})
             elif path == "/api/state":
                 try:
-                    self._send_json(200, editor.state())
+                    self._send(200, editor.state_json(), "application/json; charset=utf-8")
                 except (ValueError, OSError) as e:
                     self._send_json(500, {"ok": False, "message": f"读取 balance.json 失败：{e}"})
+            elif path == "/api/presets":
+                self._send_json(200, {"presets": editor.presets()})
+            elif path == "/api/origin":
+                code, body = editor.origin_balance()
+                self._send_json(code, body)
             else:
                 self._send_text(404, "not found")
 
         def do_POST(self) -> None:
-            path = self.path.split("?", 1)[0]
+            path, _, query = self.path.partition("?")
+            life.touch(time.monotonic())
+            if path == "/api/bye":
+                # 页面关闭通知（navigator.sendBeacon 发来，可能没有请求体）
+                life.bye(self._page_id(query), time.monotonic())
+                self._send_json(200, {"ok": True})
+                return
             try:
                 payload = self._read_body()
             except (ValueError, KeyError) as e:
@@ -296,10 +461,55 @@ def make_handler(editor: Editor) -> type[BaseHTTPRequestHandler]:
             elif path == "/api/revert":
                 code, body = editor.revert()
                 self._send_json(code, body)
+            elif path == "/api/preset":
+                data = payload if isinstance(payload, dict) else {}
+                code, body = editor.preset_plan(str(data.get("id", "")), data.get("balance"))
+                self._send_json(code, body)
+            elif path == "/api/validate":
+                # 精细编辑（原始 JSON）在应用前先过一遍与保存同一套结构校验：否则错误要等到
+                # 「保存」才暴露，中间那段时间界面上显示的是坏数据，而且已经覆盖了编辑区的现场
+                try:
+                    current = editor.read_balance()
+                except (ValueError, OSError) as e:
+                    self._send_json(400, {"ok": False, "message": f"读取现文件失败：{e}"})
+                    return
+                errors = check_shape(payload, current)
+                self._send_json(200, {"ok": not errors, "errors": errors[:20]})
             else:
                 self._send_text(404, "not found")
 
     return Handler
+
+
+def probe_existing(port: int) -> str | None:
+    """端口上是否已有本工具实例：有则返回它正在编辑的文件路径，否则 None。
+
+    判定靠 /api/ping 的身份串而不是「端口能不能绑上」——端口被别的程序占着时，
+    我们既不能当成本工具复用，也不该直接甩一句 Address already in use 了事。
+    """
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1.5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return None
+    if not isinstance(payload, dict) or payload.get("app") != APP_ID:
+        return None
+    return str(payload.get("balance") or "")
+
+
+def watchdog(server: ThreadingHTTPServer, life: Lifecycle) -> None:
+    """后台看门狗：每 WATCHDOG_INTERVAL 秒问一次「该退了吗」。
+
+    shutdown 必须从 serve_forever 之外的线程调用（它在等主循环退出），这也是要单开线程的原因。
+    """
+    while True:
+        time.sleep(WATCHDOG_INTERVAL)
+        reason = life.should_exit(time.monotonic())
+        if reason:
+            print(f"\n[balance-editor] {reason}，自动退出。"
+                  f"需要时重开：python3 scripts/tools/balance_editor.py")
+            server.shutdown()
+            return
 
 
 def main() -> None:
@@ -309,6 +519,8 @@ def main() -> None:
     ap.add_argument("--balance", default=str(DEFAULT_BALANCE),
                     help="要编辑的 balance.json 路径（默认 data/balance.json；测试/试用可指向副本）")
     ap.add_argument("--readonly", action="store_true", help="只读：可查看与看分析，禁止保存/回滚")
+    ap.add_argument("--idle-timeout", type=float, default=30.0, metavar="分钟",
+                    help="闲置超过这么多分钟就自动退出（0 = 不按空闲退出；页面关闭时仍会退出）")
     args = ap.parse_args()
 
     balance_path = Path(args.balance).resolve()
@@ -319,18 +531,33 @@ def main() -> None:
         print(f"[balance-editor] 界面资源缺失：{UI_DIR}", file=sys.stderr)
         sys.exit(2)
 
-    editor = Editor(balance_path, readonly=args.readonly)
-    try:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(editor))
-    except OSError as e:
-        # 本机常有两个实例并存（旧的没关就再开一个）：裸 traceback 只说明「地址被占用」，
-        # 却不说下一步该做什么——而这里正有一个现成答案（换个端口）
-        print(f"[balance-editor] 端口 {args.port} 起不来（多半已有实例在跑）：{e}\n"
-              f"  换个端口：--port {args.port + 1}；或先关掉已开的那个窗口", file=sys.stderr)
-        sys.exit(2)
     url = f"http://127.0.0.1:{args.port}/"
+    idle_seconds = max(args.idle_timeout, 0.0) * 60.0
+
+    # 先问一句端口上是不是已经有本工具在跑：同一端口开两个只会互相打架，
+    # 而「开完忘了关」正是要防的事——直接复用那个实例并退出，比报错让人自己收拾更省事
+    existing = probe_existing(args.port)
+    if existing is not None:
+        print(f"[balance-editor] 已有实例在跑（正在编辑 {existing or '未知文件'}），直接打开它：{url}")
+        if not args.no_browser:
+            webbrowser.open(url)
+        return
+
+    editor = Editor(balance_path, readonly=args.readonly)
+    life = Lifecycle(idle_seconds, time.monotonic())
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(editor, life))
+    except OSError as e:
+        # 走到这里说明端口被别的程序占着（本工具的实例已被上面的探测拦下）：裸 traceback 只说明
+        # 「地址被占用」，却不说下一步——而这里正有一个现成答案（换个端口）
+        print(f"[balance-editor] 端口 {args.port} 起不来（被其它程序占用？）：{e}\n"
+              f"  换个端口：--port {args.port + 1}", file=sys.stderr)
+        sys.exit(2)
+    threading.Thread(target=watchdog, args=(server, life), daemon=True).start()
+
     print(f"[balance-editor] {url}  ->  {balance_path}{'  [只读]' if args.readonly else ''}")
-    print("[balance-editor] Ctrl+C 退出")
+    idle_hint = f"闲置超过 {args.idle_timeout:g} 分钟自动退出；" if idle_seconds > 0 else ""
+    print(f"[balance-editor] 关掉页面即自动退出；{idle_hint}Ctrl+C 立即退出")
     if not args.no_browser:
         webbrowser.open(url)
     try:

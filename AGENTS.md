@@ -75,7 +75,7 @@ Godot 节点只做适配（取节点、设属性、连信号）：**决策下沉
 | --- | --- |
 | `build` | `dotnet build` 零警告（`TreatWarningsAsErrors`） |
 | `unit_tests` | `csharp/tests` 全绿，且不能空跑（TRX 用例数 > 0） |
-| `tool_tests` | `scripts/tests` 全绿，且不能空跑（用例数 > 0）：数值管理器的形状校验 / 行尾与数值形态、元数据与数值表的对账、分析公式的 C# 算例镜像 |
+| `tool_tests` | `scripts/tests` 全绿，且不能空跑（用例数 > 0）：数值管理器的形状校验 / 行尾与数值形态、元数据与数值表的对账、分析公式的 C# 算例镜像、预设的路径与结果域、服务器生命周期判定 |
 | `import` | 资源导入无错误 |
 | `smoke` | 无头固定步长跑生产 `main.tscn`，开机直达标题屏（完成标记 `[boot] 标题屏就绪`） |
 
